@@ -1,0 +1,159 @@
+datasource db {
+  provider = "sqlserver"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        Int      @id @default(autoincrement()) @map("user_id")
+  username  String   @unique @db.NVarChar(100)
+  password  String   @db.NVarChar(255)
+  roleId    Int      @map("role_id")
+  role      Role     @relation(fields: [roleId], references: [id])
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Role {
+  id          Int              @id @default(autoincrement()) @map("role_id")
+  name        String           @unique @map("role_name") @db.NVarChar(100)
+  active      Boolean          @default(true)
+  users       User[]
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@map("roles")
+}
+
+model Application {
+  id          Int          @id @default(autoincrement()) @map("application_id")
+  name        String       @map("application_name") @db.NVarChar(100)
+  programName String       @map("program_name") @db.NVarChar(100)
+  active      Boolean      @default(true)
+  permissions Permission[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@map("applications")
+}
+
+model Permission {
+  id            Int              @id @default(autoincrement()) @map("perm_id")
+  applicationId Int              @map("application_id")
+  application   Application      @relation(fields: [applicationId], references: [id])
+  action        String           @db.NVarChar(50)
+  active        Boolean          @default(true)
+  roles         RolePermission[]
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Int        @map("role_id")
+  permissionId Int        @map("perm_id")
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Product {
+  id        Int         @id @default(autoincrement())
+  code      String      @unique @db.NVarChar(50)
+  name      String      @db.NVarChar(255)
+  category  String      @db.NVarChar(100)
+  uom       String      @db.NVarChar(20)
+  demands   Demand[]
+  inventory Inventory[]
+}
+
+model Demand {
+  id         Int      @id @default(autoincrement())
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Decimal  @db.Decimal(10, 2)
+  targetDate DateTime @db.Date
+  status     String   @default("DRAFT") @db.NVarChar(50)
+  mps        Mps[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([targetDate, status])
+}
+
+model Mps {
+  id         Int               @id @default(autoincrement())
+  demandId   Int
+  demand     Demand            @relation(fields: [demandId], references: [id])
+  planDate   DateTime          @db.Date
+  plannedQty Decimal           @db.Decimal(10, 2)
+  status     String            @default("DRAFT") @db.NVarChar(50)
+  orders     ProductionOrder[]
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([planDate, status])
+}
+
+model ProductionOrder {
+  id             Int             @id @default(autoincrement())
+  mpsId          Int
+  mps            Mps             @relation(fields: [mpsId], references: [id])
+  batchNo        String          @unique @db.NVarChar(100)
+  requiredWeight Decimal         @db.Decimal(10, 2)
+  status         String          @default("PENDING") @db.NVarChar(50)
+  yieldRecords   YieldRecord[]
+  stockMovements StockMovement[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([status])
+}
+
+model YieldRecord {
+  id           Int             @id @default(autoincrement())
+  orderId      Int
+  order        ProductionOrder @relation(fields: [orderId], references: [id])
+  inputWeight  Decimal         @db.Decimal(10, 2)
+  outputWeight Decimal         @db.Decimal(10, 2)
+  yieldPercent Decimal         @db.Decimal(5, 2)
+  recordedAt   DateTime        @default(now())
+
+  @@index([orderId, recordedAt])
+}
+
+model Inventory {
+  id          Int      @id @default(autoincrement())
+  productId   Int
+  product     Product  @relation(fields: [productId], references: [id])
+  batchNo     String   @db.NVarChar(100)
+  weight      Decimal  @db.Decimal(10, 2)
+  location    String   @db.NVarChar(100)
+  lastUpdated DateTime @updatedAt
+
+  @@unique([productId, batchNo, location])
+  @@index([batchNo])
+}
+
+model StockMovement {
+  id        Int              @id @default(autoincrement())
+  orderId   Int?
+  order     ProductionOrder? @relation(fields: [orderId], references: [id])
+  productId Int
+  batchNo   String           @db.NVarChar(100)
+  type      String           @db.NVarChar(50)
+  weight    Decimal          @db.Decimal(10, 2)
+  createdAt DateTime         @default(now())
+
+  @@index([productId, batchNo])
+  @@index([createdAt])
+}
