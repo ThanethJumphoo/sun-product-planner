@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  /* Steel Blue Palette */
+  --color-primary-50: #f0f7fb;
+  --color-primary-100: #e0eef7;
+  --color-primary-200: #badcf0;
+  --color-primary-300: #88c2e6;
+  --color-primary-400: #50a3d7;
+  --color-primary-500: #308ac2; /* Main Primary */
+  --color-primary-600: #236c9e; /* Hover state */
+  --color-primary-700: #1d5781;
+  --color-primary-800: #194a6b;
+  --color-primary-900: #173d59;
+  --color-primary-950: #10283c;
+
+  /* Abstracted UI Colors for Dark Mode readiness */
+  --color-primary: var(--color-primary-500);
+  --color-primary-hover: var(--color-primary-600);
+  --color-primary-foreground: #ffffff;
+
+  --color-background: #f9fafb; /* Off White */
+  --color-foreground: #0f172a; /* slate-900 */
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a;
+
+  --color-muted: #f1f5f9; /* slate-100 */
+  --color-muted-foreground: #64748b; /* slate-500 */
+
+  --color-border: #e2e8f0; /* slate-200 */
+
+  /* Rounded Corners */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem; /* 12px default */
+  --radius-xl: 1rem;
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-border, currentColor);
+  }
+}
