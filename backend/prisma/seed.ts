@@ -4,33 +4,48 @@ import * as bcrypt from 'bcrypt';
 async function main() {
   console.log('Starting seed...');
 
-  // 1. Create Application
-  let app = await prisma.application.findFirst({
-    where: { name: 'Sun Product Planner' }
+  // 1. Create Organization
+  let org = await prisma.organization.findFirst({
+    where: { name: 'Default Organization' }
   });
-  if (!app) {
-    app = await prisma.application.create({
+  if (!org) {
+    org = await prisma.organization.create({
       data: {
-        name: 'Sun Product Planner',
-        programName: 'SPP',
-        active: true,
+        name: 'Default Organization',
       },
     });
   }
-  console.log(`Application: ${app.name}`);
+  console.log(`Organization: ${org.name}`);
 
-  // 2. Create Permissions
-  const permissionsData = [
-    { action: 'read', applicationId: app.id, active: true },
-    { action: 'write', applicationId: app.id, active: true },
-    { action: 'delete', applicationId: app.id, active: true },
-    { action: 'manage_users', applicationId: app.id, active: true },
+  // 2. Create Plant
+  let plant = await prisma.plant.findFirst({
+    where: { plantCode: 'PLANT_A' }
+  });
+  if (!plant) {
+    plant = await prisma.plant.create({
+      data: {
+        orgId: org.id,
+        plantCode: 'PLANT_A',
+        plantName: 'Plant A',
+      },
+    });
+  }
+  console.log(`Plant: ${plant.plantName}`);
+
+  // 3. Create Permissions
+  const permissionCodes = [
+    { permissionCode: 'USER.VIEW', permissionName: 'View Users', moduleName: 'USER', description: 'View user list and details' },
+    { permissionCode: 'USER.CREATE', permissionName: 'Create User', moduleName: 'USER', description: 'Create new users' },
+    { permissionCode: 'USER.EDIT', permissionName: 'Edit User', moduleName: 'USER', description: 'Edit existing users' },
+    { permissionCode: 'ROLE.VIEW', permissionName: 'View Roles', moduleName: 'ROLE', description: 'View role list and details' },
+    { permissionCode: 'ROLE.CREATE', permissionName: 'Create Role', moduleName: 'ROLE', description: 'Create new roles' },
+    { permissionCode: 'ROLE.EDIT', permissionName: 'Edit Role', moduleName: 'ROLE', description: 'Edit existing roles' },
   ];
 
   const createdPermissions: any[] = [];
-  for (const p of permissionsData) {
+  for (const p of permissionCodes) {
     let perm = await prisma.permission.findFirst({
-      where: { action: p.action, applicationId: p.applicationId }
+      where: { permissionCode: p.permissionCode }
     });
     if (!perm) {
       perm = await prisma.permission.create({ data: p });
@@ -39,15 +54,17 @@ async function main() {
   }
   console.log(`Permissions OK (Total: ${createdPermissions.length})`);
 
-  // 3. Create Admin Role
-  let role = await prisma.role.findUnique({
-    where: { name: 'Administrator' }
+  // 4. Create Roles
+  let superAdminRole = await prisma.role.findFirst({
+    where: { roleCode: 'SUPER_ADMIN' }
   });
-  if (!role) {
-    role = await prisma.role.create({
+  if (!superAdminRole) {
+    superAdminRole = await prisma.role.create({
       data: {
-        name: 'Administrator',
-        active: true,
+        roleCode: 'SUPER_ADMIN',
+        roleName: 'System Administrator',
+        description: 'Super Administrator with full access',
+        isSystemRole: true,
         permissions: {
           create: createdPermissions.map(p => ({
             permissionId: p.id
@@ -56,9 +73,24 @@ async function main() {
       },
     });
   }
-  console.log(`Role: ${role.name}`);
+  console.log(`Role: ${superAdminRole.roleName}`);
 
-  // 4. Create Admin User
+  let adminRole = await prisma.role.findFirst({
+    where: { roleCode: 'ADMIN' }
+  });
+  if (!adminRole) {
+    adminRole = await prisma.role.create({
+      data: {
+        roleCode: 'ADMIN',
+        roleName: 'Administrator',
+        description: 'Administrator',
+        isSystemRole: false,
+      },
+    });
+  }
+  console.log(`Role: ${adminRole.roleName}`);
+
+  // 5. Create Admin User
   let user = await prisma.user.findUnique({
     where: { username: 'admin' }
   });
@@ -66,10 +98,26 @@ async function main() {
     const hashedPassword = await bcrypt.hash('admin123', 12);
     user = await prisma.user.create({
       data: {
+        userCode: 'USR-0001',
         username: 'admin',
         password: hashedPassword,
-        roleId: role.id,
-        active: true,
+        status: 'ACTIVE',
+        authProvider: 'LOCAL',
+        userRoles: {
+          create: [
+            {
+              roleId: superAdminRole.id,
+              scopes: {
+                create: [
+                  {
+                    scopeType: 'PLANT',
+                    scopeValue: 'PLANT_A'
+                  }
+                ]
+              }
+            }
+          ]
+        }
       },
     });
     console.log(`Created User: ${user.username} (Password: admin123)`);
@@ -86,6 +134,5 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    // We shouldn't disconnect the shared pool if it's used elsewhere, but in a script it's fine
     await prisma.$disconnect();
   });

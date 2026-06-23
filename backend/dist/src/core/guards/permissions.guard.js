@@ -32,28 +32,37 @@ let PermissionsGuard = class PermissionsGuard {
         }
         const request = context.switchToHttp().getRequest();
         const user = request.user;
-        if (!user || !user.roleId) {
-            throw new common_1.ForbiddenException('User role not found');
+        if (!user || !user.id) {
+            throw new common_1.ForbiddenException('User not authenticated');
         }
-        const roleWithPermissions = await prisma_1.default.role.findUnique({
-            where: { id: user.roleId },
+        const userData = await prisma_1.default.user.findUnique({
+            where: { id: user.id },
             include: {
-                permissions: {
+                userRoles: {
                     include: {
-                        permission: {
+                        role: {
                             include: {
-                                application: true
+                                permissions: {
+                                    include: {
+                                        permission: true
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         });
-        if (!roleWithPermissions || !roleWithPermissions.active) {
-            throw new common_1.ForbiddenException('Role is inactive or does not exist');
+        if (!userData || userData.status !== 'ACTIVE') {
+            throw new common_1.ForbiddenException('User is inactive or does not exist');
         }
-        const userPermissions = roleWithPermissions.permissions.map((rp) => `${rp.permission.application.name}:${rp.permission.action}`);
-        const hasPermission = requiredPermissions.every((perm) => userPermissions.includes(perm));
+        const userPermissions = new Set();
+        userData.userRoles.forEach(ur => {
+            ur.role.permissions.forEach(rp => {
+                userPermissions.add(rp.permission.permissionCode);
+            });
+        });
+        const hasPermission = requiredPermissions.every((perm) => userPermissions.has(perm));
         if (!hasPermission) {
             throw new common_1.ForbiddenException('Insufficient permissions');
         }

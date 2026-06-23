@@ -1,42 +1,82 @@
 @import "tailwindcss";
 
+/* 
+  Base Light/Dark variables. 
+  These CSS variables will automatically map to Tailwind v4 theme colors.
+*/
+:root {
+  --background: #F7F8FA;
+  --surface: #FFFFFF;
+  --foreground: #0f172a;
+  --text-muted: #64748b;
+  --border: #E5E7EB;
+  
+  --primary: #2F5D7E;
+  --primary-foreground: #FFFFFF;
+  --secondary: #5F7384;
+  --secondary-foreground: #FFFFFF;
+  
+  --success: #16A34A;
+  --warning: #D97706;
+  --danger: #DC2626;
+
+  --radius-sm: 0.125rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f172a;
+    --surface: #1e293b;
+    --foreground: #f8fafc;
+    --text-muted: #94a3b8;
+    --border: #334155;
+    
+    /* We can slightly adjust these for dark mode contrast if needed */
+    --primary: #3b749d; 
+    --primary-foreground: #FFFFFF;
+    --secondary: #748c9f;
+    --secondary-foreground: #FFFFFF;
+    
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+  }
+}
+
 @theme {
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  /* Steel Blue Palette */
-  --color-primary-50: #f0f7fb;
-  --color-primary-100: #e0eef7;
-  --color-primary-200: #badcf0;
-  --color-primary-300: #88c2e6;
-  --color-primary-400: #50a3d7;
-  --color-primary-500: #308ac2; /* Main Primary */
-  --color-primary-600: #236c9e; /* Hover state */
-  --color-primary-700: #1d5781;
-  --color-primary-800: #194a6b;
-  --color-primary-900: #173d59;
-  --color-primary-950: #10283c;
+  /* Map CSS Variables to Tailwind colors */
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-text-muted: var(--text-muted);
+  --color-border: var(--border);
+  
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
 
-  /* Abstracted UI Colors for Dark Mode readiness */
-  --color-primary: var(--color-primary-500);
-  --color-primary-hover: var(--color-primary-600);
-  --color-primary-foreground: #ffffff;
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
 
-  --color-background: #f9fafb; /* Off White */
-  --color-foreground: #0f172a; /* slate-900 */
-  --color-card: #ffffff;
-  --color-card-foreground: #0f172a;
-
-  --color-muted: #f1f5f9; /* slate-100 */
-  --color-muted-foreground: #64748b; /* slate-500 */
-
-  --color-border: #e2e8f0; /* slate-200 */
-
-  /* Rounded Corners */
-  --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem; /* 12px default */
-  --radius-xl: 1rem;
+  /* Typography mapping to 12px, 14px, 16px, 24px */
+  --text-table: 0.75rem;
+  --text-table--line-height: 1rem;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.25rem;
+  --text-section: 1rem;
+  --text-section--line-height: 1.5rem;
+  --text-page: 1.5rem;
+  --text-page--line-height: 2rem;
 }
 
 @layer base {
@@ -46,5 +86,11 @@
   ::backdrop,
   ::file-selector-button {
     border-color: var(--color-border, currentColor);
+  }
+  
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
   }
 }

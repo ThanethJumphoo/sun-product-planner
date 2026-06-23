@@ -10,7 +10,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @RequirePermissions('User Management:View')
+  @RequirePermissions('USER.VIEW')
   findAll(@Query() query: { search?: string; page?: string; limit?: string; sortBy?: string; sortOrder?: string }) {
     return this.usersService.findAll({
       search: query.search,
@@ -22,37 +22,38 @@ export class UsersController {
   }
 
   @Get(':id')
-  @RequirePermissions('User Management:View')
+  @RequirePermissions('USER.VIEW')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.findOne(id);
   }
 
   @Post()
-  @RequirePermissions('User Management:Create')
-  create(@Body() body: { username: string; password: string; roleId: number; active?: boolean }) {
+  @RequirePermissions('USER.CREATE')
+  create(@Body() body: { userCode: string; username: string; password: string; status?: string; authProvider?: string }) {
     return this.usersService.create(body);
   }
 
   @Patch(':id')
-  @RequirePermissions('User Management:Edit')
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: { username?: string; roleId?: number; active?: boolean }) {
+  @RequirePermissions('USER.EDIT')
+  update(@Param('id', ParseIntPipe) id: number, @Body() body: { username?: string; status?: string }) {
     return this.usersService.update(id, body);
   }
 
   @Post(':id/reset-password')
-  @RequirePermissions('User Management:Edit')
+  @RequirePermissions('USER.EDIT')
   resetPassword(@Param('id', ParseIntPipe) id: number, @Body() body: { newPassword: string }) {
     return this.usersService.resetPassword(id, body.newPassword);
   }
 
   @Post('change-password')
   changePassword(@Req() req: any, @Body() body: { currentPassword: string; newPassword: string }) {
-    return this.usersService.changePassword(req.user.userId, body.currentPassword, body.newPassword);
+    return this.usersService.changePassword(req.user.id, body.currentPassword, body.newPassword);
   }
 
   @Patch(':id/disable')
-  @RequirePermissions('User Management:Delete')
+  @RequirePermissions('USER.EDIT')
   disable(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.disable(id);
   }
 }
+

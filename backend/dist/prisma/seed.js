@@ -40,29 +40,42 @@ const prisma_1 = __importDefault(require("../src/lib/prisma"));
 const bcrypt = __importStar(require("bcrypt"));
 async function main() {
     console.log('Starting seed...');
-    let app = await prisma_1.default.application.findFirst({
-        where: { name: 'Sun Product Planner' }
+    let org = await prisma_1.default.organization.findFirst({
+        where: { name: 'Default Organization' }
     });
-    if (!app) {
-        app = await prisma_1.default.application.create({
+    if (!org) {
+        org = await prisma_1.default.organization.create({
             data: {
-                name: 'Sun Product Planner',
-                programName: 'SPP',
-                active: true,
+                name: 'Default Organization',
             },
         });
     }
-    console.log(`Application: ${app.name}`);
-    const permissionsData = [
-        { action: 'read', applicationId: app.id, active: true },
-        { action: 'write', applicationId: app.id, active: true },
-        { action: 'delete', applicationId: app.id, active: true },
-        { action: 'manage_users', applicationId: app.id, active: true },
+    console.log(`Organization: ${org.name}`);
+    let plant = await prisma_1.default.plant.findFirst({
+        where: { plantCode: 'PLANT_A' }
+    });
+    if (!plant) {
+        plant = await prisma_1.default.plant.create({
+            data: {
+                orgId: org.id,
+                plantCode: 'PLANT_A',
+                plantName: 'Plant A',
+            },
+        });
+    }
+    console.log(`Plant: ${plant.plantName}`);
+    const permissionCodes = [
+        { permissionCode: 'USER.VIEW', permissionName: 'View Users', moduleName: 'USER', description: 'View user list and details' },
+        { permissionCode: 'USER.CREATE', permissionName: 'Create User', moduleName: 'USER', description: 'Create new users' },
+        { permissionCode: 'USER.EDIT', permissionName: 'Edit User', moduleName: 'USER', description: 'Edit existing users' },
+        { permissionCode: 'ROLE.VIEW', permissionName: 'View Roles', moduleName: 'ROLE', description: 'View role list and details' },
+        { permissionCode: 'ROLE.CREATE', permissionName: 'Create Role', moduleName: 'ROLE', description: 'Create new roles' },
+        { permissionCode: 'ROLE.EDIT', permissionName: 'Edit Role', moduleName: 'ROLE', description: 'Edit existing roles' },
     ];
     const createdPermissions = [];
-    for (const p of permissionsData) {
+    for (const p of permissionCodes) {
         let perm = await prisma_1.default.permission.findFirst({
-            where: { action: p.action, applicationId: p.applicationId }
+            where: { permissionCode: p.permissionCode }
         });
         if (!perm) {
             perm = await prisma_1.default.permission.create({ data: p });
@@ -70,14 +83,16 @@ async function main() {
         createdPermissions.push(perm);
     }
     console.log(`Permissions OK (Total: ${createdPermissions.length})`);
-    let role = await prisma_1.default.role.findUnique({
-        where: { name: 'Administrator' }
+    let superAdminRole = await prisma_1.default.role.findFirst({
+        where: { roleCode: 'SUPER_ADMIN' }
     });
-    if (!role) {
-        role = await prisma_1.default.role.create({
+    if (!superAdminRole) {
+        superAdminRole = await prisma_1.default.role.create({
             data: {
-                name: 'Administrator',
-                active: true,
+                roleCode: 'SUPER_ADMIN',
+                roleName: 'System Administrator',
+                description: 'Super Administrator with full access',
+                isSystemRole: true,
                 permissions: {
                     create: createdPermissions.map(p => ({
                         permissionId: p.id
@@ -86,7 +101,21 @@ async function main() {
             },
         });
     }
-    console.log(`Role: ${role.name}`);
+    console.log(`Role: ${superAdminRole.roleName}`);
+    let adminRole = await prisma_1.default.role.findFirst({
+        where: { roleCode: 'ADMIN' }
+    });
+    if (!adminRole) {
+        adminRole = await prisma_1.default.role.create({
+            data: {
+                roleCode: 'ADMIN',
+                roleName: 'Administrator',
+                description: 'Administrator',
+                isSystemRole: false,
+            },
+        });
+    }
+    console.log(`Role: ${adminRole.roleName}`);
     let user = await prisma_1.default.user.findUnique({
         where: { username: 'admin' }
     });
@@ -94,10 +123,26 @@ async function main() {
         const hashedPassword = await bcrypt.hash('admin123', 12);
         user = await prisma_1.default.user.create({
             data: {
+                userCode: 'USR-0001',
                 username: 'admin',
                 password: hashedPassword,
-                roleId: role.id,
-                active: true,
+                status: 'ACTIVE',
+                authProvider: 'LOCAL',
+                userRoles: {
+                    create: [
+                        {
+                            roleId: superAdminRole.id,
+                            scopes: {
+                                create: [
+                                    {
+                                        scopeType: 'PLANT',
+                                        scopeValue: 'PLANT_A'
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
             },
         });
         console.log(`Created User: ${user.username} (Password: admin123)`);

@@ -45,7 +45,7 @@ let UsersController = class UsersController {
         return this.usersService.resetPassword(id, body.newPassword);
     }
     changePassword(req, body) {
-        return this.usersService.changePassword(req.user.userId, body.currentPassword, body.newPassword);
+        return this.usersService.changePassword(req.user.id, body.currentPassword, body.newPassword);
     }
     disable(id) {
         return this.usersService.disable(id);
@@ -54,7 +54,7 @@ let UsersController = class UsersController {
 exports.UsersController = UsersController;
 __decorate([
     (0, common_1.Get)(),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:View'),
+    (0, require_permissions_decorator_1.RequirePermissions)('USER.VIEW'),
     __param(0, (0, common_1.Query)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -62,7 +62,7 @@ __decorate([
 ], UsersController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:View'),
+    (0, require_permissions_decorator_1.RequirePermissions)('USER.VIEW'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Number]),
@@ -70,7 +70,7 @@ __decorate([
 ], UsersController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Post)(),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:Create'),
+    (0, require_permissions_decorator_1.RequirePermissions)('USER.CREATE'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -78,7 +78,7 @@ __decorate([
 ], UsersController.prototype, "create", null);
 __decorate([
     (0, common_1.Patch)(':id'),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:Edit'),
+    (0, require_permissions_decorator_1.RequirePermissions)('USER.EDIT'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -87,7 +87,7 @@ __decorate([
 ], UsersController.prototype, "update", null);
 __decorate([
     (0, common_1.Post)(':id/reset-password'),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:Edit'),
+    (0, require_permissions_decorator_1.RequirePermissions)('USER.EDIT'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -104,7 +104,7 @@ __decorate([
 ], UsersController.prototype, "changePassword", null);
 __decorate([
     (0, common_1.Patch)(':id/disable'),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:Delete'),
+    (0, require_permissions_decorator_1.RequirePermissions)('USER.EDIT'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Number]),

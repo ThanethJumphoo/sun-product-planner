@@ -65,7 +65,7 @@ let UsersService = class UsersService {
         const [data, total] = await Promise.all([
             prisma_1.default.user.findMany({
                 where,
-                include: { role: { select: { id: true, name: true } } },
+                include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
                 skip,
                 take: limit,
                 orderBy,
@@ -81,7 +81,7 @@ let UsersService = class UsersService {
     async findOne(id) {
         const user = await prisma_1.default.user.findUnique({
             where: { id },
-            include: { role: { select: { id: true, name: true } } },
+            include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
         });
         if (!user)
             throw new common_1.NotFoundException('User not found');
@@ -95,7 +95,7 @@ let UsersService = class UsersService {
         const hashedPassword = await bcrypt.hash(data.password, 12);
         const user = await prisma_1.default.user.create({
             data: { ...data, password: hashedPassword },
-            include: { role: { select: { id: true, name: true } } },
+            include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
         });
         const { password, ...result } = user;
         return result;
@@ -110,7 +110,7 @@ let UsersService = class UsersService {
         const user = await prisma_1.default.user.update({
             where: { id },
             data,
-            include: { role: { select: { id: true, name: true } } },
+            include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
         });
         const { password, ...result } = user;
         return result;
@@ -134,7 +134,7 @@ let UsersService = class UsersService {
     }
     async disable(id) {
         await this.findOne(id);
-        await prisma_1.default.user.update({ where: { id }, data: { active: false } });
+        await prisma_1.default.user.update({ where: { id }, data: { status: 'INACTIVE' } });
         return { message: 'User disabled successfully' };
     }
 };

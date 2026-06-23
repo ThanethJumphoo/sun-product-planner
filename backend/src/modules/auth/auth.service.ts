@@ -9,7 +9,7 @@ export class AuthService {
 
   async validateUser(username: string, pass: string): Promise<any> {
     const user = await prisma.user.findUnique({ where: { username } });
-    if (user && user.active && (await bcrypt.compare(pass, user.password))) {
+    if (user && user.status === 'ACTIVE' && (await bcrypt.compare(pass, user.password))) {
       const { password, ...result } = user;
       return result;
     }
@@ -17,7 +17,7 @@ export class AuthService {
   }
 
   async login(user: any) {
-    const payload = { username: user.username, sub: user.id, roleId: user.roleId };
+    const payload = { username: user.username, sub: user.id };
     return {
       accessToken: this.jwtService.sign(payload, { expiresIn: '15m' }),
       refreshToken: this.jwtService.sign(payload, { expiresIn: '7d' }), // In prod, consider separate secret/store for refresh tokens
@@ -28,7 +28,7 @@ export class AuthService {
     try {
       const payload = this.jwtService.verify(refreshToken, { secret: process.env.JWT_SECRET || 'super-secret' });
       // Here you would check if the refresh token is revoked in DB/Redis
-      const newPayload = { username: payload.username, sub: payload.sub, roleId: payload.roleId };
+      const newPayload = { username: payload.username, sub: payload.sub };
       return {
         accessToken: this.jwtService.sign(newPayload, { expiresIn: '15m' }),
       };
@@ -37,3 +37,4 @@ export class AuthService {
     }
   }
 }
+

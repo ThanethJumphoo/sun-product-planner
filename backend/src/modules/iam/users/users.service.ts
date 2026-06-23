@@ -24,7 +24,7 @@ export class UsersService {
     const [data, total] = await Promise.all([
       prisma.user.findMany({
         where,
-        include: { role: { select: { id: true, name: true } } },
+        include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
         skip,
         take: limit,
         orderBy,
@@ -44,27 +44,27 @@ export class UsersService {
   async findOne(id: number) {
     const user = await prisma.user.findUnique({
       where: { id },
-      include: { role: { select: { id: true, name: true } } },
+      include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
     });
     if (!user) throw new NotFoundException('User not found');
     const { password, ...result } = user;
     return result;
   }
 
-  async create(data: { username: string; password: string; roleId: number; active?: boolean }) {
+  async create(data: { userCode: string; username: string; password: string; status?: string; authProvider?: string }) {
     const existing = await prisma.user.findUnique({ where: { username: data.username } });
     if (existing) throw new ConflictException('Username already exists');
 
     const hashedPassword = await bcrypt.hash(data.password, 12);
     const user = await prisma.user.create({
       data: { ...data, password: hashedPassword },
-      include: { role: { select: { id: true, name: true } } },
+      include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
     });
     const { password, ...result } = user;
     return result;
   }
 
-  async update(id: number, data: { username?: string; roleId?: number; active?: boolean }) {
+  async update(id: number, data: { username?: string; status?: string }) {
     await this.findOne(id); // Verify exists
     if (data.username) {
       const existing = await prisma.user.findFirst({ where: { username: data.username, NOT: { id } } });
@@ -73,7 +73,7 @@ export class UsersService {
     const user = await prisma.user.update({
       where: { id },
       data,
-      include: { role: { select: { id: true, name: true } } },
+      include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
     });
     const { password, ...result } = user;
     return result;
@@ -100,7 +100,7 @@ export class UsersService {
 
   async disable(id: number) {
     await this.findOne(id);
-    await prisma.user.update({ where: { id }, data: { active: false } });
+    await prisma.user.update({ where: { id }, data: { status: 'INACTIVE' } });
     return { message: 'User disabled successfully' };
   }
 }

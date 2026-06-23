@@ -20,20 +20,23 @@ export class PermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
-    if (!user || !user.roleId) {
-      throw new ForbiddenException('User role not found');
+    if (!user || !user.id) {
+      throw new ForbiddenException('User not authenticated');
     }
 
-    // Fetch user role's permissions
-    // Note: In production, this should ideally hit a Redis cache, but we query DB for simplicity here
-    const roleWithPermissions = await prisma.role.findUnique({
-      where: { id: user.roleId },
+    // Fetch user with roles and permissions
+    const userData = await prisma.user.findUnique({
+      where: { id: user.id },
       include: {
-        permissions: {
+        userRoles: {
           include: {
-            permission: {
+            role: {
               include: {
-                application: true
+                permissions: {
+                  include: {
+                    permission: true
+                  }
+                }
               }
             }
           }
@@ -41,15 +44,18 @@ export class PermissionsGuard implements CanActivate {
       }
     });
 
-    if (!roleWithPermissions || !roleWithPermissions.active) {
-      throw new ForbiddenException('Role is inactive or does not exist');
+    if (!userData || userData.status !== 'ACTIVE') {
+      throw new ForbiddenException('User is inactive or does not exist');
     }
 
-    const userPermissions = roleWithPermissions.permissions.map(
-      (rp) => `${rp.permission.application.name}:${rp.permission.action}`
-    );
+    const userPermissions = new Set<string>();
+    userData.userRoles.forEach(ur => {
+      ur.role.permissions.forEach(rp => {
+        userPermissions.add(rp.permission.permissionCode);
+      });
+    });
 
-    const hasPermission = requiredPermissions.every((perm) => userPermissions.includes(perm));
+    const hasPermission = requiredPermissions.every((perm) => userPermissions.has(perm));
 
     if (!hasPermission) {
       throw new ForbiddenException('Insufficient permissions');

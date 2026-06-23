@@ -6,16 +6,14 @@ export class RolesService {
   async findAll() {
     return prisma.role.findMany({
       include: {
-        _count: { select: { users: true } },
+        _count: { select: { userRoles: true } },
         permissions: {
           include: {
-            permission: {
-              include: { application: true },
-            },
+            permission: true,
           },
         },
       },
-      orderBy: { name: 'asc' },
+      orderBy: { roleName: 'asc' },
     });
   }
 
@@ -23,12 +21,14 @@ export class RolesService {
     const role = await prisma.role.findUnique({
       where: { id },
       include: {
-        users: { select: { id: true, username: true, active: true } },
+        userRoles: { 
+          include: {
+            user: { select: { id: true, username: true, status: true } }
+          }
+        },
         permissions: {
           include: {
-            permission: {
-              include: { application: true },
-            },
+            permission: true,
           },
         },
       },
@@ -37,17 +37,17 @@ export class RolesService {
     return role;
   }
 
-  async create(data: { name: string; active?: boolean }) {
-    const existing = await prisma.role.findUnique({ where: { name: data.name } });
-    if (existing) throw new ConflictException('Role name already exists');
+  async create(data: { roleCode: string; roleName: string; description?: string }) {
+    const existing = await prisma.role.findUnique({ where: { roleCode: data.roleCode } });
+    if (existing) throw new ConflictException('Role code already exists');
     return prisma.role.create({ data });
   }
 
-  async update(id: number, data: { name?: string; active?: boolean }) {
+  async update(id: number, data: { roleCode?: string; roleName?: string; description?: string }) {
     await this.findOne(id);
-    if (data.name) {
-      const existing = await prisma.role.findFirst({ where: { name: data.name, NOT: { id } } });
-      if (existing) throw new ConflictException('Role name already taken');
+    if (data.roleCode) {
+      const existing = await prisma.role.findFirst({ where: { roleCode: data.roleCode, NOT: { id } } });
+      if (existing) throw new ConflictException('Role code already taken');
     }
     return prisma.role.update({ where: { id }, data });
   }

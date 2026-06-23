@@ -5,40 +5,33 @@ import prisma from '../../../lib/prisma';
 export class PermissionsService {
   async findAll() {
     return prisma.permission.findMany({
-      include: { application: true },
-      orderBy: [{ applicationId: 'asc' }, { action: 'asc' }],
+      orderBy: [{ moduleName: 'asc' }, { permissionCode: 'asc' }],
     });
   }
 
-  async findAllApplications() {
-    return prisma.application.findMany({
-      include: {
-        permissions: { orderBy: { action: 'asc' } },
-      },
-      orderBy: { name: 'asc' },
-    });
-  }
-
-  // Returns a "permission matrix" grouped by application
+  // Returns a "permission matrix" grouped by moduleName
   async getPermissionMatrix() {
-    const applications = await prisma.application.findMany({
-      where: { active: true },
-      include: {
-        permissions: {
-          where: { active: true },
-          orderBy: { action: 'asc' },
-        },
-      },
-      orderBy: { name: 'asc' },
+    const permissions = await prisma.permission.findMany({
+      orderBy: [{ moduleName: 'asc' }, { permissionCode: 'asc' }],
     });
 
-    return applications.map((app) => ({
-      applicationId: app.id,
-      applicationName: app.name,
-      permissions: app.permissions.map((p) => ({
+    const modules = new Map<string, any[]>();
+    
+    for (const p of permissions) {
+      if (!modules.has(p.moduleName)) {
+        modules.set(p.moduleName, []);
+      }
+      modules.get(p.moduleName)?.push({
         id: p.id,
-        action: p.action,
-      })),
+        permissionCode: p.permissionCode,
+        permissionName: p.permissionName,
+        description: p.description
+      });
+    }
+
+    return Array.from(modules.entries()).map(([moduleName, perms]) => ({
+      moduleName,
+      permissions: perms,
     }));
   }
 }

@@ -10,32 +10,33 @@ export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
   @Get()
-  @RequirePermissions('User Management:View')
+  @RequirePermissions('ROLE.VIEW')
   findAll() {
     return this.rolesService.findAll();
   }
 
   @Get(':id')
-  @RequirePermissions('User Management:View')
+  @RequirePermissions('ROLE.VIEW')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.rolesService.findOne(id);
   }
 
   @Post()
-  @RequirePermissions('User Management:Create')
-  create(@Body() body: { name: string; active?: boolean }) {
+  @RequirePermissions('ROLE.CREATE')
+  create(@Body() body: { roleCode: string; roleName: string; description?: string }) {
     return this.rolesService.create(body);
   }
 
   @Patch(':id')
-  @RequirePermissions('User Management:Edit')
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: { name?: string; active?: boolean }) {
+  @RequirePermissions('ROLE.EDIT')
+  update(@Param('id', ParseIntPipe) id: number, @Body() body: { roleCode?: string; roleName?: string; description?: string }) {
     return this.rolesService.update(id, body);
   }
 
   @Post(':id/permissions')
-  @RequirePermissions('User Management:Edit')
+  @RequirePermissions('ROLE.EDIT')
   assignPermissions(@Param('id', ParseIntPipe) id: number, @Body() body: { permissionIds: number[] }) {
     return this.rolesService.assignPermissions(id, body.permissionIds);
   }
 }
+

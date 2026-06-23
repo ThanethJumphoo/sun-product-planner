@@ -6,54 +6,137 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model Organization {
+  id     Int     @id @default(autoincrement()) @map("org_id")
+  name   String  @unique @map("org_name") @db.NVarChar(100)
+  plants Plant[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy Int?      @map("created_by")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy Int?      @map("updated_by")
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy Int?      @map("deleted_by")
+
+  @@map("organizations")
+}
+
+model Plant {
+  id        Int          @id @default(autoincrement()) @map("plant_id")
+  orgId     Int          @map("org_id")
+  org       Organization @relation(fields: [orgId], references: [id])
+  plantCode String       @unique @map("plant_code") @db.NVarChar(50)
+  plantName String       @map("plant_name") @db.NVarChar(100)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy Int?      @map("created_by")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy Int?      @map("updated_by")
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy Int?      @map("deleted_by")
+
+  @@map("plants")
+}
+
 model User {
-  id        Int      @id @default(autoincrement()) @map("user_id")
-  username  String   @unique @db.NVarChar(100)
-  password  String   @db.NVarChar(255)
-  roleId    Int      @map("role_id")
-  role      Role     @relation(fields: [roleId], references: [id])
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                Int       @id @default(autoincrement()) @map("user_id")
+  userCode          String    @unique @map("user_code") @db.NVarChar(50)
+  username          String    @unique @db.NVarChar(100)
+  password          String    @db.NVarChar(255)
+  status            String    @default("ACTIVE") @db.NVarChar(50)
+  authProvider      String    @default("LOCAL") @map("auth_provider") @db.NVarChar(50)
+  mfaEnabled        Boolean   @default(false) @map("mfa_enabled")
+  passwordChangedAt DateTime? @map("password_changed_at")
+
+  userRoles       UserRole[]
+  userSessions    UserSession[]
+  userPreferences UserPreference[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy Int?      @map("created_by")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy Int?      @map("updated_by")
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy Int?      @map("deleted_by")
 
   @@map("users")
 }
 
 model Role {
-  id          Int              @id @default(autoincrement()) @map("role_id")
-  name        String           @unique @map("role_name") @db.NVarChar(100)
-  active      Boolean          @default(true)
-  users       User[]
+  id           Int     @id @default(autoincrement()) @map("role_id")
+  roleCode     String  @unique @map("role_code") @db.NVarChar(50)
+  roleName     String  @map("role_name") @db.NVarChar(100)
+  description  String? @db.NVarChar(255)
+  status       String  @default("ACTIVE") @db.NVarChar(50)
+  isSystemRole Boolean @default(false) @map("is_system_role")
+
+  userRoles   UserRole[]
   permissions RolePermission[]
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
+  roleScopes  RoleScope[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy Int?      @map("created_by")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy Int?      @map("updated_by")
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy Int?      @map("deleted_by")
 
   @@map("roles")
 }
 
-model Application {
-  id          Int          @id @default(autoincrement()) @map("application_id")
-  name        String       @map("application_name") @db.NVarChar(100)
-  programName String       @map("program_name") @db.NVarChar(100)
-  active      Boolean      @default(true)
-  permissions Permission[]
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+model RoleScope {
+  id         Int    @id @default(autoincrement()) @map("role_scope_id")
+  roleId     Int    @map("role_id")
+  role       Role   @relation(fields: [roleId], references: [id])
+  scopeType  String @map("scope_type") @db.NVarChar(50)
+  scopeValue String @map("scope_value") @db.NVarChar(100)
 
-  @@map("applications")
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy Int?     @map("created_by")
+
+  @@map("role_scopes")
 }
 
 model Permission {
-  id            Int              @id @default(autoincrement()) @map("perm_id")
-  applicationId Int              @map("application_id")
-  application   Application      @relation(fields: [applicationId], references: [id])
-  action        String           @db.NVarChar(50)
-  active        Boolean          @default(true)
-  roles         RolePermission[]
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
+  id             Int     @id @default(autoincrement()) @map("perm_id")
+  permissionCode String  @unique @map("permission_code") @db.NVarChar(100)
+  permissionName String  @map("permission_name") @db.NVarChar(100)
+  moduleName     String  @map("module_name") @db.NVarChar(100)
+  description    String? @db.NVarChar(255)
+
+  roles RolePermission[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy Int?      @map("created_by")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy Int?      @map("updated_by")
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy Int?      @map("deleted_by")
 
   @@map("permissions")
+}
+
+model UserRole {
+  id     Int  @id @default(autoincrement()) @map("user_role_id")
+  userId Int  @map("user_id")
+  roleId Int  @map("role_id")
+  user   User @relation(fields: [userId], references: [id])
+  role   Role @relation(fields: [roleId], references: [id])
+
+  scopes UserRoleScope[]
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+model UserRoleScope {
+  id         Int      @id @default(autoincrement()) @map("user_role_scope_id")
+  userRoleId Int      @map("user_role_id")
+  userRole   UserRole @relation(fields: [userRoleId], references: [id])
+  scopeType  String   @map("scope_type") @db.NVarChar(50)
+  scopeValue String   @map("scope_value") @db.NVarChar(100)
+
+  @@map("user_role_scopes")
 }
 
 model RolePermission {
@@ -64,6 +147,29 @@ model RolePermission {
 
   @@id([roleId, permissionId])
   @@map("role_permissions")
+}
+
+model UserSession {
+  sessionId  String   @id @map("session_id") @db.NVarChar(100)
+  userId     Int      @map("user_id")
+  user       User     @relation(fields: [userId], references: [id])
+  deviceId   String?  @map("device_id") @db.NVarChar(255)
+  ipAddress  String?  @map("ip_address") @db.NVarChar(50)
+  loginTime  DateTime @default(now()) @map("login_time")
+  lastActive DateTime @default(now()) @map("last_active")
+
+  @@map("user_sessions")
+}
+
+model UserPreference {
+  id              Int    @id @default(autoincrement()) @map("pref_id")
+  userId          Int    @map("user_id")
+  user            User   @relation(fields: [userId], references: [id])
+  preferenceKey   String @map("preference_key") @db.NVarChar(100)
+  preferenceValue String @map("preference_value") @db.NVarChar(Max)
+
+  @@unique([userId, preferenceKey])
+  @@map("user_preferences")
 }
 
 model Product {
@@ -156,4 +262,22 @@ model StockMovement {
 
   @@index([productId, batchNo])
   @@index([createdAt])
+}
+
+model ChickenYield {
+  id           Int     @id @default(autoincrement())
+  partCode     String  @unique @map("part_code") @db.NVarChar(50)
+  partName     String  @map("part_name") @db.NVarChar(100)
+  yieldPercent Decimal @map("yield_percent") @db.Decimal(5, 2)
+  sortOrder    Int     @default(0) @map("sort_order")
+  status       String  @default("ACTIVE") @db.NVarChar(50)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy Int?      @map("created_by")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedBy Int?      @map("updated_by")
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy Int?      @map("deleted_by")
+
+  @@map("chicken_yields")
 }

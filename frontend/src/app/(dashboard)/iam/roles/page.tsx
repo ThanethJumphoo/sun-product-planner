@@ -1,141 +1,63 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
-import api from "@/lib/api";
-import { Button } from "@/components/ui/Button";
-import { Card, CardContent } from "@/components/ui/Card";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { Plus, Edit, Users, X, Shield } from "lucide-react";
+import React from 'react';
+import { RolesTable } from '../../../../features/iam/roles/components/tables/RolesTable';
+import { RoleSearch } from '../../../../features/iam/roles/components/RoleSearch';
+import { RoleFilters } from '../../../../features/iam/roles/components/RoleFilters';
+import { useRolesUrlState } from '../../../../features/iam/roles/hooks/useRolesUrlState';
+import { useRolesUIStore } from '../../../../features/iam/roles/stores/ui.store';
+import { PermissionGate } from '../../../../components/auth/PermissionGate';
+import { Plus } from 'lucide-react';
+import { CreateRoleDrawer } from '../../../../features/iam/roles/drawers/CreateRoleDrawer';
+import { EditRoleDrawer } from '../../../../features/iam/roles/drawers/EditRoleDrawer';
+import { RoleDetailDrawer } from '../../../../features/iam/roles/drawers/RoleDetailDrawer';
 
-interface Role {
-  id: number;
-  name: string;
-  active: boolean;
-  _count?: { users: number };
-  permissions: any[];
-}
-
-// ─── Create / Edit Modal ──────────────────────────────────────────────────────
-function RoleFormModal({ role, onClose }: { role?: Role | null; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const isEdit = !!role;
-  const [form, setForm] = useState({ name: role?.name || "", active: role?.active ?? true });
-  const [error, setError] = useState("");
-
-  const mutation = useMutation({
-    mutationFn: async () => {
-      if (isEdit) return api.patch(`/api/v1/roles/${role.id}`, form);
-      return api.post("/api/v1/roles", form);
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["roles"] }); onClose(); },
-    onError: (err: any) => setError(err.response?.data?.message || err.message),
-  });
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-        transition={{ type: "spring", stiffness: 400, damping: 30 }}
-        className="bg-card rounded-xl border border-border shadow-xl w-full max-w-md p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{isEdit ? "Edit Role" : "Create Role"}</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
-        </div>
-        <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Role Name</label>
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required
-              className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
-          </div>
-          <div className="flex items-center space-x-3">
-            <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })}
-              className="w-4 h-4 rounded border-border text-primary" />
-            <label className="text-sm font-medium">Active</label>
-          </div>
-          {error && <p className="text-sm text-red-500 bg-red-50 p-3 rounded-lg">{error}</p>}
-          <div className="flex justify-end space-x-3 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Saving..." : isEdit ? "Save" : "Create"}</Button>
-          </div>
-        </form>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function RolesPage() {
-  const [modalRole, setModalRole] = useState<Role | null | undefined>(undefined);
-
-  const { data: roles, isLoading } = useQuery<Role[]>({
-    queryKey: ["roles"],
-    queryFn: () => api.get("/api/v1/roles").then((r) => r.data),
-  });
+  const { search, setSearch, setFilters, status } = useRolesUrlState();
+  const { openCreateDrawer } = useRolesUIStore();
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="flex flex-col space-y-6 p-8">
+      {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Role Management</h1>
-          <p className="text-muted-foreground text-sm mt-1">Define roles and assign permissions</p>
+          <h1 className="text-pageTitle font-bold text-foreground">Role Management</h1>
+          <p className="text-body text-muted-foreground mt-1">
+            Manage system roles, permission boundaries, and default data scopes.
+          </p>
         </div>
-        <Button onClick={() => setModalRole(null)}>
-          <Plus className="w-4 h-4 mr-2" /> Add Role
-        </Button>
+        
+        <PermissionGate permission="ROLE.CREATE">
+          <button
+            onClick={openCreateDrawer}
+            className="flex items-center space-x-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary-hover transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create Role</span>
+          </button>
+        </PermissionGate>
       </div>
 
-      {/* Role Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading
-          ? Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i}>
-                <CardContent className="p-6 space-y-4">
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-4 w-full" />
-                </CardContent>
-              </Card>
-            ))
-          : roles?.map((role) => (
-              <Card key={role.id} className="hover:shadow-md transition-shadow cursor-pointer group">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Shield className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">{role.name}</h3>
-                        <span className={`text-xs font-medium ${role.active ? "text-green-600" : "text-red-500"}`}>
-                          {role.active ? "Active" : "Inactive"}
-                        </span>
-                      </div>
-                    </div>
-                    <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setModalRole(role)}>
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                  </div>
-
-                  <div className="mt-4 flex items-center space-x-4 text-sm text-muted-foreground">
-                    <div className="flex items-center space-x-1">
-                      <Users className="w-4 h-4" />
-                      <span>{role._count?.users || 0} users</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Shield className="w-4 h-4" />
-                      <span>{role.permissions?.length || 0} permissions</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+      {/* Toolbar / Filters */}
+      <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:space-x-4 sm:space-y-0">
+        <RoleSearch 
+          onSearch={(val) => setSearch(val || null)} 
+          className="w-full sm:w-96" 
+        />
+        <RoleFilters
+          filters={{ status: status || undefined }}
+          onFilterChange={(newFilters) => setFilters(newFilters)}
+          className="flex-1"
+        />
       </div>
 
-      <AnimatePresence>
-        {modalRole !== undefined && <RoleFormModal role={modalRole} onClose={() => setModalRole(undefined)} />}
-      </AnimatePresence>
+      {/* Data Grid */}
+      <RolesTable />
+
+      {/* Drawers (Mounted at Page Level) */}
+      <CreateRoleDrawer />
+      <EditRoleDrawer />
+      <RoleDetailDrawer />
     </div>
   );
 }

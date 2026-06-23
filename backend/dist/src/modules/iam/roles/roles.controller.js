@@ -42,14 +42,14 @@ let RolesController = class RolesController {
 exports.RolesController = RolesController;
 __decorate([
     (0, common_1.Get)(),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:View'),
+    (0, require_permissions_decorator_1.RequirePermissions)('ROLE.VIEW'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], RolesController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:View'),
+    (0, require_permissions_decorator_1.RequirePermissions)('ROLE.VIEW'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Number]),
@@ -57,7 +57,7 @@ __decorate([
 ], RolesController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Post)(),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:Create'),
+    (0, require_permissions_decorator_1.RequirePermissions)('ROLE.CREATE'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -65,7 +65,7 @@ __decorate([
 ], RolesController.prototype, "create", null);
 __decorate([
     (0, common_1.Patch)(':id'),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:Edit'),
+    (0, require_permissions_decorator_1.RequirePermissions)('ROLE.EDIT'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -74,7 +74,7 @@ __decorate([
 ], RolesController.prototype, "update", null);
 __decorate([
     (0, common_1.Post)(':id/permissions'),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:Edit'),
+    (0, require_permissions_decorator_1.RequirePermissions)('ROLE.EDIT'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),

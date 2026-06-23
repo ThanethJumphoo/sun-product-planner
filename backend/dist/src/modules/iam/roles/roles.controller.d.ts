@@ -3,128 +3,165 @@ export declare class RolesController {
     private readonly rolesService;
     constructor(rolesService: RolesService);
     findAll(): Promise<({
+        _count: {
+            userRoles: number;
+        };
         permissions: ({
             permission: {
-                application: {
-                    id: number;
-                    name: string;
-                    active: boolean;
-                    createdAt: Date;
-                    updatedAt: Date;
-                    programName: string;
-                };
-            } & {
                 id: number;
-                active: boolean;
                 createdAt: Date;
+                createdBy: number | null;
                 updatedAt: Date;
-                applicationId: number;
-                action: string;
+                updatedBy: number | null;
+                deletedAt: Date | null;
+                deletedBy: number | null;
+                permissionCode: string;
+                permissionName: string;
+                moduleName: string;
+                description: string | null;
             };
         } & {
-            roleId: number;
             permissionId: number;
+            roleId: number;
         })[];
-        _count: {
-            users: number;
-        };
     } & {
         id: number;
-        name: string;
-        active: boolean;
         createdAt: Date;
+        createdBy: number | null;
         updatedAt: Date;
+        updatedBy: number | null;
+        deletedAt: Date | null;
+        deletedBy: number | null;
+        description: string | null;
+        roleCode: string;
+        roleName: string;
+        status: string;
+        isSystemRole: boolean;
     })[]>;
     findOne(id: number): Promise<{
-        permissions: ({
-            permission: {
-                application: {
-                    id: number;
-                    name: string;
-                    active: boolean;
-                    createdAt: Date;
-                    updatedAt: Date;
-                    programName: string;
-                };
-            } & {
+        userRoles: ({
+            user: {
                 id: number;
-                active: boolean;
-                createdAt: Date;
-                updatedAt: Date;
-                applicationId: number;
-                action: string;
+                status: string;
+                username: string;
             };
         } & {
-            roleId: number;
-            permissionId: number;
-        })[];
-        users: {
             id: number;
-            active: boolean;
-            username: string;
-        }[];
+            roleId: number;
+            userId: number;
+        })[];
+        permissions: ({
+            permission: {
+                id: number;
+                createdAt: Date;
+                createdBy: number | null;
+                updatedAt: Date;
+                updatedBy: number | null;
+                deletedAt: Date | null;
+                deletedBy: number | null;
+                permissionCode: string;
+                permissionName: string;
+                moduleName: string;
+                description: string | null;
+            };
+        } & {
+            permissionId: number;
+            roleId: number;
+        })[];
     } & {
         id: number;
-        name: string;
-        active: boolean;
         createdAt: Date;
+        createdBy: number | null;
         updatedAt: Date;
+        updatedBy: number | null;
+        deletedAt: Date | null;
+        deletedBy: number | null;
+        description: string | null;
+        roleCode: string;
+        roleName: string;
+        status: string;
+        isSystemRole: boolean;
     }>;
     create(body: {
-        name: string;
-        active?: boolean;
+        roleCode: string;
+        roleName: string;
+        description?: string;
     }): Promise<{
         id: number;
-        name: string;
-        active: boolean;
         createdAt: Date;
+        createdBy: number | null;
         updatedAt: Date;
+        updatedBy: number | null;
+        deletedAt: Date | null;
+        deletedBy: number | null;
+        description: string | null;
+        roleCode: string;
+        roleName: string;
+        status: string;
+        isSystemRole: boolean;
     }>;
     update(id: number, body: {
-        name?: string;
-        active?: boolean;
+        roleCode?: string;
+        roleName?: string;
+        description?: string;
     }): Promise<{
         id: number;
-        name: string;
-        active: boolean;
         createdAt: Date;
+        createdBy: number | null;
         updatedAt: Date;
+        updatedBy: number | null;
+        deletedAt: Date | null;
+        deletedBy: number | null;
+        description: string | null;
+        roleCode: string;
+        roleName: string;
+        status: string;
+        isSystemRole: boolean;
     }>;
     assignPermissions(id: number, body: {
         permissionIds: number[];
     }): Promise<{
-        permissions: ({
-            permission: {
-                application: {
-                    id: number;
-                    name: string;
-                    active: boolean;
-                    createdAt: Date;
-                    updatedAt: Date;
-                    programName: string;
-                };
-            } & {
+        userRoles: ({
+            user: {
                 id: number;
-                active: boolean;
-                createdAt: Date;
-                updatedAt: Date;
-                applicationId: number;
-                action: string;
+                status: string;
+                username: string;
             };
         } & {
-            roleId: number;
-            permissionId: number;
-        })[];
-        users: {
             id: number;
-            active: boolean;
-            username: string;
-        }[];
+            roleId: number;
+            userId: number;
+        })[];
+        permissions: ({
+            permission: {
+                id: number;
+                createdAt: Date;
+                createdBy: number | null;
+                updatedAt: Date;
+                updatedBy: number | null;
+                deletedAt: Date | null;
+                deletedBy: number | null;
+                permissionCode: string;
+                permissionName: string;
+                moduleName: string;
+                description: string | null;
+            };
+        } & {
+            permissionId: number;
+            roleId: number;
+        })[];
     } & {
         id: number;
-        name: string;
-        active: boolean;
         createdAt: Date;
+        createdBy: number | null;
         updatedAt: Date;
+        updatedBy: number | null;
+        deletedAt: Date | null;
+        deletedBy: number | null;
+        description: string | null;
+        roleCode: string;
+        roleName: string;
+        status: string;
+        isSystemRole: boolean;
     }>;
 }

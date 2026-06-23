@@ -14,6 +14,7 @@ const auth_module_1 = require("./modules/auth/auth.module");
 const users_module_1 = require("./modules/iam/users/users.module");
 const roles_module_1 = require("./modules/iam/roles/roles.module");
 const permissions_module_1 = require("./modules/iam/permissions/permissions.module");
+const chicken_yields_module_1 = require("./modules/master-data/chicken-yields/chicken-yields.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -24,6 +25,7 @@ exports.AppModule = AppModule = __decorate([
             users_module_1.UsersModule,
             roles_module_1.RolesModule,
             permissions_module_1.PermissionsModule,
+            chicken_yields_module_1.ChickenYieldsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

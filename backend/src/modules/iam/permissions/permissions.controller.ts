@@ -10,20 +10,15 @@ export class PermissionsController {
   constructor(private readonly permissionsService: PermissionsService) {}
 
   @Get()
-  @RequirePermissions('User Management:View')
+  @RequirePermissions('USER.VIEW')
   findAll() {
     return this.permissionsService.findAll();
   }
 
-  @Get('applications')
-  @RequirePermissions('User Management:View')
-  findAllApplications() {
-    return this.permissionsService.findAllApplications();
-  }
-
   @Get('matrix')
-  @RequirePermissions('User Management:View')
+  @RequirePermissions('USER.VIEW')
   getPermissionMatrix() {
     return this.permissionsService.getPermissionMatrix();
   }
 }
+

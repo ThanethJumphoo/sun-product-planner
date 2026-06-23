@@ -23,9 +23,6 @@ let PermissionsController = class PermissionsController {
     findAll() {
         return this.permissionsService.findAll();
     }
-    findAllApplications() {
-        return this.permissionsService.findAllApplications();
-    }
     getPermissionMatrix() {
         return this.permissionsService.getPermissionMatrix();
     }
@@ -33,21 +30,14 @@ let PermissionsController = class PermissionsController {
 exports.PermissionsController = PermissionsController;
 __decorate([
     (0, common_1.Get)(),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:View'),
+    (0, require_permissions_decorator_1.RequirePermissions)('USER.VIEW'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], PermissionsController.prototype, "findAll", null);
 __decorate([
-    (0, common_1.Get)('applications'),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:View'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], PermissionsController.prototype, "findAllApplications", null);
-__decorate([
     (0, common_1.Get)('matrix'),
-    (0, require_permissions_decorator_1.RequirePermissions)('User Management:View'),
+    (0, require_permissions_decorator_1.RequirePermissions)('USER.VIEW'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)

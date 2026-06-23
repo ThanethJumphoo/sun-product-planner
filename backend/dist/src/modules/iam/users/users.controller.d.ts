@@ -10,16 +10,29 @@ export declare class UsersController {
         sortOrder?: string;
     }): Promise<{
         data: {
-            role: {
+            userRoles: ({
+                role: {
+                    id: number;
+                    roleName: string;
+                };
+            } & {
                 id: number;
-                name: string;
-            };
+                roleId: number;
+                userId: number;
+            })[];
             id: number;
-            active: boolean;
             createdAt: Date;
+            createdBy: number | null;
             updatedAt: Date;
-            roleId: number;
+            updatedBy: number | null;
+            deletedAt: Date | null;
+            deletedBy: number | null;
+            status: string;
+            userCode: string;
             username: string;
+            authProvider: string;
+            mfaEnabled: boolean;
+            passwordChangedAt: Date | null;
         }[];
         meta: {
             total: number;
@@ -29,49 +42,88 @@ export declare class UsersController {
         };
     }>;
     findOne(id: number): Promise<{
-        role: {
+        userRoles: ({
+            role: {
+                id: number;
+                roleName: string;
+            };
+        } & {
             id: number;
-            name: string;
-        };
+            roleId: number;
+            userId: number;
+        })[];
         id: number;
-        active: boolean;
         createdAt: Date;
+        createdBy: number | null;
         updatedAt: Date;
-        roleId: number;
+        updatedBy: number | null;
+        deletedAt: Date | null;
+        deletedBy: number | null;
+        status: string;
+        userCode: string;
         username: string;
+        authProvider: string;
+        mfaEnabled: boolean;
+        passwordChangedAt: Date | null;
     }>;
     create(body: {
+        userCode: string;
         username: string;
         password: string;
-        roleId: number;
-        active?: boolean;
+        status?: string;
+        authProvider?: string;
     }): Promise<{
-        role: {
+        userRoles: ({
+            role: {
+                id: number;
+                roleName: string;
+            };
+        } & {
             id: number;
-            name: string;
-        };
+            roleId: number;
+            userId: number;
+        })[];
         id: number;
-        active: boolean;
         createdAt: Date;
+        createdBy: number | null;
         updatedAt: Date;
-        roleId: number;
+        updatedBy: number | null;
+        deletedAt: Date | null;
+        deletedBy: number | null;
+        status: string;
+        userCode: string;
         username: string;
+        authProvider: string;
+        mfaEnabled: boolean;
+        passwordChangedAt: Date | null;
     }>;
     update(id: number, body: {
         username?: string;
-        roleId?: number;
-        active?: boolean;
+        status?: string;
     }): Promise<{
-        role: {
+        userRoles: ({
+            role: {
+                id: number;
+                roleName: string;
+            };
+        } & {
             id: number;
-            name: string;
-        };
+            roleId: number;
+            userId: number;
+        })[];
         id: number;
-        active: boolean;
         createdAt: Date;
+        createdBy: number | null;
         updatedAt: Date;
-        roleId: number;
+        updatedBy: number | null;
+        deletedAt: Date | null;
+        deletedBy: number | null;
+        status: string;
+        userCode: string;
         username: string;
+        authProvider: string;
+        mfaEnabled: boolean;
+        passwordChangedAt: Date | null;
     }>;
     resetPassword(id: number, body: {
         newPassword: string;

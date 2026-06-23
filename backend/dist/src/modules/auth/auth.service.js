@@ -57,14 +57,14 @@ let AuthService = class AuthService {
     }
     async validateUser(username, pass) {
         const user = await prisma_1.default.user.findUnique({ where: { username } });
-        if (user && user.active && (await bcrypt.compare(pass, user.password))) {
+        if (user && user.status === 'ACTIVE' && (await bcrypt.compare(pass, user.password))) {
             const { password, ...result } = user;
             return result;
         }
         return null;
     }
     async login(user) {
-        const payload = { username: user.username, sub: user.id, roleId: user.roleId };
+        const payload = { username: user.username, sub: user.id };
         return {
             accessToken: this.jwtService.sign(payload, { expiresIn: '15m' }),
             refreshToken: this.jwtService.sign(payload, { expiresIn: '7d' }),
@@ -73,7 +73,7 @@ let AuthService = class AuthService {
     async refresh(refreshToken) {
         try {
             const payload = this.jwtService.verify(refreshToken, { secret: process.env.JWT_SECRET || 'super-secret' });
-            const newPayload = { username: payload.username, sub: payload.sub, roleId: payload.roleId };
+            const newPayload = { username: payload.username, sub: payload.sub };
             return {
                 accessToken: this.jwtService.sign(newPayload, { expiresIn: '15m' }),
             };
