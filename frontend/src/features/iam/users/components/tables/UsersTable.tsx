@@ -3,8 +3,6 @@
 import React, { useCallback, useMemo, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, GridReadyEvent, ColumnState } from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css'; // Or our custom theme
 import { useUsers } from '../../api/queries';
 import { useUsersUrlState } from '../../hooks/useUsersUrlState';
 import { useUsersPreferenceStore } from '../../stores/preference.store';
@@ -135,6 +133,7 @@ export function UsersTable() {
       
       <div className="ag-theme-alpine h-full w-full">
         <AgGridReact
+          theme="legacy"
           ref={gridRef}
           rowData={rowData}
           columnDefs={columns}

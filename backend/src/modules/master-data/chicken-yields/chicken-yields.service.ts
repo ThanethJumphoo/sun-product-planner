@@ -1,10 +1,8 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../../core/prisma/prisma.service';
+import prisma from '../../../lib/prisma';
 
 @Injectable()
 export class ChickenYieldsService {
-  constructor(private readonly prisma: PrismaService) {}
-
   async findAll(query: any) {
     const { page = 1, limit = 50, search, status } = query;
     const skip = (page - 1) * limit;
@@ -23,13 +21,13 @@ export class ChickenYieldsService {
     }
 
     const [data, total] = await Promise.all([
-      this.prisma.chickenYield.findMany({
+      prisma.chickenYield.findMany({
         where,
         skip: Number(skip),
         take: Number(limit),
         orderBy: { sortOrder: 'asc' },
       }),
-      this.prisma.chickenYield.count({ where }),
+      prisma.chickenYield.count({ where }),
     ]);
 
     return {
@@ -42,7 +40,7 @@ export class ChickenYieldsService {
   }
 
   async findOne(id: number) {
-    const record = await this.prisma.chickenYield.findUnique({
+    const record = await prisma.chickenYield.findUnique({
       where: { id },
     });
 
@@ -55,7 +53,7 @@ export class ChickenYieldsService {
 
   async create(data: { partCode: string; partName: string; yieldPercent: number; sortOrder?: number; status?: string }) {
     // Check code uniqueness
-    const existing = await this.prisma.chickenYield.findUnique({
+    const existing = await prisma.chickenYield.findUnique({
       where: { partCode: data.partCode },
     });
 
@@ -69,7 +67,7 @@ export class ChickenYieldsService {
       await this.validateTotalActiveYield(data.yieldPercent, null);
     }
 
-    return this.prisma.chickenYield.create({
+    return prisma.chickenYield.create({
       data: {
         partCode: data.partCode,
         partName: data.partName,
@@ -90,7 +88,7 @@ export class ChickenYieldsService {
       await this.validateTotalActiveYield(newYield, id);
     }
 
-    return this.prisma.chickenYield.update({
+    return prisma.chickenYield.update({
       where: { id },
       data: {
         partName: data.partName,
@@ -108,7 +106,7 @@ export class ChickenYieldsService {
       await this.validateTotalActiveYield(Number(record.yieldPercent), id);
     }
 
-    return this.prisma.chickenYield.update({
+    return prisma.chickenYield.update({
       where: { id },
       data: { status },
     });
@@ -116,7 +114,7 @@ export class ChickenYieldsService {
 
   async softDelete(id: number) {
     await this.findOne(id);
-    return this.prisma.chickenYield.update({
+    return prisma.chickenYield.update({
       where: { id },
       data: {
         deletedAt: new Date(),
@@ -125,7 +123,7 @@ export class ChickenYieldsService {
   }
 
   private async validateTotalActiveYield(newYield: number, excludeId: number | null) {
-    const activeRecords = await this.prisma.chickenYield.findMany({
+    const activeRecords = await prisma.chickenYield.findMany({
       where: {
         status: 'ACTIVE',
         deletedAt: null,

@@ -65,10 +65,11 @@ export function RolesTable() {
 
       <div className="ag-theme-alpine w-full h-full">
         <AgGridReact
+          theme="legacy"
           ref={gridRef}
           rowData={data?.data || []}
           columnDefs={roleColumns}
-          rowSelection="single"
+          rowSelection={{ mode: "singleRow" }}
           animateRows={true}
           pagination={true}
           paginationPageSize={queryParams.limit}

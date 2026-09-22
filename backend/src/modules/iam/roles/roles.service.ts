@@ -3,18 +3,39 @@ import prisma from '../../../lib/prisma';
 
 @Injectable()
 export class RolesService {
-  async findAll() {
-    return prisma.role.findMany({
-      include: {
-        _count: { select: { userRoles: true } },
-        permissions: {
-          include: {
-            permission: true,
+  async findAll(query?: { page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: string }) {
+    const page = query?.page || 1;
+    const limit = query?.limit || 20;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (query?.search) {
+      where.roleName = { contains: query.search };
+    }
+
+    const [data, total] = await Promise.all([
+      prisma.role.findMany({
+        where,
+        include: {
+          _count: { select: { userRoles: true } },
+          permissions: {
+            include: { permission: true },
           },
         },
-      },
-      orderBy: { roleName: 'asc' },
-    });
+        orderBy: { [query?.sortBy || 'roleName']: query?.sortOrder || 'asc' },
+        skip,
+        take: limit,
+      }),
+      prisma.role.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findOne(id: number) {

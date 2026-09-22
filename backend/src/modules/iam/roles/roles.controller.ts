@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, ParseIntPipe, Query } from '@nestjs/common';
 import { RolesService } from './roles.service';
 import { JwtAuthGuard } from '../../../core/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../../core/guards/permissions.guard';
@@ -11,8 +11,14 @@ export class RolesController {
 
   @Get()
   @RequirePermissions('ROLE.VIEW')
-  findAll() {
-    return this.rolesService.findAll();
+  findAll(@Query() query: { search?: string; page?: string; limit?: string; sortBy?: string; sortOrder?: string }) {
+    return this.rolesService.findAll({
+      search: query.search,
+      page: query.page ? parseInt(query.page) : undefined,
+      limit: query.limit ? parseInt(query.limit) : undefined,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+    });
   }
 
   @Get(':id')

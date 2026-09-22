@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import { Providers } from "@/components/Providers";
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import "./globals.css";
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
 
 const inter = Inter({
   subsets: ["latin"],

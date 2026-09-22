@@ -1,4 +1,4 @@
-import { apiClient } from '../../../../lib/api-client';
+import api from '@/lib/api';
 import { ChickenYield } from '../types';
 
 export interface GetChickenYieldsQuery {
@@ -18,31 +18,31 @@ export interface PaginatedResponse<T> {
 
 export const chickenYieldsService = {
   getChickenYields: async (query?: GetChickenYieldsQuery): Promise<PaginatedResponse<ChickenYield>> => {
-    const response = await apiClient.get<PaginatedResponse<ChickenYield>>('/master-data/chicken-yields', { params: query });
+    const response = await api.get<PaginatedResponse<ChickenYield>>('/api/v1/master-data/chicken-yields', { params: query });
     return response.data;
   },
 
   getChickenYieldById: async (id: number): Promise<ChickenYield> => {
-    const response = await apiClient.get<ChickenYield>(`/master-data/chicken-yields/${id}`);
+    const response = await api.get<ChickenYield>(`/api/v1/master-data/chicken-yields/${id}`);
     return response.data;
   },
 
   createChickenYield: async (data: any): Promise<ChickenYield> => {
-    const response = await apiClient.post<ChickenYield>('/master-data/chicken-yields', data);
+    const response = await api.post<ChickenYield>('/api/v1/master-data/chicken-yields', data);
     return response.data;
   },
 
   updateChickenYield: async (id: number, data: any): Promise<ChickenYield> => {
-    const response = await apiClient.put<ChickenYield>(`/master-data/chicken-yields/${id}`, data);
+    const response = await api.put<ChickenYield>(`/api/v1/master-data/chicken-yields/${id}`, data);
     return response.data;
   },
 
   updateChickenYieldStatus: async (id: number, status: string): Promise<ChickenYield> => {
-    const response = await apiClient.patch<ChickenYield>(`/master-data/chicken-yields/${id}/status`, { status });
+    const response = await api.patch<ChickenYield>(`/api/v1/master-data/chicken-yields/${id}/status`, { status });
     return response.data;
   },
 
   deleteChickenYield: async (id: number): Promise<void> => {
-    await apiClient.delete(`/master-data/chicken-yields/${id}`);
+    await api.delete(`/api/v1/master-data/chicken-yields/${id}`);
   },
 };

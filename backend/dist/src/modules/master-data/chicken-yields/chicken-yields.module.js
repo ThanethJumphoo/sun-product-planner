@@ -10,13 +10,12 @@ exports.ChickenYieldsModule = void 0;
 const common_1 = require("@nestjs/common");
 const chicken_yields_controller_1 = require("./chicken-yields.controller");
 const chicken_yields_service_1 = require("./chicken-yields.service");
-const prisma_module_1 = require("../../../core/prisma/prisma.module");
 let ChickenYieldsModule = class ChickenYieldsModule {
 };
 exports.ChickenYieldsModule = ChickenYieldsModule;
 exports.ChickenYieldsModule = ChickenYieldsModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule],
+        imports: [],
         controllers: [chicken_yields_controller_1.ChickenYieldsController],
         providers: [chicken_yields_service_1.ChickenYieldsService],
         exports: [chicken_yields_service_1.ChickenYieldsService],

@@ -29,13 +29,13 @@ export class UsersController {
 
   @Post()
   @RequirePermissions('USER.CREATE')
-  create(@Body() body: { userCode: string; username: string; password: string; status?: string; authProvider?: string }) {
+  create(@Body() body: { userCode: string; username: string; password: string; status?: string; authProvider?: string; roles?: { roleId: number; scopes?: any[] }[] }) {
     return this.usersService.create(body);
   }
 
   @Patch(':id')
   @RequirePermissions('USER.EDIT')
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: { username?: string; status?: string }) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() body: { username?: string; status?: string; roles?: { roleId: number; scopes?: any[] }[] }) {
     return this.usersService.update(id, body);
   }
 

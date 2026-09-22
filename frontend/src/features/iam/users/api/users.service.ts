@@ -1,4 +1,4 @@
-import { apiClient } from '../../../../lib/api-client';
+import api from '@/lib/api';
 import { handleApiError } from '../../../../utils/api-error';
 import { User, UsersPaginatedResponse } from '../types';
 import { CreateUserFormValues, UpdateUserFormValues } from '../schemas';
@@ -15,7 +15,7 @@ export interface GetUsersQuery {
 export const usersService = {
   async getUsers(query?: GetUsersQuery): Promise<UsersPaginatedResponse> {
     try {
-      const { data } = await apiClient.get<UsersPaginatedResponse>('/users', { params: query });
+      const { data } = await api.get<UsersPaginatedResponse>('/api/v1/users', { params: query });
       return data;
     } catch (error) {
       throw handleApiError(error);
@@ -24,7 +24,7 @@ export const usersService = {
 
   async getUserById(id: number): Promise<User> {
     try {
-      const { data } = await apiClient.get<User>(`/users/${id}`);
+      const { data } = await api.get<User>(`/api/v1/users/${id}`);
       return data;
     } catch (error) {
       throw handleApiError(error);
@@ -33,7 +33,7 @@ export const usersService = {
 
   async createUser(payload: CreateUserFormValues): Promise<User> {
     try {
-      const { data } = await apiClient.post<User>('/users', payload);
+      const { data } = await api.post<User>('/api/v1/users', payload);
       return data;
     } catch (error) {
       throw handleApiError(error);
@@ -42,7 +42,7 @@ export const usersService = {
 
   async updateUser(id: number, payload: UpdateUserFormValues): Promise<User> {
     try {
-      const { data } = await apiClient.patch<User>(`/users/${id}`, payload);
+      const { data } = await api.patch<User>(`/api/v1/users/${id}`, payload);
       return data;
     } catch (error) {
       throw handleApiError(error);
@@ -51,7 +51,7 @@ export const usersService = {
 
   async disableUser(id: number): Promise<ApiResponse<{ message: string }>> {
     try {
-      const { data } = await apiClient.patch<ApiResponse<{ message: string }>>(`/users/${id}/disable`);
+      const { data } = await api.patch<ApiResponse<{ message: string }>>(`/api/v1/users/${id}/disable`);
       return data;
     } catch (error) {
       throw handleApiError(error);

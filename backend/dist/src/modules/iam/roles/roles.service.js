@@ -13,18 +13,36 @@ exports.RolesService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_1 = __importDefault(require("../../../lib/prisma"));
 let RolesService = class RolesService {
-    async findAll() {
-        return prisma_1.default.role.findMany({
-            include: {
-                _count: { select: { userRoles: true } },
-                permissions: {
-                    include: {
-                        permission: true,
+    async findAll(query) {
+        const page = query?.page || 1;
+        const limit = query?.limit || 20;
+        const skip = (page - 1) * limit;
+        const where = {};
+        if (query?.search) {
+            where.roleName = { contains: query.search };
+        }
+        const [data, total] = await Promise.all([
+            prisma_1.default.role.findMany({
+                where,
+                include: {
+                    _count: { select: { userRoles: true } },
+                    permissions: {
+                        include: { permission: true },
                     },
                 },
-            },
-            orderBy: { roleName: 'asc' },
-        });
+                orderBy: { [query?.sortBy || 'roleName']: query?.sortOrder || 'asc' },
+                skip,
+                take: limit,
+            }),
+            prisma_1.default.role.count({ where }),
+        ]);
+        return {
+            data,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+        };
     }
     async findOne(id) {
         const role = await prisma_1.default.role.findUnique({

@@ -1,6 +1,3 @@
 import { PrismaClient } from '@prisma/client';
-import { PrismaMssql } from '@prisma/adapter-mssql';
-declare const prisma: PrismaClient<{
-    adapter: PrismaMssql;
-}, never, import("@prisma/client/runtime/client").DefaultArgs>;
+declare const prisma: PrismaClient<import(".prisma/client").Prisma.PrismaClientOptions, never, import("@prisma/client/runtime/library").DefaultArgs>;
 export default prisma;

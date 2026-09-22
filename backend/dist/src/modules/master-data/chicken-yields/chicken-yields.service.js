@@ -5,19 +5,14 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
-var __metadata = (this && this.__metadata) || function (k, v) {
-    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
 };
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ChickenYieldsService = void 0;
 const common_1 = require("@nestjs/common");
-const prisma_service_1 = require("../../../core/prisma/prisma.service");
+const prisma_1 = __importDefault(require("../../../lib/prisma"));
 let ChickenYieldsService = class ChickenYieldsService {
-    prisma;
-    constructor(prisma) {
-        this.prisma = prisma;
-    }
     async findAll(query) {
         const { page = 1, limit = 50, search, status } = query;
         const skip = (page - 1) * limit;
@@ -32,13 +27,13 @@ let ChickenYieldsService = class ChickenYieldsService {
             where.status = status;
         }
         const [data, total] = await Promise.all([
-            this.prisma.chickenYield.findMany({
+            prisma_1.default.chickenYield.findMany({
                 where,
                 skip: Number(skip),
                 take: Number(limit),
                 orderBy: { sortOrder: 'asc' },
             }),
-            this.prisma.chickenYield.count({ where }),
+            prisma_1.default.chickenYield.count({ where }),
         ]);
         return {
             data,
@@ -49,7 +44,7 @@ let ChickenYieldsService = class ChickenYieldsService {
         };
     }
     async findOne(id) {
-        const record = await this.prisma.chickenYield.findUnique({
+        const record = await prisma_1.default.chickenYield.findUnique({
             where: { id },
         });
         if (!record || record.deletedAt) {
@@ -58,7 +53,7 @@ let ChickenYieldsService = class ChickenYieldsService {
         return record;
     }
     async create(data) {
-        const existing = await this.prisma.chickenYield.findUnique({
+        const existing = await prisma_1.default.chickenYield.findUnique({
             where: { partCode: data.partCode },
         });
         if (existing && !existing.deletedAt) {
@@ -68,7 +63,7 @@ let ChickenYieldsService = class ChickenYieldsService {
         if (isStatusActive) {
             await this.validateTotalActiveYield(data.yieldPercent, null);
         }
-        return this.prisma.chickenYield.create({
+        return prisma_1.default.chickenYield.create({
             data: {
                 partCode: data.partCode,
                 partName: data.partName,
@@ -85,7 +80,7 @@ let ChickenYieldsService = class ChickenYieldsService {
         if (newStatus === 'ACTIVE') {
             await this.validateTotalActiveYield(newYield, id);
         }
-        return this.prisma.chickenYield.update({
+        return prisma_1.default.chickenYield.update({
             where: { id },
             data: {
                 partName: data.partName,
@@ -100,14 +95,14 @@ let ChickenYieldsService = class ChickenYieldsService {
         if (status === 'ACTIVE') {
             await this.validateTotalActiveYield(Number(record.yieldPercent), id);
         }
-        return this.prisma.chickenYield.update({
+        return prisma_1.default.chickenYield.update({
             where: { id },
             data: { status },
         });
     }
     async softDelete(id) {
         await this.findOne(id);
-        return this.prisma.chickenYield.update({
+        return prisma_1.default.chickenYield.update({
             where: { id },
             data: {
                 deletedAt: new Date(),
@@ -115,7 +110,7 @@ let ChickenYieldsService = class ChickenYieldsService {
         });
     }
     async validateTotalActiveYield(newYield, excludeId) {
-        const activeRecords = await this.prisma.chickenYield.findMany({
+        const activeRecords = await prisma_1.default.chickenYield.findMany({
             where: {
                 status: 'ACTIVE',
                 deletedAt: null,
@@ -130,7 +125,6 @@ let ChickenYieldsService = class ChickenYieldsService {
 };
 exports.ChickenYieldsService = ChickenYieldsService;
 exports.ChickenYieldsService = ChickenYieldsService = __decorate([
-    (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [typeof (_a = typeof prisma_service_1.PrismaService !== "undefined" && prisma_service_1.PrismaService) === "function" ? _a : Object])
+    (0, common_1.Injectable)()
 ], ChickenYieldsService);
 //# sourceMappingURL=chicken-yields.service.js.map

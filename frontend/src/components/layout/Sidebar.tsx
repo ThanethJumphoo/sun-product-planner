@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useLayoutStore } from "@/store/layout";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Calendar, ClipboardList, PieChart, Package, Settings, Users, Shield, KeyRound } from "lucide-react";
+import { LayoutDashboard, Calendar, ClipboardList, PieChart, Package, Settings, Users, Shield, KeyRound, LogOut, Activity } from "lucide-react";
+import { useAuthStore } from "@/store/auth";
 
 const menuSections = [
   {
@@ -17,6 +18,7 @@ const menuSections = [
       { name: "MPS", href: "/mps", icon: ClipboardList },
       { name: "Production Orders", href: "/orders", icon: Package },
       { name: "Yield Management", href: "/yield", icon: PieChart },
+      { name: "Production Flow", href: "/production-flow", icon: Activity },
     ],
   },
   {
@@ -32,6 +34,13 @@ const menuSections = [
 export function Sidebar() {
   const { isSidebarOpen } = useLayoutStore();
   const pathname = usePathname();
+  const router = useRouter();
+  const logout = useAuthStore((state) => state.logout);
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login"); // Adjust this route if login page is different
+  };
 
   return (
     <motion.aside
@@ -90,16 +99,31 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-border">
+        <Link href="/settings">
+          <div
+            className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+            title={!isSidebarOpen ? "Settings" : undefined}
+          >
+            <Settings className="w-5 h-5 shrink-0" />
+            <motion.span
+              animate={{ opacity: isSidebarOpen ? 1 : 0, width: isSidebarOpen ? "auto" : 0 }}
+              className="whitespace-nowrap overflow-hidden font-medium text-sm"
+            >
+              Settings
+            </motion.span>
+          </div>
+        </Link>
         <div
-          className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-          title={!isSidebarOpen ? "Settings" : undefined}
+          onClick={handleLogout}
+          className="flex items-center space-x-3 px-3 py-2.5 mt-1 rounded-lg text-red-500/80 hover:bg-red-500/10 hover:text-red-500 transition-colors cursor-pointer"
+          title={!isSidebarOpen ? "Logout" : undefined}
         >
-          <Settings className="w-5 h-5 shrink-0" />
+          <LogOut className="w-5 h-5 shrink-0" />
           <motion.span
             animate={{ opacity: isSidebarOpen ? 1 : 0, width: isSidebarOpen ? "auto" : 0 }}
             className="whitespace-nowrap overflow-hidden font-medium text-sm"
           >
-            Settings
+            Logout
           </motion.span>
         </div>
       </div>

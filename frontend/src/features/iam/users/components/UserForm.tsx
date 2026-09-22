@@ -7,7 +7,8 @@ import { z } from 'zod';
 import { createUserSchema } from '../schemas';
 import { UserStatus, AuthProvider } from '../types/enums';
 
-// The form is loosely typed to accept either Create or Update values
+import { useRoles } from '../../roles/api/queries';
+
 export interface UserFormProps {
   defaultValues?: Partial<z.infer<typeof createUserSchema>>;
   onSubmit: (data: any) => void;
@@ -36,12 +37,8 @@ export function UserForm({ defaultValues, onSubmit, isEditMode, onCancel, isLoad
     },
   });
 
-  // Mocking Role Options (In reality, fetched from roles API or global store)
-  const availableRoles = [
-    { id: 1, name: 'SUPER_ADMIN' },
-    { id: 2, name: 'ADMIN' },
-    { id: 3, name: 'PLANNER' },
-  ];
+  const { data: rolesData, isLoading: isLoadingRoles } = useRoles();
+  const availableRoles = rolesData?.data || [];
 
   return (
     <form id="user-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -135,7 +132,7 @@ export function UserForm({ defaultValues, onSubmit, isEditMode, onCancel, isLoad
                       className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                     />
                     <label htmlFor={`role-${role.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      {role.name}
+                      {role.roleName}
                     </label>
                   </div>
                 );

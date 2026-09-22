@@ -93,8 +93,19 @@ let UsersService = class UsersService {
         if (existing)
             throw new common_1.ConflictException('Username already exists');
         const hashedPassword = await bcrypt.hash(data.password, 12);
+        const { roles, ...userData } = data;
         const user = await prisma_1.default.user.create({
-            data: { ...data, password: hashedPassword },
+            data: {
+                ...userData,
+                password: hashedPassword,
+                ...(roles && roles.length > 0 ? {
+                    userRoles: {
+                        create: roles.map(r => ({
+                            roleId: r.roleId
+                        }))
+                    }
+                } : {})
+            },
             include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
         });
         const { password, ...result } = user;
@@ -107,9 +118,16 @@ let UsersService = class UsersService {
             if (existing)
                 throw new common_1.ConflictException('Username already taken');
         }
+        const { roles, ...updateData } = data;
+        if (roles) {
+            await prisma_1.default.$transaction([
+                prisma_1.default.userRole.deleteMany({ where: { userId: id } }),
+                ...roles.map(r => prisma_1.default.userRole.create({ data: { userId: id, roleId: r.roleId } }))
+            ]);
+        }
         const user = await prisma_1.default.user.update({
             where: { id },
-            data,
+            data: updateData,
             include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
         });
         const { password, ...result } = user;

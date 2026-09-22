@@ -72,6 +72,10 @@ export declare class UsersController {
         password: string;
         status?: string;
         authProvider?: string;
+        roles?: {
+            roleId: number;
+            scopes?: any[];
+        }[];
     }): Promise<{
         userRoles: ({
             role: {
@@ -100,6 +104,10 @@ export declare class UsersController {
     update(id: number, body: {
         username?: string;
         status?: string;
+        roles?: {
+            roleId: number;
+            scopes?: any[];
+        }[];
     }): Promise<{
         userRoles: ({
             role: {

@@ -15,6 +15,8 @@ const users_module_1 = require("./modules/iam/users/users.module");
 const roles_module_1 = require("./modules/iam/roles/roles.module");
 const permissions_module_1 = require("./modules/iam/permissions/permissions.module");
 const chicken_yields_module_1 = require("./modules/master-data/chicken-yields/chicken-yields.module");
+const flow_node_types_module_1 = require("./modules/simulator/flow-node-types/flow-node-types.module");
+const flow_boards_module_1 = require("./modules/simulator/flow-boards/flow-boards.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -26,6 +28,8 @@ exports.AppModule = AppModule = __decorate([
             roles_module_1.RolesModule,
             permissions_module_1.PermissionsModule,
             chicken_yields_module_1.ChickenYieldsModule,
+            flow_node_types_module_1.FlowNodeTypesModule,
+            flow_boards_module_1.FlowBoardsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

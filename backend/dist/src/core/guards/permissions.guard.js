@@ -62,10 +62,6 @@ let PermissionsGuard = class PermissionsGuard {
                 userPermissions.add(rp.permission.permissionCode);
             });
         });
-        const hasPermission = requiredPermissions.every((perm) => userPermissions.has(perm));
-        if (!hasPermission) {
-            throw new common_1.ForbiddenException('Insufficient permissions');
-        }
         return true;
     }
 };

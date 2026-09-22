@@ -23,8 +23,14 @@ let RolesController = class RolesController {
     constructor(rolesService) {
         this.rolesService = rolesService;
     }
-    findAll() {
-        return this.rolesService.findAll();
+    findAll(query) {
+        return this.rolesService.findAll({
+            search: query.search,
+            page: query.page ? parseInt(query.page) : undefined,
+            limit: query.limit ? parseInt(query.limit) : undefined,
+            sortBy: query.sortBy,
+            sortOrder: query.sortOrder,
+        });
     }
     findOne(id) {
         return this.rolesService.findOne(id);
@@ -43,8 +49,9 @@ exports.RolesController = RolesController;
 __decorate([
     (0, common_1.Get)(),
     (0, require_permissions_decorator_1.RequirePermissions)('ROLE.VIEW'),
+    __param(0, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], RolesController.prototype, "findAll", null);
 __decorate([

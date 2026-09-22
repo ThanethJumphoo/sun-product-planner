@@ -1,4 +1,4 @@
-import { apiClient } from '../../../../lib/api-client';
+import api from '@/lib/api';
 import { Role, Permission } from '../types';
 
 export interface GetRolesQuery {
@@ -20,41 +20,41 @@ export interface PaginatedResponse<T> {
 
 export const rolesService = {
   getRoles: async (query?: GetRolesQuery): Promise<PaginatedResponse<Role>> => {
-    const response = await apiClient.get<PaginatedResponse<Role>>('/roles', { params: query });
+    const response = await api.get<PaginatedResponse<Role>>('/api/v1/roles', { params: query });
     return response.data;
   },
 
   getRoleById: async (id: number): Promise<Role> => {
-    const response = await apiClient.get<Role>(`/roles/${id}`);
+    const response = await api.get<Role>(`/api/v1/roles/${id}`);
     return response.data;
   },
 
   getRoleUsers: async (id: number): Promise<any[]> => {
-    const response = await apiClient.get<any[]>(`/roles/${id}/users`);
+    const response = await api.get<any[]>(`/api/v1/roles/${id}/users`);
     return response.data;
   },
 
   getAllPermissions: async (): Promise<Permission[]> => {
-    const response = await apiClient.get<Permission[]>('/permissions');
+    const response = await api.get<Permission[]>('/api/v1/permissions');
     return response.data;
   },
 
   createRole: async (data: any): Promise<Role> => {
-    const response = await apiClient.post<Role>('/roles', data);
+    const response = await api.post<Role>('/api/v1/roles', data);
     return response.data;
   },
 
   updateRole: async (id: number, data: any): Promise<Role> => {
-    const response = await apiClient.put<Role>(`/roles/${id}`, data);
+    const response = await api.put<Role>(`/api/v1/roles/${id}`, data);
     return response.data;
   },
 
   updateRoleStatus: async (id: number, status: string): Promise<Role> => {
-    const response = await apiClient.patch<Role>(`/roles/${id}/status`, { status });
+    const response = await api.patch<Role>(`/api/v1/roles/${id}/status`, { status });
     return response.data;
   },
 
   deleteRole: async (id: number): Promise<void> => {
-    await apiClient.delete(`/roles/${id}`);
+    await api.delete(`/api/v1/roles/${id}`);
   },
 };

@@ -36,9 +36,10 @@ export const buildUserColumns = (): ColDef<User>[] => {
       valueGetter: (params) => `${params.data?.userCode}@sunproduct.com`.toLowerCase(),
     },
     {
-      field: 'userRoles',
+      colId: 'userRoles',
       headerName: 'Roles',
       minWidth: 200,
+      valueFormatter: () => '', // Suppress warning #48
       cellRenderer: (params: any) => {
         const roles = params.data?.userRoles;
         if (!roles || roles.length === 0) return <span className="text-muted-foreground italic">None</span>;
@@ -46,7 +47,7 @@ export const buildUserColumns = (): ColDef<User>[] => {
           <div className="flex flex-wrap gap-1 py-1">
             {roles.map((ur: any) => (
               <span key={ur.id} className="inline-flex items-center rounded-md border border-border bg-surface px-2 py-0.5 text-xs font-medium text-foreground">
-                {ur.role.roleName}
+                {ur.role?.roleName || 'Unknown Role'}
               </span>
             ))}
           </div>
@@ -55,18 +56,21 @@ export const buildUserColumns = (): ColDef<User>[] => {
       sortable: false,
     },
     {
-      field: 'userRoles' as any, // Using roles field to extract plant scope
+      colId: 'plantScope',
       headerName: 'Plant Scope',
       minWidth: 180,
+      valueFormatter: () => '', // Suppress warning #48
       cellRenderer: (params: any) => {
         const roles = params.data?.userRoles;
         if (!roles) return null;
         
         const scopes = new Set<string>();
         roles.forEach((ur: any) => {
-          ur.scopes.forEach((s: any) => {
-            if (s.scopeType === 'PLANT') scopes.add(s.scopeValue);
-          });
+          if (ur.scopes && Array.isArray(ur.scopes)) {
+            ur.scopes.forEach((s: any) => {
+              if (s.scopeType === 'PLANT') scopes.add(s.scopeValue);
+            });
+          }
         });
 
         if (scopes.size === 0) return <span className="text-muted-foreground italic">Global</span>;
