@@ -339,11 +339,58 @@ model FlowNode {
 }
 
 model FlowEdge {
-  id          String      @id @db.NVarChar(100) // React Flow edge id
-  boardId     Int         @map("board_id")
-  board       FlowBoard   @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  source      String      @db.NVarChar(100)
-  target      String      @db.NVarChar(100)
+  id           String      @id @db.NVarChar(100) // React Flow edge id
+  boardId      Int         @map("board_id")
+  board        FlowBoard   @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  source       String      @db.NVarChar(100)
+  target       String      @db.NVarChar(100)
+  sourceHandle String?     @map("source_handle") @db.NVarChar(100)
+  targetHandle String?     @map("target_handle") @db.NVarChar(100)
 
   @@map("flow_edges")
+}
+
+model ChickenWeight {
+  id        Int      @id @default(autoincrement())
+  minWeight Decimal  @map("min_weight") @db.Decimal(10, 4)
+  maxWeight Decimal  @map("max_weight") @db.Decimal(10, 4)
+  
+  distributions PartWeightDistribution[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("chicken_weights")
+}
+
+model PartRmSize {
+  id        Int      @id @default(autoincrement())
+  partName  String   @map("part_name") @db.NVarChar(100)
+  minSize   Decimal? @map("min_size") @db.Decimal(10, 4)
+  maxSize   Decimal? @map("max_size") @db.Decimal(10, 4)
+  
+  distributions PartWeightDistribution[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([partName])
+  @@map("part_rm_sizes")
+}
+
+model PartWeightDistribution {
+  id              Int @id @default(autoincrement())
+  partName        String @map("part_name") @db.NVarChar(100)
+  chickenWeightId Int @map("chicken_weight_id")
+  partRmSizeId    Int @map("part_rm_size_id")
+  percent         Decimal @db.Decimal(5, 2)
+
+  chickenWeight ChickenWeight @relation(fields: [chickenWeightId], references: [id], onDelete: Cascade)
+  partRmSize    PartRmSize    @relation(fields: [partRmSizeId], references: [id], onDelete: NoAction)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([partName, chickenWeightId, partRmSizeId])
+  @@map("part_weight_distributions")
 }

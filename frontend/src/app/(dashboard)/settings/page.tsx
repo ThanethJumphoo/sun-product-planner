@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { toast } from 'react-hot-toast';
+import { Trash2 } from 'lucide-react';
 
 export default function SettingsPage() {
   const [nodeTypes, setNodeTypes] = useState<any[]>([]);
@@ -55,6 +56,22 @@ export default function SettingsPage() {
     const newFields = [...fields];
     newFields[index][key] = value;
     setFields(newFields);
+  };
+
+  const handleDelete = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this Node Type?')) return;
+    
+    try {
+      await api.delete(`/api/v1/simulator/node-types/${id}`);
+      toast.success('Deleted successfully');
+      if (editingId === id) {
+        handleAddNew();
+      }
+      fetchNodeTypes();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to delete');
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -112,10 +129,18 @@ export default function SettingsPage() {
                 <div 
                   key={type.id} 
                   onClick={() => handleEdit(type)}
-                  className={`p-4 cursor-pointer hover:bg-slate-50 transition-colors ${editingId === type.id ? 'bg-primary/5 border-l-2 border-l-primary' : ''}`}
+                  className={`flex justify-between items-center p-4 cursor-pointer hover:bg-slate-50 transition-colors ${editingId === type.id ? 'bg-primary/5 border-l-2 border-l-primary' : ''}`}
                 >
-                  <div className="font-medium text-slate-900">{type.typeName}</div>
-                  <div className="text-xs text-muted-foreground mt-1">Code: {type.typeCode} • {type.fields?.length || 0} fields</div>
+                  <div className="flex-1">
+                    <div className="font-medium text-slate-900">{type.typeName}</div>
+                    <div className="text-xs text-muted-foreground mt-1">Code: {type.typeCode} • {type.fields?.length || 0} fields</div>
+                  </div>
+                  <button 
+                    onClick={(e) => handleDelete(type.id, e)}
+                    className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               ))
             )}
@@ -194,6 +219,8 @@ export default function SettingsPage() {
                             <option value="VARCHAR">Text</option>
                             <option value="NUMBER">Number</option>
                             <option value="PERCENT">Percent (%)</option>
+                            <option value="WEIGHT_DISTRIBUTION">Weight Distribution</option>
+                            <option value="PROCESS">Process</option>
                           </select>
                         </div>
                         <div className="pt-2 flex items-center gap-2">

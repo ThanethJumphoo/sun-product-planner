@@ -19,6 +19,7 @@ const menuSections = [
       { name: "Production Orders", href: "/orders", icon: Package },
       { name: "Yield Management", href: "/yield", icon: PieChart },
       { name: "Production Flow", href: "/production-flow", icon: Activity },
+      { name: "Weight Distribution", href: "/weight-distribution", icon: ClipboardList },
     ],
   },
   {

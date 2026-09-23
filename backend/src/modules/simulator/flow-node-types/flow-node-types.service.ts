@@ -83,4 +83,18 @@ export class FlowNodeTypesService {
       include: { fields: true },
     });
   }
+
+  async remove(id: number) {
+    await this.findOne(id); // Verify exists
+    
+    // Check if it's being used by any node
+    const usage = await prisma.flowNode.count({ where: { nodeTypeId: id } });
+    if (usage > 0) {
+      throw new ConflictException(`Cannot delete node type. It is being used by ${usage} nodes.`);
+    }
+
+    return prisma.flowNodeType.delete({
+      where: { id }
+    });
+  }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { FlowNodeTypesService } from './flow-node-types.service';
 import { JwtAuthGuard } from '../../../core/guards/jwt-auth.guard';
 
@@ -25,5 +25,10 @@ export class FlowNodeTypesController {
   @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() body: { typeCode?: string; typeName?: string; fields?: any[] }) {
     return this.flowNodeTypesService.update(id, body);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.flowNodeTypesService.remove(id);
   }
 }

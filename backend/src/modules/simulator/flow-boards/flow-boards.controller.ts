@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, ParseIntPipe, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, ParseIntPipe, Put, Delete } from '@nestjs/common';
 import { FlowBoardsService } from './flow-boards.service';
 import { JwtAuthGuard } from '../../../core/guards/jwt-auth.guard';
 
@@ -25,5 +25,10 @@ export class FlowBoardsController {
   @Put(':id/save')
   saveBoard(@Param('id', ParseIntPipe) id: number, @Body() body: { name?: string; nodes: any[]; edges: any[] }) {
     return this.flowBoardsService.saveBoard(id, body);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.flowBoardsService.remove(id);
   }
 }

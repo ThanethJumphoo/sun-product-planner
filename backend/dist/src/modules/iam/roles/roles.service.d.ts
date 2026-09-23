@@ -14,8 +14,8 @@ export declare class RolesService {
                 permission: {
                     id: number;
                     createdAt: Date;
-                    createdBy: number | null;
                     updatedAt: Date;
+                    createdBy: number | null;
                     updatedBy: number | null;
                     deletedAt: Date | null;
                     deletedBy: number | null;
@@ -31,8 +31,8 @@ export declare class RolesService {
         } & {
             id: number;
             createdAt: Date;
-            createdBy: number | null;
             updatedAt: Date;
+            createdBy: number | null;
             updatedBy: number | null;
             deletedAt: Date | null;
             deletedBy: number | null;
@@ -63,8 +63,8 @@ export declare class RolesService {
             permission: {
                 id: number;
                 createdAt: Date;
-                createdBy: number | null;
                 updatedAt: Date;
+                createdBy: number | null;
                 updatedBy: number | null;
                 deletedAt: Date | null;
                 deletedBy: number | null;
@@ -80,8 +80,8 @@ export declare class RolesService {
     } & {
         id: number;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
@@ -98,8 +98,8 @@ export declare class RolesService {
     }): Promise<{
         id: number;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
@@ -116,8 +116,8 @@ export declare class RolesService {
     }): Promise<{
         id: number;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
@@ -143,8 +143,8 @@ export declare class RolesService {
             permission: {
                 id: number;
                 createdAt: Date;
-                createdBy: number | null;
                 updatedAt: Date;
+                createdBy: number | null;
                 updatedBy: number | null;
                 deletedAt: Date | null;
                 deletedBy: number | null;
@@ -160,8 +160,8 @@ export declare class RolesService {
     } & {
         id: number;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;

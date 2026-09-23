@@ -84,6 +84,16 @@ let FlowNodeTypesService = class FlowNodeTypesService {
             include: { fields: true },
         });
     }
+    async remove(id) {
+        await this.findOne(id);
+        const usage = await prisma_1.default.flowNode.count({ where: { nodeTypeId: id } });
+        if (usage > 0) {
+            throw new common_1.ConflictException(`Cannot delete node type. It is being used by ${usage} nodes.`);
+        }
+        return prisma_1.default.flowNodeType.delete({
+            where: { id }
+        });
+    }
 };
 exports.FlowNodeTypesService = FlowNodeTypesService;
 exports.FlowNodeTypesService = FlowNodeTypesService = __decorate([

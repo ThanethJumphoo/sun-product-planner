@@ -23,6 +23,8 @@ export declare class FlowBoardsController {
             boardId: number;
             source: string;
             target: string;
+            sourceHandle: string | null;
+            targetHandle: string | null;
         }[];
     } & {
         id: number;
@@ -49,6 +51,8 @@ export declare class FlowBoardsController {
             boardId: number;
             source: string;
             target: string;
+            sourceHandle: string | null;
+            targetHandle: string | null;
         }[];
     } & {
         id: number;
@@ -75,8 +79,16 @@ export declare class FlowBoardsController {
             boardId: number;
             source: string;
             target: string;
+            sourceHandle: string | null;
+            targetHandle: string | null;
         }[];
     } & {
+        id: number;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    remove(id: number): Promise<{
         id: number;
         name: string;
         createdAt: Date;

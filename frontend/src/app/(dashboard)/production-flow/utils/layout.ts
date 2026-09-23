@@ -16,7 +16,10 @@ export const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'T
   });
 
   nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+    // Use React Flow's measured dimensions if available, otherwise fallback
+    const width = node.measured?.width ?? nodeWidth;
+    const height = node.measured?.height ?? nodeHeight;
+    dagreGraph.setNode(node.id, { width, height });
   });
 
   edges.forEach((edge) => {
@@ -27,11 +30,14 @@ export const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'T
 
   const newNodes = nodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
+    const width = node.measured?.width ?? nodeWidth;
+    const height = node.measured?.height ?? nodeHeight;
+    
     const newNode = {
       ...node,
       position: {
-        x: nodeWithPosition.x - nodeWidth / 2,
-        y: nodeWithPosition.y - nodeHeight / 2,
+        x: nodeWithPosition.x - width / 2,
+        y: nodeWithPosition.y - height / 2,
       },
     };
 

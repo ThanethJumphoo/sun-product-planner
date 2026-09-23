@@ -2,8 +2,8 @@ export declare class PermissionsService {
     findAll(): Promise<{
         id: number;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;

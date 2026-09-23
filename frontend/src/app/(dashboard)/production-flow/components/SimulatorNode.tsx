@@ -1,52 +1,153 @@
 import React from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Edit, Trash2, Network } from 'lucide-react';
+import { WeightDistributionField } from './WeightDistributionField';
 
-export function SimulatorNode({ data }: { data: any }) {
+export function SimulatorNode({ id, data }: { id: string; data: any }) {
+  const { setNodes, setEdges } = useReactFlow();
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (data.isLocked) return;
+    
+    // Remove the node itself
+    setNodes((nodes) => nodes.filter((n) => n.id !== id));
+    // Remove any edges connected to this node
+    setEdges((edges) => edges.filter((e) => e.source !== id && e.target !== id));
+  };
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (data.isLocked) return;
+    
+    if (data.onEdit) {
+      data.onEdit(id);
+    }
+  };
+
+  const handleDrillDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (data.isLocked) return;
+    
+    if (data.onDrillDown) {
+      data.onDrillDown(id);
+    }
+  };
+
+  const isPart = data.nodeTypeName?.toLowerCase().includes('part');
+  const isProcess = data.fieldSchema?.some((f: any) => f.dataType === 'PROCESS') || data.nodeTypeName?.toUpperCase() === 'PROCESS';
+
   return (
-    <div className="bg-white border-2 border-primary/20 rounded-lg shadow-md min-w-[200px] overflow-hidden">
+    <div className="bg-white border-2 border-primary/20 rounded-lg shadow-md min-w-[200px] overflow-hidden group">
       <Handle type="target" position={Position.Top} className="w-3 h-3 bg-primary" />
       
-      <div className="bg-muted/30 px-4 py-2 border-b border-border flex justify-between items-center">
-        <h3 className="font-bold text-sm text-slate-900">{data.name}</h3>
-        <span className="text-[10px] uppercase font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-          {data.nodeTypeName || 'Node'}
-        </span>
+      <div className="bg-muted/30 px-4 py-2 border-b border-border flex justify-between items-center relative">
+        <div className="flex items-center gap-2 pr-12">
+          <h3 className="font-bold text-sm text-slate-900">{data.name}</h3>
+          <span className="text-[10px] uppercase font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full whitespace-nowrap">
+            {data.nodeTypeName || 'Node'}
+          </span>
+        </div>
+        
+        {/* Action Icons (Hidden by default, show on hover of the node) */}
+        {!data.isLocked && (
+          <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-muted/90 rounded p-0.5">
+            <button 
+              onClick={handleEdit}
+              className="p-1 text-slate-500 hover:text-primary hover:bg-primary/10 rounded transition-colors"
+              title="Edit Card"
+            >
+              <Edit size={14} />
+            </button>
+            <button 
+              onClick={handleDelete}
+              className="p-1 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+              title="Delete Card"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        )}
       </div>
       
       <div className="p-4 space-y-3">
-        {data.dynamicData && Object.entries(data.dynamicData).map(([key, value]) => {
-          // Find field schema if available
-          const fieldDef = data.fieldSchema?.find((f: any) => f.fieldName === key);
-          const isPercent = fieldDef ? fieldDef.dataType === 'PERCENT' : key.toLowerCase().includes('percent');
-          const isNumber = fieldDef ? fieldDef.dataType === 'NUMBER' : !isNaN(Number(value));
+        {(() => {
+          // Use fieldSchema if available, otherwise fallback to dynamicData keys
+          if (data.fieldSchema && data.fieldSchema.length > 0) {
+            return data.fieldSchema.map((fieldDef: any) => {
+              const key = fieldDef.fieldName;
+              const value = data.dynamicData?.[key] || '';
+              const isPercent = fieldDef.dataType === 'PERCENT';
+              const isNumber = fieldDef.dataType === 'NUMBER';
 
-          return (
-            <div key={key} className="flex flex-col space-y-1">
-              <label className="text-xs text-muted-foreground font-medium capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
-              {isPercent ? (
-                <div className="relative">
-                  <input
-                    type="text"
-                    readOnly
-                    className="nodrag w-full rounded-md border border-input bg-muted/20 px-2 py-1 text-sm text-slate-900 text-right pr-6 cursor-default focus:outline-none"
-                    value={String(value)}
-                  />
-                  <span className="absolute right-2 top-1.5 text-xs font-bold text-muted-foreground">%</span>
+              return (
+                <div key={key} className="flex flex-col space-y-1">
+                  <label className="text-xs text-muted-foreground font-medium capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
+                  {fieldDef.dataType === 'WEIGHT_DISTRIBUTION' ? (
+                    <WeightDistributionField nodeId={id} />
+                  ) : fieldDef.dataType === 'PROCESS' ? (
+                    <input
+                      type="number"
+                      readOnly
+                      className="nodrag w-full rounded-md border border-purple-200 bg-purple-50 px-2 py-1 text-sm text-purple-900 cursor-default focus:outline-none font-medium"
+                      value={String(value)}
+                    />
+                  ) : isPercent ? (
+                    <div className="relative">
+                      <input
+                        type="text"
+                        readOnly
+                        className="nodrag w-full rounded-md border border-input bg-muted/20 px-2 py-1 text-sm text-slate-900 text-right pr-6 cursor-default focus:outline-none"
+                        value={String(value)}
+                      />
+                      <span className="absolute right-2 top-1.5 text-xs font-bold text-muted-foreground">%</span>
+                    </div>
+                  ) : (
+                    <input
+                      type={isNumber ? "number" : "text"}
+                      readOnly
+                      className="nodrag w-full rounded-md border border-input bg-muted/20 px-2 py-1 text-sm text-slate-900 cursor-default focus:outline-none"
+                      value={String(value)}
+                    />
+                  )}
                 </div>
-              ) : (
-                <input
-                  type={isNumber ? "number" : "text"}
-                  readOnly
-                  className="nodrag w-full rounded-md border border-input bg-muted/20 px-2 py-1 text-sm text-slate-900 cursor-default focus:outline-none"
-                  value={String(value)}
-                />
-              )}
-            </div>
-          );
-        })}
-        {(!data.dynamicData || Object.keys(data.dynamicData).length === 0) && (
-          <div className="text-xs text-muted-foreground italic text-center py-2">No properties</div>
-        )}
+              );
+            });
+          }
+
+          if (data.dynamicData && Object.keys(data.dynamicData).length > 0) {
+            return Object.entries(data.dynamicData).map(([key, value]) => {
+              const isPercent = key.toLowerCase().includes('percent');
+              const isNumber = !isNaN(Number(value));
+
+              return (
+                <div key={key} className="flex flex-col space-y-1">
+                  <label className="text-xs text-muted-foreground font-medium capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
+                  {isPercent ? (
+                    <div className="relative">
+                      <input
+                        type="text"
+                        readOnly
+                        className="nodrag w-full rounded-md border border-input bg-muted/20 px-2 py-1 text-sm text-slate-900 text-right pr-6 cursor-default focus:outline-none"
+                        value={String(value)}
+                      />
+                      <span className="absolute right-2 top-1.5 text-xs font-bold text-muted-foreground">%</span>
+                    </div>
+                  ) : (
+                    <input
+                      type={isNumber ? "number" : "text"}
+                      readOnly
+                      className="nodrag w-full rounded-md border border-input bg-muted/20 px-2 py-1 text-sm text-slate-900 cursor-default focus:outline-none"
+                      value={String(value)}
+                    />
+                  )}
+                </div>
+              );
+            });
+          }
+
+          return <div className="text-xs text-muted-foreground italic text-center py-2">No properties</div>;
+        })()}
         
         {/* Output Field (Disabled) */}
         <div className="flex flex-col space-y-1 mt-4 pt-3 border-t border-border">
@@ -59,9 +160,39 @@ export function SimulatorNode({ data }: { data: any }) {
             placeholder="Calculated Output"
           />
         </div>
+
+        {/* Drill-down Sub-flow Button */}
+        {isPart && !data.isSubFlow && (
+          <div className="pt-2">
+            <button
+              onClick={handleDrillDown}
+              className="nodrag w-full py-2 mt-1 flex items-center justify-center gap-2 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 border border-blue-200 rounded-md text-xs font-bold uppercase transition-colors"
+            >
+              <Network size={14} />
+              <span>Open Sub-Flow</span>
+            </button>
+          </div>
+        )}
+
+        {/* Process Node Output Labels */}
+        {isProcess && (
+          <div className="flex justify-between w-full px-2 mt-4 pt-2 border-t border-slate-100">
+            <span className="text-[9px] font-bold text-green-600 uppercase">Product</span>
+            <span className="text-[9px] font-bold text-amber-500 uppercase">Co-Product</span>
+            <span className="text-[9px] font-bold text-slate-400 uppercase">By-Product</span>
+          </div>
+        )}
       </div>
 
-      <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-primary" />
+      {isProcess ? (
+        <>
+          <Handle type="source" position={Position.Bottom} id="product" style={{ left: '15%', background: '#16a34a' }} className="w-3 h-3" />
+          <Handle type="source" position={Position.Bottom} id="coproduct" style={{ left: '50%', background: '#f59e0b' }} className="w-3 h-3" />
+          <Handle type="source" position={Position.Bottom} id="byproduct" style={{ left: '85%', background: '#94a3b8' }} className="w-3 h-3" />
+        </>
+      ) : (
+        <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-primary" />
+      )}
     </div>
   );
 }

@@ -46,10 +46,12 @@ let FlowBoardsService = class FlowBoardsService {
                     }))
                 } : undefined,
                 edges: edges ? {
-                    create: edges.map(e => ({
+                    create: edges.map((e) => ({
                         id: e.id,
                         source: e.source,
                         target: e.target,
+                        sourceHandle: e.sourceHandle,
+                        targetHandle: e.targetHandle,
                     }))
                 } : undefined,
             },
@@ -62,27 +64,38 @@ let FlowBoardsService = class FlowBoardsService {
             prisma_1.default.flowEdge.deleteMany({ where: { boardId: id } }),
             prisma_1.default.flowNode.deleteMany({ where: { boardId: id } }),
             ...(data.name ? [prisma_1.default.flowBoard.update({ where: { id }, data: { name: data.name } })] : []),
-            ...data.nodes.map(n => prisma_1.default.flowNode.create({
-                data: {
-                    id: n.id,
-                    boardId: id,
-                    nodeTypeId: n.nodeTypeId,
-                    name: n.name,
-                    positionX: n.positionX,
-                    positionY: n.positionY,
-                    data: n.data,
-                }
-            })),
-            ...data.edges.map(e => prisma_1.default.flowEdge.create({
-                data: {
-                    id: e.id,
-                    boardId: id,
-                    source: e.source,
-                    target: e.target,
-                }
-            }))
+            ...(data.nodes && data.nodes.length > 0 ? [
+                prisma_1.default.flowNode.createMany({
+                    data: data.nodes.map(n => ({
+                        id: n.id,
+                        boardId: id,
+                        nodeTypeId: n.nodeTypeId,
+                        name: n.name,
+                        positionX: n.positionX,
+                        positionY: n.positionY,
+                        data: n.data,
+                    }))
+                })
+            ] : []),
+            ...(data.edges && data.edges.length > 0 ? [
+                prisma_1.default.flowEdge.createMany({
+                    data: data.edges.map(e => ({
+                        id: e.id,
+                        boardId: id,
+                        source: e.source,
+                        target: e.target,
+                        sourceHandle: e.sourceHandle,
+                        targetHandle: e.targetHandle,
+                    }))
+                })
+            ] : [])
         ]);
         return this.findOne(id);
+    }
+    async remove(id) {
+        await prisma_1.default.flowEdge.deleteMany({ where: { boardId: id } });
+        await prisma_1.default.flowNode.deleteMany({ where: { boardId: id } });
+        return prisma_1.default.flowBoard.delete({ where: { id } });
     }
 };
 exports.FlowBoardsService = FlowBoardsService;

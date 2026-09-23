@@ -3,13 +3,13 @@ export declare class ChickenYieldsService {
         data: {
             id: number;
             createdAt: Date;
-            createdBy: number | null;
             updatedAt: Date;
+            sortOrder: number;
+            createdBy: number | null;
             updatedBy: number | null;
             deletedAt: Date | null;
             deletedBy: number | null;
             status: string;
-            sortOrder: number;
             partName: string;
             partCode: string;
             yieldPercent: import("@prisma/client/runtime/library").Decimal;
@@ -22,13 +22,13 @@ export declare class ChickenYieldsService {
     findOne(id: number): Promise<{
         id: number;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        sortOrder: number;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
         status: string;
-        sortOrder: number;
         partName: string;
         partCode: string;
         yieldPercent: import("@prisma/client/runtime/library").Decimal;
@@ -42,13 +42,13 @@ export declare class ChickenYieldsService {
     }): Promise<{
         id: number;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        sortOrder: number;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
         status: string;
-        sortOrder: number;
         partName: string;
         partCode: string;
         yieldPercent: import("@prisma/client/runtime/library").Decimal;
@@ -61,13 +61,13 @@ export declare class ChickenYieldsService {
     }): Promise<{
         id: number;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        sortOrder: number;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
         status: string;
-        sortOrder: number;
         partName: string;
         partCode: string;
         yieldPercent: import("@prisma/client/runtime/library").Decimal;
@@ -75,13 +75,13 @@ export declare class ChickenYieldsService {
     updateStatus(id: number, status: string): Promise<{
         id: number;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        sortOrder: number;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
         status: string;
-        sortOrder: number;
         partName: string;
         partCode: string;
         yieldPercent: import("@prisma/client/runtime/library").Decimal;
@@ -89,13 +89,13 @@ export declare class ChickenYieldsService {
     softDelete(id: number): Promise<{
         id: number;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        sortOrder: number;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
         status: string;
-        sortOrder: number;
         partName: string;
         partCode: string;
         yieldPercent: import("@prisma/client/runtime/library").Decimal;

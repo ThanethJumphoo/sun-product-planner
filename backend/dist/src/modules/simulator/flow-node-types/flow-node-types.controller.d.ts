@@ -5,11 +5,11 @@ export declare class FlowNodeTypesController {
     findAll(): Promise<({
         fields: {
             id: number;
-            sortOrder: number;
-            nodeTypeId: number;
             fieldName: string;
             dataType: string;
             isRequired: boolean;
+            sortOrder: number;
+            nodeTypeId: number;
         }[];
     } & {
         id: number;
@@ -21,11 +21,11 @@ export declare class FlowNodeTypesController {
     findOne(id: number): Promise<{
         fields: {
             id: number;
-            sortOrder: number;
-            nodeTypeId: number;
             fieldName: string;
             dataType: string;
             isRequired: boolean;
+            sortOrder: number;
+            nodeTypeId: number;
         }[];
     } & {
         id: number;
@@ -41,11 +41,11 @@ export declare class FlowNodeTypesController {
     }): Promise<{
         fields: {
             id: number;
-            sortOrder: number;
-            nodeTypeId: number;
             fieldName: string;
             dataType: string;
             isRequired: boolean;
+            sortOrder: number;
+            nodeTypeId: number;
         }[];
     } & {
         id: number;
@@ -61,13 +61,20 @@ export declare class FlowNodeTypesController {
     }): Promise<{
         fields: {
             id: number;
-            sortOrder: number;
-            nodeTypeId: number;
             fieldName: string;
             dataType: string;
             isRequired: boolean;
+            sortOrder: number;
+            nodeTypeId: number;
         }[];
     } & {
+        id: number;
+        typeCode: string;
+        typeName: string;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    remove(id: number): Promise<{
         id: number;
         typeCode: string;
         typeName: string;

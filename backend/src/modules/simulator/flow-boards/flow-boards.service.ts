@@ -38,10 +38,12 @@ export class FlowBoardsService {
           }))
         } : undefined,
         edges: edges ? {
-          create: edges.map(e => ({
+          create: edges.map((e: any) => ({
             id: e.id,
             source: e.source,
             target: e.target,
+            sourceHandle: e.sourceHandle,
+            targetHandle: e.targetHandle,
           }))
         } : undefined,
       },
@@ -59,9 +61,9 @@ export class FlowBoardsService {
       
       ...(data.name ? [prisma.flowBoard.update({ where: { id }, data: { name: data.name } })] : []),
       
-      ...data.nodes.map(n => 
-        prisma.flowNode.create({
-          data: {
+      ...(data.nodes && data.nodes.length > 0 ? [
+        prisma.flowNode.createMany({
+          data: data.nodes.map(n => ({
             id: n.id,
             boardId: id,
             nodeTypeId: n.nodeTypeId,
@@ -69,22 +71,31 @@ export class FlowBoardsService {
             positionX: n.positionX,
             positionY: n.positionY,
             data: n.data,
-          }
+          }))
         })
-      ),
+      ] : []),
       
-      ...data.edges.map(e => 
-        prisma.flowEdge.create({
-          data: {
+      ...(data.edges && data.edges.length > 0 ? [
+        prisma.flowEdge.createMany({
+          data: data.edges.map(e => ({
             id: e.id,
             boardId: id,
             source: e.source,
             target: e.target,
-          }
+            sourceHandle: e.sourceHandle,
+            targetHandle: e.targetHandle,
+          }))
         })
-      )
+      ] : [])
     ]);
     
     return this.findOne(id);
+  }
+
+  async remove(id: number) {
+    // Rely on cascade delete if configured in Prisma, otherwise delete edges/nodes first
+    await prisma.flowEdge.deleteMany({ where: { boardId: id } });
+    await prisma.flowNode.deleteMany({ where: { boardId: id } });
+    return prisma.flowBoard.delete({ where: { id } });
   }
 }

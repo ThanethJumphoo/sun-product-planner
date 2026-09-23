@@ -5,8 +5,8 @@ export declare class PermissionsController {
     findAll(): Promise<{
         id: number;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;

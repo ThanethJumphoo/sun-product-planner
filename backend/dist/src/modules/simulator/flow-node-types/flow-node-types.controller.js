@@ -33,6 +33,9 @@ let FlowNodeTypesController = class FlowNodeTypesController {
     update(id, body) {
         return this.flowNodeTypesService.update(id, body);
     }
+    remove(id) {
+        return this.flowNodeTypesService.remove(id);
+    }
 };
 exports.FlowNodeTypesController = FlowNodeTypesController;
 __decorate([
@@ -63,6 +66,13 @@ __decorate([
     __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", void 0)
 ], FlowNodeTypesController.prototype, "update", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], FlowNodeTypesController.prototype, "remove", null);
 exports.FlowNodeTypesController = FlowNodeTypesController = __decorate([
     (0, common_1.Controller)('api/v1/simulator/node-types'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

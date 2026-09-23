@@ -17,6 +17,9 @@ const permissions_module_1 = require("./modules/iam/permissions/permissions.modu
 const chicken_yields_module_1 = require("./modules/master-data/chicken-yields/chicken-yields.module");
 const flow_node_types_module_1 = require("./modules/simulator/flow-node-types/flow-node-types.module");
 const flow_boards_module_1 = require("./modules/simulator/flow-boards/flow-boards.module");
+const weight_distribution_module_1 = require("./modules/simulator/weight-distribution/weight-distribution.module");
+const chicken_weights_module_1 = require("./modules/simulator/chicken-weights/chicken-weights.module");
+const part_rm_sizes_module_1 = require("./modules/simulator/part-rm-sizes/part-rm-sizes.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -30,6 +33,9 @@ exports.AppModule = AppModule = __decorate([
             chicken_yields_module_1.ChickenYieldsModule,
             flow_node_types_module_1.FlowNodeTypesModule,
             flow_boards_module_1.FlowBoardsModule,
+            weight_distribution_module_1.WeightDistributionModule,
+            chicken_weights_module_1.ChickenWeightsModule,
+            part_rm_sizes_module_1.PartRmSizesModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

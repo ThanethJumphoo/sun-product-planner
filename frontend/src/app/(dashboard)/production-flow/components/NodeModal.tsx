@@ -5,25 +5,28 @@ interface NodeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: any) => void;
+  initialData?: any;
+  nodeTypes: any[];
 }
 
-export function NodeModal({ isOpen, onClose, onSave }: NodeModalProps) {
+export function NodeModal({ isOpen, onClose, onSave, initialData, nodeTypes }: NodeModalProps) {
   const [name, setName] = useState('');
   const [nodeTypeId, setNodeTypeId] = useState<number | ''>('');
-  const [nodeTypes, setNodeTypes] = useState<any[]>([]);
   const [dynamicData, setDynamicData] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (isOpen) {
-      setName('');
-      setNodeTypeId('');
-      setDynamicData({});
-      // Fetch available node types (Master Data)
-      api.get('/api/v1/simulator/node-types').then(res => {
-        setNodeTypes(res.data);
-      }).catch(err => console.error("Failed to fetch node types", err));
+      if (initialData) {
+        setName(initialData.name || '');
+        setNodeTypeId(initialData.nodeTypeId || '');
+        setDynamicData(initialData.dynamicData || {});
+      } else {
+        setName('');
+        setNodeTypeId('');
+        setDynamicData({});
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
@@ -50,7 +53,7 @@ export function NodeModal({ isOpen, onClose, onSave }: NodeModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-white w-full max-w-md rounded-lg shadow-lg border border-border overflow-hidden">
         <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-slate-50">
-          <h2 className="text-xl font-bold text-slate-900">Add New Card</h2>
+          <h2 className="text-xl font-bold text-slate-900">{initialData ? "Edit Card" : "Add New Card"}</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-slate-900">✕</button>
         </div>
         
@@ -92,7 +95,11 @@ export function NodeModal({ isOpen, onClose, onSave }: NodeModalProps) {
                     {field.fieldName} {field.isRequired && <span className="text-red-500">*</span>}
                   </label>
                   
-                  {field.dataType === 'PERCENT' ? (
+                  {field.dataType === 'WEIGHT_DISTRIBUTION' ? (
+                    <div className="text-xs text-muted-foreground bg-slate-50 p-2 rounded border border-slate-200">
+                      This field automatically loads weight distribution data when connected to a Part node.
+                    </div>
+                  ) : field.dataType === 'PERCENT' ? (
                     <div className="relative">
                       <input 
                         type="number" 
@@ -138,7 +145,7 @@ export function NodeModal({ isOpen, onClose, onSave }: NodeModalProps) {
               type="submit"
               className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md text-sm font-medium transition-colors"
             >
-              Add Card
+              {initialData ? "Save Changes" : "Add Card"}
             </button>
           </div>
         </form>

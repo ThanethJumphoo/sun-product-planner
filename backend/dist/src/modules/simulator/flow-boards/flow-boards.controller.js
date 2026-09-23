@@ -33,6 +33,9 @@ let FlowBoardsController = class FlowBoardsController {
     saveBoard(id, body) {
         return this.flowBoardsService.saveBoard(id, body);
     }
+    remove(id) {
+        return this.flowBoardsService.remove(id);
+    }
 };
 exports.FlowBoardsController = FlowBoardsController;
 __decorate([
@@ -63,6 +66,13 @@ __decorate([
     __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", void 0)
 ], FlowBoardsController.prototype, "saveBoard", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], FlowBoardsController.prototype, "remove", null);
 exports.FlowBoardsController = FlowBoardsController = __decorate([
     (0, common_1.Controller)('api/v1/simulator/boards'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

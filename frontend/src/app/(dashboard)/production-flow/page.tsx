@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -16,15 +16,22 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { SimulatorNode } from './components/SimulatorNode';
+import { DeletableEdge } from './components/DeletableEdge';
 import { NodeModal } from './components/NodeModal';
 import api from '@/lib/api';
 import { toast } from 'react-hot-toast';
 
 import { getLayoutedElements } from './utils/layout';
 
+import { Lock, Unlock } from 'lucide-react';
+
 // Define custom node types
 const nodeTypes = {
   simulatorNode: SimulatorNode,
+};
+
+const edgeTypes = {
+  deletableEdge: DeletableEdge,
 };
 
 export default function ProductionFlowPage() {
@@ -35,6 +42,141 @@ export default function ProductionFlowPage() {
   const [boardId, setBoardId] = useState<number | null>(null);
   const [allBoards, setAllBoards] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSavingFlow, setIsSavingFlow] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [dbNodeTypes, setDbNodeTypes] = useState<any[]>([]);
+  const [boardHistory, setBoardHistory] = useState<number[]>([]);
+
+  const stateRef = useRef({ boardId, isLocked, nodes, edges, allBoards, dbNodeTypes });
+  useEffect(() => {
+    stateRef.current = { boardId, isLocked, nodes, edges, allBoards, dbNodeTypes };
+  }, [boardId, isLocked, nodes, edges, allBoards, dbNodeTypes]);
+
+  const handleEditNode = useCallback((nodeId: string) => {
+    setEditingNodeId(nodeId);
+    setIsModalOpen(true);
+  }, []);
+
+  const handleDrillDown = useCallback(async (nodeId: string) => {
+    const { boardId, isLocked, nodes, edges, allBoards, dbNodeTypes } = stateRef.current;
+    
+    if (!boardId || isLocked) return;
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return;
+
+    if (node.data.dynamicData?.subBoardId) {
+      const success = await loadBoard(node.data.dynamicData.subBoardId, dbNodeTypes, true);
+      if (success) {
+        setBoardHistory(prev => [...prev, boardId]);
+        return;
+      }
+      // If it failed (e.g. board was deleted), fall through to generate a new board
+    }
+
+    // Generate new board
+    setIsLoading(true);
+    try {
+      const parentBoardName = allBoards.find(b => b.id === boardId)?.name || 'Parent';
+      const mainType = dbNodeTypes.find(t => t.typeCode === 'MAIN');
+      const partType = dbNodeTypes.find(t => t.typeCode === 'PART');
+      
+      if (!mainType || !partType) {
+        toast.error("Missing required node types (MAIN/PART) to generate sub-flow.");
+        setIsLoading(false);
+        return;
+      }
+
+      const mainId = `node_${Date.now()}_main`;
+      const partId = `node_${Date.now()}_part`;
+
+      const newBoardPayload = {
+        name: `${parentBoardName} - ${node.data.name}`,
+        nodes: [
+          {
+            id: mainId,
+            nodeTypeId: mainType.id,
+            name: 'Source (Parent Output)',
+            positionX: 100,
+            positionY: 100,
+            data: JSON.stringify({ 'inputQuantity': node.data.outputValue || 100 })
+          },
+          {
+            id: partId,
+            nodeTypeId: partType.id,
+            name: node.data.name,
+            positionX: 100,
+            positionY: 350,
+            data: JSON.stringify(node.data.dynamicData)
+          }
+        ],
+        edges: [
+          {
+            id: `edge_${Date.now()}`,
+            source: mainId,
+            target: partId
+          }
+        ]
+      };
+
+      const res = await api.post('/api/v1/simulator/boards', newBoardPayload);
+      const newBoardId = res.data.id;
+
+      // Update current node with subBoardId
+      const updatedNodes = nodes.map(n => {
+        if (n.id === nodeId) {
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              dynamicData: { ...n.data.dynamicData, subBoardId: newBoardId }
+            }
+          };
+        }
+        return n;
+      });
+
+      // Save parent board immediately
+      const parentSavePayload = {
+        name: parentBoardName,
+        nodes: updatedNodes.map(n => ({
+          id: n.id,
+          nodeTypeId: n.data.nodeTypeId,
+          name: n.data.name,
+          positionX: n.position.x,
+          positionY: n.position.y,
+          data: JSON.stringify(n.data.dynamicData),
+        })),
+        edges: edges.map(e => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+        }))
+      };
+      await api.put(`/api/v1/simulator/boards/${boardId}/save`, parentSavePayload);
+
+      toast.success("Sub-flow created successfully.");
+      
+      setBoardHistory(prev => [...prev, boardId]);
+      await fetchBoardsList();
+      await loadBoard(newBoardId, dbNodeTypes, true);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to create sub-flow');
+      setIsLoading(false);
+    }
+  }, []); // Dependencies removed to rely on stateRef
+
+  const fetchNodeTypes = async () => {
+    try {
+      const res = await api.get('/api/v1/simulator/node-types');
+      setDbNodeTypes(res.data);
+      return res.data;
+    } catch (err) {
+      console.error("Failed to fetch node types", err);
+      return [];
+    }
+  };
 
   const fetchBoardsList = async () => {
     try {
@@ -47,32 +189,50 @@ export default function ProductionFlowPage() {
     }
   };
 
-  const loadBoard = async (id: number) => {
+  const loadBoard = async (id: number, fetchedTypes?: any[], isSubFlowIndicator?: boolean) => {
     setIsLoading(true);
     try {
       const board = await api.get(`/api/v1/simulator/boards/${id}`);
       setBoardId(board.data.id);
       
-      const loadedNodes: Node[] = board.data.nodes.map((n: any) => ({
-        id: n.id,
-        type: 'simulatorNode',
-        position: { x: n.positionX, y: n.positionY },
-        data: {
-          name: n.name,
-          nodeTypeId: n.nodeTypeId,
-          dynamicData: n.data ? JSON.parse(n.data) : {},
-        },
-      }));
+      const currentTypes = fetchedTypes || dbNodeTypes;
+
+      const loadedNodes: Node[] = board.data.nodes.map((n: any) => {
+        // Find node type name from dbNodeTypes
+        const typeMatch = currentTypes.find(t => t.id === n.nodeTypeId);
+        return {
+          id: n.id,
+          type: 'simulatorNode',
+          position: { x: n.positionX, y: n.positionY },
+          data: {
+            name: n.name,
+            nodeTypeId: n.nodeTypeId,
+            nodeTypeName: typeMatch?.typeName || 'Node',
+            dynamicData: n.data ? JSON.parse(n.data) : {},
+            fieldSchema: typeMatch?.fields || [],
+            onEdit: handleEditNode,
+            onDrillDown: handleDrillDown,
+            isLocked,
+            isSubFlow: isSubFlowIndicator || false,
+          },
+        };
+      });
       setNodes(loadedNodes);
 
       const loadedEdges: Edge[] = board.data.edges.map((e: any) => ({
         id: e.id,
         source: e.source,
         target: e.target,
+        sourceHandle: e.sourceHandle || undefined,
+        targetHandle: e.targetHandle || undefined,
+        type: 'deletableEdge',
+        data: { isLocked },
       }));
       setEdges(loadedEdges);
+      return true;
     } catch (err) {
       toast.error('Failed to load board details');
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -86,15 +246,16 @@ export default function ProductionFlowPage() {
 
   useEffect(() => {
     const init = async () => {
+      const types = await fetchNodeTypes();
       const boards = await fetchBoardsList();
       if (boards.length > 0) {
-        await loadBoard(boards[0].id);
+        await loadBoard(boards[0].id, types);
       } else {
         setIsLoading(false);
       }
     };
     init();
-  }, []);
+  }, [handleEditNode]);
 
   // Calculation Engine
   useEffect(() => {
@@ -163,9 +324,10 @@ export default function ProductionFlowPage() {
     let changed = false;
     const newNodes = nodes.map(node => {
       const calculatedOutput = (outputs[node.id] || 0).toFixed(2);
-      if (node.data?.outputValue !== calculatedOutput) {
+      // Inject onEdit and isLocked
+      if (node.data?.outputValue !== calculatedOutput || node.data?.onEdit !== handleEditNode || node.data?.isLocked !== isLocked || node.data?.onDrillDown !== handleDrillDown) {
         changed = true;
-        return { ...node, data: { ...node.data, outputValue: calculatedOutput } };
+        return { ...node, data: { ...node.data, outputValue: calculatedOutput, onEdit: handleEditNode, onDrillDown: handleDrillDown, isLocked } };
       }
       return node;
     });
@@ -173,15 +335,19 @@ export default function ProductionFlowPage() {
     if (changed) {
       setNodes(newNodes);
     }
-  }, [nodes, edges, isLoading, setNodes]);
+  }, [nodes, edges, isLoading, setNodes, handleEditNode, handleDrillDown, isLocked]);
 
   const onConnect = useCallback(
-    (params: Connection | Edge) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges],
+    (params: Connection | Edge) => {
+      if (isLocked) return;
+      setEdges((eds) => addEdge({ ...params, type: 'deletableEdge', data: { isLocked } }, eds));
+    },
+    [setEdges, isLocked],
   );
 
   const handleLayout = useCallback(
     (direction: string) => {
+      if (isLocked) return;
       const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
         nodes,
         edges,
@@ -191,26 +357,44 @@ export default function ProductionFlowPage() {
       setNodes([...layoutedNodes]);
       setEdges([...layoutedEdges]);
     },
-    [nodes, edges]
+    [nodes, edges, isLocked]
   );
 
   const handleAddNode = (newNodeData: any) => {
-    const newNode: Node = {
-      id: `node_${Date.now()}`,
-      type: 'simulatorNode',
-      position: { x: Math.random() * 200 + 100, y: Math.random() * 200 + 100 },
-      data: newNodeData,
-    };
-    setNodes((nds) => [...nds, newNode]);
+    if (isLocked) return;
+    
+    if (editingNodeId) {
+      setNodes(nds => nds.map(n => {
+        if (n.id === editingNodeId) {
+          return { ...n, data: { ...n.data, ...newNodeData } };
+        }
+        return n;
+      }));
+    } else {
+      const newNode: Node = {
+        id: `node_${Date.now()}`,
+        type: 'simulatorNode',
+        position: { x: Math.random() * 200 + 100, y: Math.random() * 200 + 100 },
+        data: { ...newNodeData, onEdit: handleEditNode, onDrillDown: handleDrillDown, isLocked },
+      };
+      setNodes((nds) => [...nds, newNode]);
+    }
+    
     setIsModalOpen(false);
+    setEditingNodeId(null);
   };
 
   const handleSave = async () => {
+    if (isLocked) return;
+    setIsSavingFlow(true);
     try {
-      let boardName = 'Master Production Flow';
+      let boardName = allBoards.find(b => b.id === boardId)?.name || 'Master Production Flow';
       if (!boardId) {
         const input = prompt('Enter a name for the new board:');
-        if (!input) return; // Cancelled
+        if (!input) {
+          setIsSavingFlow(false);
+          return; // Cancelled
+        }
         boardName = input;
       }
 
@@ -228,6 +412,8 @@ export default function ProductionFlowPage() {
           id: e.id,
           source: e.source,
           target: e.target,
+          sourceHandle: e.sourceHandle || null,
+          targetHandle: e.targetHandle || null,
         }))
       };
 
@@ -242,6 +428,40 @@ export default function ProductionFlowPage() {
     } catch (err) {
       toast.error('Failed to save flow');
       console.error(err);
+    } finally {
+      setIsSavingFlow(false);
+    }
+  };
+
+  const handleBack = async () => {
+    if (boardHistory.length === 0 || isLocked) return;
+    const previousBoardId = boardHistory[boardHistory.length - 1];
+    setBoardHistory(prev => prev.slice(0, -1));
+    await loadBoard(previousBoardId);
+  };
+
+  const handleDeleteBoard = async () => {
+    if (isLocked || !boardId) return;
+    if (!window.confirm("Are you sure you want to delete this board? This action cannot be undone.")) return;
+
+    try {
+      setIsLoading(true);
+      await api.delete(`/api/v1/simulator/boards/${boardId}`);
+      toast.success('Board deleted successfully');
+      
+      const updatedBoards = await fetchBoardsList();
+      
+      // If we are in a subflow, try to go back to parent
+      if (boardHistory.length > 0) {
+        await handleBack();
+      } else if (updatedBoards.length > 0) {
+        await loadBoard(updatedBoards[0].id);
+      } else {
+        handleNewBoard();
+      }
+    } catch (err) {
+      toast.error('Failed to delete board');
+      setIsLoading(false);
     }
   };
 
@@ -257,6 +477,15 @@ export default function ProductionFlowPage() {
           <div className="h-10 w-px bg-border"></div>
           
           <div className="flex items-center gap-2">
+            {boardHistory.length > 0 && (
+              <button
+                onClick={handleBack}
+                className="px-3 py-1.5 bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md text-sm font-medium transition-colors border border-border mr-2 disabled:opacity-50 flex items-center gap-1"
+                disabled={isLocked || isLoading}
+              >
+                ← Back
+              </button>
+            )}
             <select
               className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium min-w-[200px]"
               value={boardId || ''}
@@ -269,30 +498,66 @@ export default function ProductionFlowPage() {
             </select>
             <button
               onClick={handleNewBoard}
-              className="px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-md text-sm font-medium transition-colors border border-slate-300"
+              className="px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-md text-sm font-medium transition-colors border border-slate-300 disabled:opacity-50"
+              disabled={isLocked}
             >
               + New Board
             </button>
+            {boardId && (
+              <button
+                onClick={handleDeleteBoard}
+                className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-md text-sm font-medium transition-colors border border-red-200 disabled:opacity-50"
+                disabled={isLocked || isLoading}
+                title="Delete this board"
+              >
+                Delete
+              </button>
+            )}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={() => setIsLocked(!isLocked)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-md font-medium transition-colors border ${
+              isLocked 
+                ? 'bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200' 
+                : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+            }`}
+            title={isLocked ? "Unlock Flow" : "Lock Flow"}
+          >
+            {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
+            {isLocked ? "Locked" : "Unlocked"}
+          </button>
+          
+          <div className="h-6 w-px bg-border mx-1"></div>
+
           <button 
             onClick={() => handleLayout('TB')}
-            className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-md font-medium transition-colors border border-slate-300"
+            className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-md font-medium transition-colors border border-slate-300 disabled:opacity-50"
+            disabled={isLocked}
           >
             Auto Arrange
           </button>
           <button 
-            onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-md font-medium transition-colors"
+            onClick={() => {
+              setEditingNodeId(null);
+              setIsModalOpen(true);
+            }}
+            className="px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-md font-medium transition-colors disabled:opacity-50"
+            disabled={isLocked}
           >
             Add Card
           </button>
           <button 
             onClick={handleSave}
-            className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md font-medium transition-colors"
+            className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md font-medium transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]"
+            disabled={isLocked || isSavingFlow}
           >
-            Save Flow
+            {isSavingFlow ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            ) : (
+              "Save Flow"
+            )}
           </button>
         </div>
       </div>
@@ -307,14 +572,18 @@ export default function ProductionFlowPage() {
           <ReactFlow
             nodes={nodes}
             edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
+            onNodesChange={isLocked ? undefined : onNodesChange}
+            onEdgesChange={isLocked ? undefined : onEdgesChange}
             onConnect={onConnect}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             fitView
             fitViewOptions={{ maxZoom: 0.8 }}
+            nodesDraggable={!isLocked}
+            nodesConnectable={!isLocked}
+            elementsSelectable={!isLocked}
           >
-            <Controls />
+            <Controls showInteractive={false} />
             <MiniMap />
             <Background gap={12} size={1} />
           </ReactFlow>
@@ -323,8 +592,13 @@ export default function ProductionFlowPage() {
 
       <NodeModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSave={handleAddNode} 
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingNodeId(null);
+        }} 
+        onSave={handleAddNode}
+        initialData={editingNodeId ? nodes.find(n => n.id === editingNodeId)?.data : undefined}
+        nodeTypes={dbNodeTypes}
       />
     </div>
   );
