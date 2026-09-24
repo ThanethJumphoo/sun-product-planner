@@ -40,6 +40,7 @@ export function NodeModal({ isOpen, onClose, onSave, initialData, nodeTypes }: N
       name,
       nodeTypeId: Number(nodeTypeId),
       nodeTypeName: selectedType?.typeName,
+      nodeTypeCode: selectedType?.typeCode || '',
       dynamicData,
       fieldSchema: selectedType?.fields || [],
     });

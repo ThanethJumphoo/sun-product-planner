@@ -11,9 +11,18 @@ export default function SettingsPage() {
 
   // Form State
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [typeCode, setTypeCode] = useState('');
-  const [typeName, setTypeName] = useState('');
+  const [typeCode, setTypeCode] = useState('MAIN');
+  const [typeName, setTypeName] = useState('Main');
   const [fields, setFields] = useState<any[]>([]);
+
+  const PREDEFINED_TYPES = [
+    { code: 'MAIN', name: 'Main' },
+    { code: 'PART', name: 'Parts' },
+    { code: 'WEIGHT_DISTRIBUTION', name: 'Weight Distribution' },
+    { code: 'PROCESS', name: 'Process' },
+    { code: 'RAW_MATERIAL', name: 'Raw Material' },
+    { code: 'MACHINE', name: 'Machine' },
+  ];
 
   useEffect(() => {
     fetchNodeTypes();
@@ -39,8 +48,8 @@ export default function SettingsPage() {
 
   const handleAddNew = () => {
     setEditingId(null);
-    setTypeCode('');
-    setTypeName('');
+    setTypeCode('MAIN');
+    setTypeName('Main');
     setFields([]);
   };
 
@@ -155,30 +164,25 @@ export default function SettingsPage() {
             </h2>
             
             <form onSubmit={handleSave} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-900">Type Code</label>
-                  <input 
-                    type="text" 
-                    required
+                <div className="space-y-2 col-span-2">
+                  <label className="text-sm font-medium text-slate-900">Node Type</label>
+                  <select 
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={typeCode}
-                    onChange={e => setTypeCode(e.target.value.toUpperCase())}
-                    placeholder="e.g. MAIN"
-                  />
+                    onChange={e => {
+                      const selected = PREDEFINED_TYPES.find(t => t.code === e.target.value);
+                      if (selected) {
+                        setTypeCode(selected.code);
+                        setTypeName(selected.name);
+                      }
+                    }}
+                    disabled={!!editingId} // Don't allow changing type if editing
+                  >
+                    {PREDEFINED_TYPES.map(t => (
+                      <option key={t.code} value={t.code}>{t.name} ({t.code})</option>
+                    ))}
+                  </select>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-900">Type Name</label>
-                  <input 
-                    type="text" 
-                    required
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={typeName}
-                    onChange={e => setTypeName(e.target.value)}
-                    placeholder="e.g. Main Component"
-                  />
-                </div>
-              </div>
 
               <div className="pt-6 border-t border-border">
                 <div className="flex justify-between items-center mb-4">
@@ -219,8 +223,6 @@ export default function SettingsPage() {
                             <option value="VARCHAR">Text</option>
                             <option value="NUMBER">Number</option>
                             <option value="PERCENT">Percent (%)</option>
-                            <option value="WEIGHT_DISTRIBUTION">Weight Distribution</option>
-                            <option value="PROCESS">Process</option>
                           </select>
                         </div>
                         <div className="pt-2 flex items-center gap-2">

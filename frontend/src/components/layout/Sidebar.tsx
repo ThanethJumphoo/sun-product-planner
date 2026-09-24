@@ -6,10 +6,16 @@ import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useLayoutStore } from "@/store/layout";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Calendar, ClipboardList, PieChart, Package, Settings, Users, Shield, KeyRound, LogOut, Activity } from "lucide-react";
+import { LayoutDashboard, Calendar, ClipboardList, PieChart, Package, Settings, Users, Shield, KeyRound, LogOut, Activity, Database } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 
 const menuSections = [
+  {
+    label: "ERP Integration",
+    items: [
+      { name: "Item Master", href: "/erp/item-master", icon: Database },
+    ],
+  },
   {
     label: "Production",
     items: [

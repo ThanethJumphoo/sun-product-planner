@@ -93,6 +93,12 @@ let FlowBoardsService = class FlowBoardsService {
         return this.findOne(id);
     }
     async remove(id) {
+        const board = await prisma_1.default.flowBoard.findUnique({ where: { id } });
+        if (!board)
+            throw new common_1.NotFoundException('Board not found');
+        if (board.name === 'Master Production Flow') {
+            throw new common_1.BadRequestException('The Master Production Flow cannot be deleted.');
+        }
         await prisma_1.default.flowEdge.deleteMany({ where: { boardId: id } });
         await prisma_1.default.flowNode.deleteMany({ where: { boardId: id } });
         return prisma_1.default.flowBoard.delete({ where: { id } });

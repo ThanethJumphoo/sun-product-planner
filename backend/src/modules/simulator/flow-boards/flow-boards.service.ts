@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import prisma from '../../../lib/prisma';
 
 @Injectable()
@@ -93,6 +93,12 @@ export class FlowBoardsService {
   }
 
   async remove(id: number) {
+    const board = await prisma.flowBoard.findUnique({ where: { id } });
+    if (!board) throw new NotFoundException('Board not found');
+    if (board.name === 'Master Production Flow') {
+      throw new BadRequestException('The Master Production Flow cannot be deleted.');
+    }
+
     // Rely on cascade delete if configured in Prisma, otherwise delete edges/nodes first
     await prisma.flowEdge.deleteMany({ where: { boardId: id } });
     await prisma.flowNode.deleteMany({ where: { boardId: id } });

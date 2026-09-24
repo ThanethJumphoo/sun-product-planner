@@ -24,42 +24,17 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('User not authenticated');
     }
 
-    // Fetch user with roles and permissions
-    const userData = await prisma.user.findUnique({
-      where: { id: user.id },
-      include: {
-        userRoles: {
-          include: {
-            role: {
-              include: {
-                permissions: {
-                  include: {
-                    permission: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-
-    if (!userData || userData.status !== 'ACTIVE') {
-      throw new ForbiddenException('User is inactive or does not exist');
-    }
-
-    const userPermissions = new Set<string>();
-    userData.userRoles.forEach(ur => {
-      ur.role.permissions.forEach(rp => {
-        userPermissions.add(rp.permission.permissionCode);
-      });
-    });
+    // Check permissions embedded in the JWT payload (user object populated by JwtStrategy)
+    const userPermissions = user.permissions || [];
 
     // Temporarily bypassing permission check for development so you can use the CRUD
-    // const hasPermission = requiredPermissions.every((perm) => userPermissions.has(perm));
+    // Uncomment the lines below to ENFORCE RBAC checking in production:
+    
+    // const hasPermission = requiredPermissions.every((perm) => userPermissions.includes(perm));
     // if (!hasPermission) {
     //   throw new ForbiddenException('Insufficient permissions');
     // }
+    
     return true;
   }
 }

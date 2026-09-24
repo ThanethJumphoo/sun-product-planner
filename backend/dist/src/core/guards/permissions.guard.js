@@ -8,15 +8,11 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PermissionsGuard = void 0;
 const common_1 = require("@nestjs/common");
 const core_1 = require("@nestjs/core");
 const require_permissions_decorator_1 = require("../decorators/require-permissions.decorator");
-const prisma_1 = __importDefault(require("../../lib/prisma"));
 let PermissionsGuard = class PermissionsGuard {
     reflector;
     constructor(reflector) {
@@ -35,33 +31,7 @@ let PermissionsGuard = class PermissionsGuard {
         if (!user || !user.id) {
             throw new common_1.ForbiddenException('User not authenticated');
         }
-        const userData = await prisma_1.default.user.findUnique({
-            where: { id: user.id },
-            include: {
-                userRoles: {
-                    include: {
-                        role: {
-                            include: {
-                                permissions: {
-                                    include: {
-                                        permission: true
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        });
-        if (!userData || userData.status !== 'ACTIVE') {
-            throw new common_1.ForbiddenException('User is inactive or does not exist');
-        }
-        const userPermissions = new Set();
-        userData.userRoles.forEach(ur => {
-            ur.role.permissions.forEach(rp => {
-                userPermissions.add(rp.permission.permissionCode);
-            });
-        });
+        const userPermissions = user.permissions || [];
         return true;
     }
 };

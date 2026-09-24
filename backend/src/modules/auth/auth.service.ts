@@ -17,7 +17,19 @@ export class AuthService {
   }
 
   async login(user: any) {
-    const payload = { username: user.username, sub: user.id };
+    // Fetch permissions during login to embed in JWT and avoid DB lookups on every request
+    const userData = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: {
+        userRoles: { include: { role: { include: { permissions: { include: { permission: true } } } } } }
+      }
+    });
+    
+    const permissions = Array.from(new Set(
+      userData?.userRoles.flatMap(ur => ur.role.permissions.map(rp => rp.permission.permissionCode)) || []
+    ));
+
+    const payload = { username: user.username, sub: user.id, permissions };
     return {
       accessToken: this.jwtService.sign(payload, { expiresIn: '15m' }),
       refreshToken: this.jwtService.sign(payload, { expiresIn: '7d' }), // In prod, consider separate secret/store for refresh tokens
@@ -28,7 +40,7 @@ export class AuthService {
     try {
       const payload = this.jwtService.verify(refreshToken, { secret: process.env.JWT_SECRET || 'super-secret' });
       // Here you would check if the refresh token is revoked in DB/Redis
-      const newPayload = { username: payload.username, sub: payload.sub };
+      const newPayload = { username: payload.username, sub: payload.sub, permissions: payload.permissions || [] };
       return {
         accessToken: this.jwtService.sign(newPayload, { expiresIn: '15m' }),
       };

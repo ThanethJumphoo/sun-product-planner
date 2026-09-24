@@ -64,7 +64,14 @@ let AuthService = class AuthService {
         return null;
     }
     async login(user) {
-        const payload = { username: user.username, sub: user.id };
+        const userData = await prisma_1.default.user.findUnique({
+            where: { id: user.id },
+            include: {
+                userRoles: { include: { role: { include: { permissions: { include: { permission: true } } } } } }
+            }
+        });
+        const permissions = Array.from(new Set(userData?.userRoles.flatMap(ur => ur.role.permissions.map(rp => rp.permission.permissionCode)) || []));
+        const payload = { username: user.username, sub: user.id, permissions };
         return {
             accessToken: this.jwtService.sign(payload, { expiresIn: '15m' }),
             refreshToken: this.jwtService.sign(payload, { expiresIn: '7d' }),
@@ -73,7 +80,7 @@ let AuthService = class AuthService {
     async refresh(refreshToken) {
         try {
             const payload = this.jwtService.verify(refreshToken, { secret: process.env.JWT_SECRET || 'super-secret' });
-            const newPayload = { username: payload.username, sub: payload.sub };
+            const newPayload = { username: payload.username, sub: payload.sub, permissions: payload.permissions || [] };
             return {
                 accessToken: this.jwtService.sign(newPayload, { expiresIn: '15m' }),
             };

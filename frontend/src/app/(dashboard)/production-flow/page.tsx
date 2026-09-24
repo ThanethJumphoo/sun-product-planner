@@ -90,16 +90,26 @@ export default function ProductionFlowPage() {
       const mainId = `node_${Date.now()}_main`;
       const partId = `node_${Date.now()}_part`;
 
+      // Find the parent node in the current flow to inherit its Yield Percent
+      const incomingEdge = edges.find(e => e.target === node.id);
+      const parentNode = incomingEdge ? nodes.find(n => n.id === incomingEdge.source) : null;
+      // Use 'Yield Percent', 'YieldPercent', or default to 100
+      let parentYield = 100;
+      if (parentNode?.data?.dynamicData) {
+        const yieldKey = Object.keys(parentNode.data.dynamicData).find(k => k.toLowerCase().includes('yield'));
+        if (yieldKey) parentYield = Number(parentNode.data.dynamicData[yieldKey]) || 100;
+      }
+
       const newBoardPayload = {
         name: `${parentBoardName} - ${node.data.name}`,
         nodes: [
           {
             id: mainId,
-            nodeTypeId: mainType.id,
-            name: 'Source (Parent Output)',
+            nodeTypeId: parentNode ? parentNode.data.nodeTypeId : mainType.id,
+            name: parentNode ? parentNode.data.name : 'Source (Parent Output)',
             positionX: 100,
             positionY: 100,
-            data: JSON.stringify({ 'inputQuantity': node.data.outputValue || 100 })
+            data: JSON.stringify(parentNode ? parentNode.data.dynamicData : { 'inputQuantity': 100, 'Yield Percent': 100 })
           },
           {
             id: partId,
@@ -208,6 +218,7 @@ export default function ProductionFlowPage() {
             name: n.name,
             nodeTypeId: n.nodeTypeId,
             nodeTypeName: typeMatch?.typeName || 'Node',
+            nodeTypeCode: typeMatch?.typeCode || '',
             dynamicData: n.data ? JSON.parse(n.data) : {},
             fieldSchema: typeMatch?.fields || [],
             onEdit: handleEditNode,
@@ -249,7 +260,12 @@ export default function ProductionFlowPage() {
       const types = await fetchNodeTypes();
       const boards = await fetchBoardsList();
       if (boards.length > 0) {
-        await loadBoard(boards[0].id, types);
+        const masterBoard = boards.find((b: any) => b.name === 'Master Production Flow');
+        if (masterBoard) {
+          await loadBoard(masterBoard.id, types);
+        } else {
+          await loadBoard(boards[0].id, types);
+        }
       } else {
         setIsLoading(false);
       }
@@ -320,14 +336,50 @@ export default function ProductionFlowPage() {
       }
     }
 
+    // Calculate Total Yield for PROCESS and MACHINE nodes
+    const processYields: Record<string, number> = {};
+    nodes.forEach(n => {
+      const nodeType = n.data?.nodeTypeCode;
+      if (nodeType === 'PROCESS' || nodeType === 'MACHINE') {
+        const outgoingEdges = edges.filter(e => e.source === n.id);
+        let totalYield = 0;
+        outgoingEdges.forEach(e => {
+          const targetNode = nodes.find(tn => tn.id === e.target);
+          if (targetNode?.data?.dynamicData) {
+            for (const [key, value] of Object.entries(targetNode.data.dynamicData)) {
+              const fieldDef = targetNode.data.fieldSchema?.find((f: any) => f.fieldName === key);
+              const isPercent = fieldDef ? fieldDef.dataType === 'PERCENT' : key.toLowerCase().includes('percent');
+              if (isPercent) {
+                totalYield += Number(value) || 0;
+                break;
+              }
+            }
+          }
+        });
+        processYields[n.id] = totalYield;
+      }
+    });
+
     // Apply outputs to nodes
     let changed = false;
     const newNodes = nodes.map(node => {
       const calculatedOutput = (outputs[node.id] || 0).toFixed(2);
+      const processTotalYield = processYields[node.id];
+      
+      const incomingEdge = edges.find(e => e.target === node.id);
+      const connectionType = incomingEdge?.sourceHandle || undefined;
+
       // Inject onEdit and isLocked
-      if (node.data?.outputValue !== calculatedOutput || node.data?.onEdit !== handleEditNode || node.data?.isLocked !== isLocked || node.data?.onDrillDown !== handleDrillDown) {
+      if (
+        node.data?.outputValue !== calculatedOutput || 
+        node.data?.processTotalYield !== processTotalYield ||
+        node.data?.connectionType !== connectionType ||
+        node.data?.onEdit !== handleEditNode || 
+        node.data?.isLocked !== isLocked || 
+        node.data?.onDrillDown !== handleDrillDown
+      ) {
         changed = true;
-        return { ...node, data: { ...node.data, outputValue: calculatedOutput, onEdit: handleEditNode, onDrillDown: handleDrillDown, isLocked } };
+        return { ...node, data: { ...node.data, outputValue: calculatedOutput, processTotalYield, connectionType, onEdit: handleEditNode, onDrillDown: handleDrillDown, isLocked } };
       }
       return node;
     });
@@ -442,6 +494,13 @@ export default function ProductionFlowPage() {
 
   const handleDeleteBoard = async () => {
     if (isLocked || !boardId) return;
+    
+    const currentBoard = allBoards.find(b => b.id === boardId);
+    if (currentBoard?.name === 'Master Production Flow') {
+      toast.error('The Master Production Flow cannot be deleted.');
+      return;
+    }
+
     if (!window.confirm("Are you sure you want to delete this board? This action cannot be undone.")) return;
 
     try {
@@ -503,7 +562,7 @@ export default function ProductionFlowPage() {
             >
               + New Board
             </button>
-            {boardId && (
+            {boardId && allBoards.find(b => b.id === boardId)?.name !== 'Master Production Flow' && (
               <button
                 onClick={handleDeleteBoard}
                 className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-md text-sm font-medium transition-colors border border-red-200 disabled:opacity-50"

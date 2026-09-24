@@ -22,7 +22,22 @@ export const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'T
     dagreGraph.setNode(node.id, { width, height });
   });
 
-  edges.forEach((edge) => {
+  const handleOrder: Record<string, number> = {
+    'product': 1,
+    'co-product': 2,
+    'coproduct': 2,
+    'by-product': 3,
+    'byproduct': 3,
+  };
+
+  const sortedEdges = [...edges].sort((a, b) => {
+    if (a.source === b.source) {
+      return (handleOrder[a.sourceHandle || ''] || 99) - (handleOrder[b.sourceHandle || ''] || 99);
+    }
+    return 0;
+  });
+
+  sortedEdges.forEach((edge) => {
     dagreGraph.setEdge(edge.source, edge.target);
   });
 

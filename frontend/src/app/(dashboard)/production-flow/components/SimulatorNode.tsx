@@ -34,8 +34,10 @@ export function SimulatorNode({ id, data }: { id: string; data: any }) {
     }
   };
 
-  const isPart = data.nodeTypeName?.toLowerCase().includes('part');
-  const isProcess = data.fieldSchema?.some((f: any) => f.dataType === 'PROCESS') || data.nodeTypeName?.toUpperCase() === 'PROCESS';
+  const isPart = data.nodeTypeCode === 'PART';
+  const isProcess = data.nodeTypeCode === 'PROCESS' || data.nodeTypeCode === 'MACHINE';
+  const isWeightDistribution = data.nodeTypeCode === 'WEIGHT_DISTRIBUTION';
+  const isRawMaterial = data.nodeTypeCode === 'RAW_MATERIAL';
 
   return (
     <div className="bg-white border-2 border-primary/20 rounded-lg shadow-md min-w-[200px] overflow-hidden group">
@@ -71,6 +73,18 @@ export function SimulatorNode({ id, data }: { id: string; data: any }) {
       </div>
       
       <div className="p-4 space-y-3">
+        {/* Render Connection Type for Raw Material */}
+        {isRawMaterial && data.connectionType && (
+          <div className="flex flex-col space-y-1 mb-2">
+            <label className="text-xs text-muted-foreground font-bold capitalize">Type (Connected From)</label>
+            <input
+              type="text"
+              readOnly
+              className="nodrag w-full rounded-md border border-input bg-primary/5 px-2 py-1 text-sm text-primary font-semibold capitalize cursor-default focus:outline-none"
+              value={data.connectionType.replace('-', ' ')}
+            />
+          </div>
+        )}
         {(() => {
           // Use fieldSchema if available, otherwise fallback to dynamicData keys
           if (data.fieldSchema && data.fieldSchema.length > 0) {
@@ -83,16 +97,7 @@ export function SimulatorNode({ id, data }: { id: string; data: any }) {
               return (
                 <div key={key} className="flex flex-col space-y-1">
                   <label className="text-xs text-muted-foreground font-medium capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
-                  {fieldDef.dataType === 'WEIGHT_DISTRIBUTION' ? (
-                    <WeightDistributionField nodeId={id} />
-                  ) : fieldDef.dataType === 'PROCESS' ? (
-                    <input
-                      type="number"
-                      readOnly
-                      className="nodrag w-full rounded-md border border-purple-200 bg-purple-50 px-2 py-1 text-sm text-purple-900 cursor-default focus:outline-none font-medium"
-                      value={String(value)}
-                    />
-                  ) : isPercent ? (
+                  {isPercent ? (
                     <div className="relative">
                       <input
                         type="text"
@@ -146,8 +151,17 @@ export function SimulatorNode({ id, data }: { id: string; data: any }) {
             });
           }
 
-          return <div className="text-xs text-muted-foreground italic text-center py-2">No properties</div>;
+          if (!isWeightDistribution) {
+            return <div className="text-xs text-muted-foreground italic text-center py-2">No properties</div>;
+          }
+          return null;
         })()}
+
+        {isWeightDistribution && (
+          <div className="pt-2">
+            <WeightDistributionField nodeId={id} />
+          </div>
+        )}
         
         {/* Output Field (Disabled) */}
         <div className="flex flex-col space-y-1 mt-4 pt-3 border-t border-border">
@@ -160,6 +174,26 @@ export function SimulatorNode({ id, data }: { id: string; data: any }) {
             placeholder="Calculated Output"
           />
         </div>
+
+        {isProcess && data.processTotalYield !== undefined && (
+          <div className="flex flex-col space-y-1 mt-3">
+            <label className="text-xs text-slate-700 font-bold uppercase">Total Yield</label>
+            <div className="relative">
+              <input
+                type="text"
+                disabled
+                className={`nodrag w-full rounded-md border ${data.processTotalYield === 100 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'} px-2 py-1 text-sm font-medium text-right pr-6 cursor-not-allowed focus:outline-none`}
+                value={data.processTotalYield}
+              />
+              <span className={`absolute right-2 top-1.5 text-xs font-bold ${data.processTotalYield === 100 ? 'text-emerald-700' : 'text-amber-700'}`}>%</span>
+            </div>
+            {data.processTotalYield !== 100 && (
+              <p className="text-[10px] text-amber-600 font-medium leading-tight mt-1">
+                Total yield across all product paths is not 100%.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Drill-down Sub-flow Button */}
         {isPart && !data.isSubFlow && (

@@ -5,15 +5,15 @@ export declare class PermissionsController {
     findAll(): Promise<{
         id: number;
         createdAt: Date;
-        updatedAt: Date;
         createdBy: number | null;
+        updatedAt: Date;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
+        description: string | null;
         permissionCode: string;
         permissionName: string;
         moduleName: string;
-        description: string | null;
     }[]>;
     getPermissionMatrix(): Promise<{
         moduleName: string;
