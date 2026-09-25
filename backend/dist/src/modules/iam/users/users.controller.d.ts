@@ -17,22 +17,22 @@ export declare class UsersController {
                 };
             } & {
                 id: number;
-                userId: number;
                 roleId: number;
+                userId: number;
             })[];
             id: number;
-            userCode: string;
-            username: string;
-            status: string;
-            authProvider: string;
-            mfaEnabled: boolean;
-            passwordChangedAt: Date | null;
             createdAt: Date;
-            createdBy: number | null;
             updatedAt: Date;
+            createdBy: number | null;
             updatedBy: number | null;
             deletedAt: Date | null;
             deletedBy: number | null;
+            status: string;
+            userCode: string;
+            username: string;
+            authProvider: string;
+            mfaEnabled: boolean;
+            passwordChangedAt: Date | null;
         }[];
         meta: {
             total: number;
@@ -49,22 +49,22 @@ export declare class UsersController {
             };
         } & {
             id: number;
-            userId: number;
             roleId: number;
+            userId: number;
         })[];
         id: number;
-        userCode: string;
-        username: string;
-        status: string;
-        authProvider: string;
-        mfaEnabled: boolean;
-        passwordChangedAt: Date | null;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
+        status: string;
+        userCode: string;
+        username: string;
+        authProvider: string;
+        mfaEnabled: boolean;
+        passwordChangedAt: Date | null;
     }>;
     create(body: {
         userCode: string;
@@ -84,22 +84,22 @@ export declare class UsersController {
             };
         } & {
             id: number;
-            userId: number;
             roleId: number;
+            userId: number;
         })[];
         id: number;
-        userCode: string;
-        username: string;
-        status: string;
-        authProvider: string;
-        mfaEnabled: boolean;
-        passwordChangedAt: Date | null;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
+        status: string;
+        userCode: string;
+        username: string;
+        authProvider: string;
+        mfaEnabled: boolean;
+        passwordChangedAt: Date | null;
     }>;
     update(id: number, body: {
         username?: string;
@@ -116,22 +116,22 @@ export declare class UsersController {
             };
         } & {
             id: number;
-            userId: number;
             roleId: number;
+            userId: number;
         })[];
         id: number;
-        userCode: string;
-        username: string;
-        status: string;
-        authProvider: string;
-        mfaEnabled: boolean;
-        passwordChangedAt: Date | null;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
+        status: string;
+        userCode: string;
+        username: string;
+        authProvider: string;
+        mfaEnabled: boolean;
+        passwordChangedAt: Date | null;
     }>;
     resetPassword(id: number, body: {
         newPassword: string;

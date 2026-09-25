@@ -4,33 +4,33 @@ export declare class FlowBoardsController {
     constructor(flowBoardsService: FlowBoardsService);
     findAll(): Promise<{
         id: number;
-        name: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
     }[]>;
     findOne(id: number): Promise<{
         nodes: {
             id: string;
             name: string;
-            boardId: number;
+            data: string;
             nodeTypeId: number;
             positionX: number;
             positionY: number;
-            data: string;
+            boardId: number;
         }[];
         edges: {
             id: string;
-            boardId: number;
             source: string;
             target: string;
             sourceHandle: string | null;
             targetHandle: string | null;
+            boardId: number;
         }[];
     } & {
         id: number;
-        name: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
     }>;
     create(body: {
         name: string;
@@ -40,25 +40,25 @@ export declare class FlowBoardsController {
         nodes: {
             id: string;
             name: string;
-            boardId: number;
+            data: string;
             nodeTypeId: number;
             positionX: number;
             positionY: number;
-            data: string;
+            boardId: number;
         }[];
         edges: {
             id: string;
-            boardId: number;
             source: string;
             target: string;
             sourceHandle: string | null;
             targetHandle: string | null;
+            boardId: number;
         }[];
     } & {
         id: number;
-        name: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
     }>;
     saveBoard(id: number, body: {
         name?: string;
@@ -68,30 +68,30 @@ export declare class FlowBoardsController {
         nodes: {
             id: string;
             name: string;
-            boardId: number;
+            data: string;
             nodeTypeId: number;
             positionX: number;
             positionY: number;
-            data: string;
+            boardId: number;
         }[];
         edges: {
             id: string;
-            boardId: number;
             source: string;
             target: string;
             sourceHandle: string | null;
             targetHandle: string | null;
+            boardId: number;
         }[];
     } & {
         id: number;
-        name: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
     }>;
     remove(id: number): Promise<{
         id: number;
-        name: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
     }>;
 }

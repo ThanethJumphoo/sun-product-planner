@@ -11,9 +11,12 @@ import { FlowBoardsModule } from './modules/simulator/flow-boards/flow-boards.mo
 import { WeightDistributionModule } from './modules/simulator/weight-distribution/weight-distribution.module';
 import { ChickenWeightsModule } from './modules/simulator/chicken-weights/chicken-weights.module';
 import { PartRmSizesModule } from './modules/simulator/part-rm-sizes/part-rm-sizes.module';
+import { OracleModule } from './modules/oracle/oracle.module';
+import { ErpItemMasterModule } from './modules/master-data/erp-item-master/erp-item-master.module';
 
 @Module({
   imports: [
+    OracleModule,
     AuthModule,
     UsersModule,
     RolesModule,
@@ -24,6 +27,7 @@ import { PartRmSizesModule } from './modules/simulator/part-rm-sizes/part-rm-siz
     WeightDistributionModule,
     ChickenWeightsModule,
     PartRmSizesModule,
+    ErpItemMasterModule,
   ],
   controllers: [AppController],
   providers: [AppService],

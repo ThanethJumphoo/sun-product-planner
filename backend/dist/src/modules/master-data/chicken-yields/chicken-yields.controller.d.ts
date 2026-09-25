@@ -5,16 +5,16 @@ export declare class ChickenYieldsController {
     findAll(query: any): Promise<{
         data: {
             id: number;
-            status: string;
             createdAt: Date;
-            createdBy: number | null;
             updatedAt: Date;
+            sortOrder: number;
+            createdBy: number | null;
             updatedBy: number | null;
             deletedAt: Date | null;
             deletedBy: number | null;
-            sortOrder: number;
-            partCode: string;
+            status: string;
             partName: string;
+            partCode: string;
             yieldPercent: import("@prisma/client/runtime/library").Decimal;
         }[];
         total: number;
@@ -24,16 +24,16 @@ export declare class ChickenYieldsController {
     }>;
     findOne(id: number): Promise<{
         id: number;
-        status: string;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        sortOrder: number;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
-        sortOrder: number;
-        partCode: string;
+        status: string;
         partName: string;
+        partCode: string;
         yieldPercent: import("@prisma/client/runtime/library").Decimal;
     }>;
     create(body: {
@@ -44,16 +44,16 @@ export declare class ChickenYieldsController {
         status?: string;
     }): Promise<{
         id: number;
-        status: string;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        sortOrder: number;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
-        sortOrder: number;
-        partCode: string;
+        status: string;
         partName: string;
+        partCode: string;
         yieldPercent: import("@prisma/client/runtime/library").Decimal;
     }>;
     update(id: number, body: {
@@ -63,46 +63,46 @@ export declare class ChickenYieldsController {
         status?: string;
     }): Promise<{
         id: number;
-        status: string;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        sortOrder: number;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
-        sortOrder: number;
-        partCode: string;
+        status: string;
         partName: string;
+        partCode: string;
         yieldPercent: import("@prisma/client/runtime/library").Decimal;
     }>;
     updateStatus(id: number, body: {
         status: string;
     }): Promise<{
         id: number;
-        status: string;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        sortOrder: number;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
-        sortOrder: number;
-        partCode: string;
+        status: string;
         partName: string;
+        partCode: string;
         yieldPercent: import("@prisma/client/runtime/library").Decimal;
     }>;
     remove(id: number): Promise<{
         id: number;
-        status: string;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        sortOrder: number;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
-        sortOrder: number;
-        partCode: string;
+        status: string;
         partName: string;
+        partCode: string;
         yieldPercent: import("@prisma/client/runtime/library").Decimal;
     }>;
 }

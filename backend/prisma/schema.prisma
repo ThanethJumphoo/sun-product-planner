@@ -394,3 +394,27 @@ model PartWeightDistribution {
   @@unique([partName, chickenWeightId, partRmSizeId])
   @@map("part_weight_distributions")
 }
+
+// -----------------------------------------------------
+// ERP Master Data Integration
+// -----------------------------------------------------
+model ErpItemMaster {
+  id              String   @id @default(uuid())
+  
+  erpItemId       String   @unique @map("erp_item_id")
+  erpItemCode     String   @unique @map("erp_item_code")
+  erpItemDesc     String   @map("erp_item_desc") @db.NVarChar(255)
+  erpItemType     String   @map("erp_item_type") @db.NVarChar(50)
+  erpItemUom      String   @map("erp_item_uom") @db.NVarChar(20)
+  
+  erpSecondaryUom String?  @map("erp_secondary_uom") @db.NVarChar(20)
+  erpIsActive     Boolean  @default(true) @map("erp_is_active")
+  
+  erpUpdatedAt    DateTime? @map("erp_updated_at")
+  lastSyncedAt    DateTime @default(now()) @map("last_synced_at")
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("erp_item_master")
+}

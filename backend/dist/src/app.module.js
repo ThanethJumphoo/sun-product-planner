@@ -20,12 +20,15 @@ const flow_boards_module_1 = require("./modules/simulator/flow-boards/flow-board
 const weight_distribution_module_1 = require("./modules/simulator/weight-distribution/weight-distribution.module");
 const chicken_weights_module_1 = require("./modules/simulator/chicken-weights/chicken-weights.module");
 const part_rm_sizes_module_1 = require("./modules/simulator/part-rm-sizes/part-rm-sizes.module");
+const oracle_module_1 = require("./modules/oracle/oracle.module");
+const erp_item_master_module_1 = require("./modules/master-data/erp-item-master/erp-item-master.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
+            oracle_module_1.OracleModule,
             auth_module_1.AuthModule,
             users_module_1.UsersModule,
             roles_module_1.RolesModule,
@@ -36,6 +39,7 @@ exports.AppModule = AppModule = __decorate([
             weight_distribution_module_1.WeightDistributionModule,
             chicken_weights_module_1.ChickenWeightsModule,
             part_rm_sizes_module_1.PartRmSizesModule,
+            erp_item_master_module_1.ErpItemMasterModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

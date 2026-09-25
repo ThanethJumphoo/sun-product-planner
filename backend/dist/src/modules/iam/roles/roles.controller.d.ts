@@ -10,39 +10,39 @@ export declare class RolesController {
         sortOrder?: string;
     }): Promise<{
         data: ({
+            _count: {
+                userRoles: number;
+            };
             permissions: ({
                 permission: {
                     id: number;
                     createdAt: Date;
-                    createdBy: number | null;
                     updatedAt: Date;
+                    createdBy: number | null;
                     updatedBy: number | null;
                     deletedAt: Date | null;
                     deletedBy: number | null;
-                    description: string | null;
                     permissionCode: string;
                     permissionName: string;
                     moduleName: string;
+                    description: string | null;
                 };
             } & {
-                roleId: number;
                 permissionId: number;
+                roleId: number;
             })[];
-            _count: {
-                userRoles: number;
-            };
         } & {
             id: number;
-            status: string;
             createdAt: Date;
-            createdBy: number | null;
             updatedAt: Date;
+            createdBy: number | null;
             updatedBy: number | null;
             deletedAt: Date | null;
             deletedBy: number | null;
+            description: string | null;
             roleCode: string;
             roleName: string;
-            description: string | null;
+            status: string;
             isSystemRole: boolean;
         })[];
         total: number;
@@ -51,47 +51,47 @@ export declare class RolesController {
         totalPages: number;
     }>;
     findOne(id: number): Promise<{
+        userRoles: ({
+            user: {
+                id: number;
+                status: string;
+                username: string;
+            };
+        } & {
+            id: number;
+            roleId: number;
+            userId: number;
+        })[];
         permissions: ({
             permission: {
                 id: number;
                 createdAt: Date;
-                createdBy: number | null;
                 updatedAt: Date;
+                createdBy: number | null;
                 updatedBy: number | null;
                 deletedAt: Date | null;
                 deletedBy: number | null;
-                description: string | null;
                 permissionCode: string;
                 permissionName: string;
                 moduleName: string;
+                description: string | null;
             };
         } & {
-            roleId: number;
             permissionId: number;
-        })[];
-        userRoles: ({
-            user: {
-                id: number;
-                username: string;
-                status: string;
-            };
-        } & {
-            id: number;
-            userId: number;
             roleId: number;
         })[];
     } & {
         id: number;
-        status: string;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
+        description: string | null;
         roleCode: string;
         roleName: string;
-        description: string | null;
+        status: string;
         isSystemRole: boolean;
     }>;
     create(body: {
@@ -100,16 +100,16 @@ export declare class RolesController {
         description?: string;
     }): Promise<{
         id: number;
-        status: string;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
+        description: string | null;
         roleCode: string;
         roleName: string;
-        description: string | null;
+        status: string;
         isSystemRole: boolean;
     }>;
     update(id: number, body: {
@@ -118,62 +118,62 @@ export declare class RolesController {
         description?: string;
     }): Promise<{
         id: number;
-        status: string;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
+        description: string | null;
         roleCode: string;
         roleName: string;
-        description: string | null;
+        status: string;
         isSystemRole: boolean;
     }>;
     assignPermissions(id: number, body: {
         permissionIds: number[];
     }): Promise<{
+        userRoles: ({
+            user: {
+                id: number;
+                status: string;
+                username: string;
+            };
+        } & {
+            id: number;
+            roleId: number;
+            userId: number;
+        })[];
         permissions: ({
             permission: {
                 id: number;
                 createdAt: Date;
-                createdBy: number | null;
                 updatedAt: Date;
+                createdBy: number | null;
                 updatedBy: number | null;
                 deletedAt: Date | null;
                 deletedBy: number | null;
-                description: string | null;
                 permissionCode: string;
                 permissionName: string;
                 moduleName: string;
+                description: string | null;
             };
         } & {
-            roleId: number;
             permissionId: number;
-        })[];
-        userRoles: ({
-            user: {
-                id: number;
-                username: string;
-                status: string;
-            };
-        } & {
-            id: number;
-            userId: number;
             roleId: number;
         })[];
     } & {
         id: number;
-        status: string;
         createdAt: Date;
-        createdBy: number | null;
         updatedAt: Date;
+        createdBy: number | null;
         updatedBy: number | null;
         deletedAt: Date | null;
         deletedBy: number | null;
+        description: string | null;
         roleCode: string;
         roleName: string;
-        description: string | null;
+        status: string;
         isSystemRole: boolean;
     }>;
 }
