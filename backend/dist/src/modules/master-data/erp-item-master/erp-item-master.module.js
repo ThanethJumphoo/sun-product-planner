@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ErpItemMasterModule = void 0;
 const common_1 = require("@nestjs/common");
+const system_settings_module_1 = require("../../system-settings/system-settings.module");
 const erp_item_master_service_1 = require("./erp-item-master.service");
 const erp_item_master_controller_1 = require("./erp-item-master.controller");
 let ErpItemMasterModule = class ErpItemMasterModule {
@@ -15,6 +16,7 @@ let ErpItemMasterModule = class ErpItemMasterModule {
 exports.ErpItemMasterModule = ErpItemMasterModule;
 exports.ErpItemMasterModule = ErpItemMasterModule = __decorate([
     (0, common_1.Module)({
+        imports: [system_settings_module_1.SystemSettingsModule],
         providers: [erp_item_master_service_1.ErpItemMasterService],
         controllers: [erp_item_master_controller_1.ErpItemMasterController]
     })

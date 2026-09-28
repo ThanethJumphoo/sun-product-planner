@@ -53,7 +53,7 @@ export function NodeModal({ isOpen, onClose, onSave, initialData, nodeTypes }: N
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-white w-full max-w-md rounded-lg shadow-lg border border-border overflow-hidden">
-        <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-slate-50">
+        <div className="px-6 py-4 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 bg-slate-50">
           <h2 className="text-xl font-bold text-slate-900">{initialData ? "Edit Card" : "Add New Card"}</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-slate-900">✕</button>
         </div>
@@ -77,7 +77,7 @@ export function NodeModal({ isOpen, onClose, onSave, initialData, nodeTypes }: N
               required
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={nodeTypeId}
-              onChange={e => setNodeTypeId(e.target.value)}
+              onChange={e => setNodeTypeId(e.target.value === "" ? "" : Number(e.target.value))}
             >
               <option value="" disabled>Select Type...</option>
               {nodeTypes.map(t => (

@@ -40,8 +40,8 @@ export default function ItemMasterPage() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full p-8 overflow-y-auto bg-slate-50/50 relative">
-      <div className="mb-8 flex justify-between items-start">
+    <div className="flex flex-col h-full w-full p-4 md:p-8 overflow-y-auto bg-slate-50/50 relative">
+      <div className="mb-8 flex flex-col md:flex-row md:justify-between items-start md:items-center gap-4 md:gap-0">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-3">
             <Database className="w-8 h-8 text-primary" />
@@ -52,7 +52,7 @@ export default function ItemMasterPage() {
           </p>
         </div>
         
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           <button 
             onClick={handleSyncUpdates}
             disabled={isSyncing}
@@ -74,7 +74,7 @@ export default function ItemMasterPage() {
 
       <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden flex flex-col min-h-[500px]">
         {/* Toolbar */}
-        <div className="p-4 border-b border-border flex justify-between items-center bg-slate-50/50">
+        <div className="p-4 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 bg-slate-50/50">
           <div className="relative w-72">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input 

@@ -105,7 +105,7 @@ export function ChickenWeightsManager() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
-      <div className="flex justify-between items-center p-6 border-b border-border bg-white shrink-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 p-6 border-b border-border bg-white shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Global Chicken Weights</h1>
           <p className="text-sm text-muted-foreground mt-1">Define standard chicken weight ranges used across all parts.</p>
@@ -177,7 +177,7 @@ export function ChickenWeightsManager() {
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-md rounded-lg shadow-xl border border-border overflow-hidden">
-            <div className="px-6 py-4 border-b border-border bg-slate-50 flex justify-between items-center">
+            <div className="px-6 py-4 border-b border-border bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">
               <h2 className="text-xl font-bold text-slate-900">
                 {editingId ? 'Edit Chicken Weight' : 'Add Chicken Weight'}
               </h2>

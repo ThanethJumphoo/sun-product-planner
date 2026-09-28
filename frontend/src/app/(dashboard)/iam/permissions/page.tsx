@@ -73,7 +73,7 @@ export default function PermissionsPage() {
   });
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Permission Management</h1>
         <p className="text-muted-foreground text-sm mt-1">
@@ -114,7 +114,7 @@ export default function PermissionsPage() {
       {/* Permission Matrix */}
       {!selectedRoleId ? (
         <Card>
-          <CardContent className="p-12 text-center text-muted-foreground">
+          <CardContent className="p-4 md:p-12 text-center text-muted-foreground">
             Select a role above to manage its permissions
           </CardContent>
         </Card>

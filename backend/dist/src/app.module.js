@@ -22,13 +22,19 @@ const chicken_weights_module_1 = require("./modules/simulator/chicken-weights/ch
 const part_rm_sizes_module_1 = require("./modules/simulator/part-rm-sizes/part-rm-sizes.module");
 const oracle_module_1 = require("./modules/oracle/oracle.module");
 const erp_item_master_module_1 = require("./modules/master-data/erp-item-master/erp-item-master.module");
+const erp_sale_order_module_1 = require("./modules/master-data/erp-sale-order/erp-sale-order.module");
+const system_settings_module_1 = require("./modules/system-settings/system-settings.module");
+const schedule_1 = require("@nestjs/schedule");
+const chicken_receiving_module_1 = require("./modules/master-data/chicken-receiving/chicken-receiving.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
+            schedule_1.ScheduleModule.forRoot(),
             oracle_module_1.OracleModule,
+            system_settings_module_1.SystemSettingsModule,
             auth_module_1.AuthModule,
             users_module_1.UsersModule,
             roles_module_1.RolesModule,
@@ -40,6 +46,8 @@ exports.AppModule = AppModule = __decorate([
             chicken_weights_module_1.ChickenWeightsModule,
             part_rm_sizes_module_1.PartRmSizesModule,
             erp_item_master_module_1.ErpItemMasterModule,
+            erp_sale_order_module_1.ErpSaleOrderModule,
+            chicken_receiving_module_1.ChickenReceivingModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

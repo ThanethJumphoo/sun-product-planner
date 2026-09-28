@@ -16,7 +16,7 @@ export function DeletableEdge({
 }: any) {
   const { setEdges } = useReactFlow();
   const [isHovered, setIsHovered] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -30,7 +30,7 @@ export function DeletableEdge({
   const isLocked = data?.isLocked;
 
   const handleMouseEnter = () => {
-    clearTimeout(timeoutRef.current);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setIsHovered(true);
   };
 

@@ -288,73 +288,73 @@ model ChickenYield {
 // -----------------------------------------------------
 
 model FlowNodeType {
-  id          Int                 @id @default(autoincrement())
-  typeCode    String              @unique @db.NVarChar(50) // e.g. "MAIN", "PART"
-  typeName    String              @db.NVarChar(100)
-  fields      FlowNodeTypeField[]
-  nodes       FlowNode[]
+  id       Int                 @id @default(autoincrement())
+  typeCode String              @unique @db.NVarChar(50) // e.g. "MAIN", "PART"
+  typeName String              @db.NVarChar(100)
+  fields   FlowNodeTypeField[]
+  nodes    FlowNode[]
 
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("flow_node_types")
 }
 
 model FlowNodeTypeField {
-  id          Int           @id @default(autoincrement())
-  nodeTypeId  Int           @map("node_type_id")
-  nodeType    FlowNodeType  @relation(fields: [nodeTypeId], references: [id], onDelete: Cascade)
-  fieldName   String        @map("field_name") @db.NVarChar(100)
-  dataType    String        @map("data_type") @db.NVarChar(50) // VARCHAR, NUMBER, PERCENT
-  isRequired  Boolean       @default(false) @map("is_required")
-  sortOrder   Int           @default(0) @map("sort_order")
+  id         Int          @id @default(autoincrement())
+  nodeTypeId Int          @map("node_type_id")
+  nodeType   FlowNodeType @relation(fields: [nodeTypeId], references: [id], onDelete: Cascade)
+  fieldName  String       @map("field_name") @db.NVarChar(100)
+  dataType   String       @map("data_type") @db.NVarChar(50) // VARCHAR, NUMBER, PERCENT
+  isRequired Boolean      @default(false) @map("is_required")
+  sortOrder  Int          @default(0) @map("sort_order")
 
   @@map("flow_node_type_fields")
 }
 
 model FlowBoard {
-  id          Int         @id @default(autoincrement())
-  name        String      @db.NVarChar(100)
-  nodes       FlowNode[]
-  edges       FlowEdge[]
-  
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  id    Int        @id @default(autoincrement())
+  name  String     @db.NVarChar(100)
+  nodes FlowNode[]
+  edges FlowEdge[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("flow_boards")
 }
 
 model FlowNode {
-  id          String       @id @db.NVarChar(100) // React Flow node id
-  boardId     Int          @map("board_id")
-  board       FlowBoard    @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  nodeTypeId  Int          @map("node_type_id")
-  nodeType    FlowNodeType @relation(fields: [nodeTypeId], references: [id])
-  name        String       @db.NVarChar(100)
-  positionX   Float        @map("position_x")
-  positionY   Float        @map("position_y")
-  data        String       @db.NVarChar(Max) // JSON string of dynamic field values
+  id         String       @id @db.NVarChar(100) // React Flow node id
+  boardId    Int          @map("board_id")
+  board      FlowBoard    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  nodeTypeId Int          @map("node_type_id")
+  nodeType   FlowNodeType @relation(fields: [nodeTypeId], references: [id])
+  name       String       @db.NVarChar(100)
+  positionX  Float        @map("position_x")
+  positionY  Float        @map("position_y")
+  data       String       @db.NVarChar(Max) // JSON string of dynamic field values
 
   @@map("flow_nodes")
 }
 
 model FlowEdge {
-  id           String      @id @db.NVarChar(100) // React Flow edge id
-  boardId      Int         @map("board_id")
-  board        FlowBoard   @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  source       String      @db.NVarChar(100)
-  target       String      @db.NVarChar(100)
-  sourceHandle String?     @map("source_handle") @db.NVarChar(100)
-  targetHandle String?     @map("target_handle") @db.NVarChar(100)
+  id           String    @id @db.NVarChar(100) // React Flow edge id
+  boardId      Int       @map("board_id")
+  board        FlowBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  source       String    @db.NVarChar(100)
+  target       String    @db.NVarChar(100)
+  sourceHandle String?   @map("source_handle") @db.NVarChar(100)
+  targetHandle String?   @map("target_handle") @db.NVarChar(100)
 
   @@map("flow_edges")
 }
 
 model ChickenWeight {
-  id        Int      @id @default(autoincrement())
-  minWeight Decimal  @map("min_weight") @db.Decimal(10, 4)
-  maxWeight Decimal  @map("max_weight") @db.Decimal(10, 4)
-  
+  id        Int     @id @default(autoincrement())
+  minWeight Decimal @map("min_weight") @db.Decimal(10, 4)
+  maxWeight Decimal @map("max_weight") @db.Decimal(10, 4)
+
   distributions PartWeightDistribution[]
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -364,11 +364,11 @@ model ChickenWeight {
 }
 
 model PartRmSize {
-  id        Int      @id @default(autoincrement())
-  partName  String   @map("part_name") @db.NVarChar(100)
-  minSize   Decimal? @map("min_size") @db.Decimal(10, 4)
-  maxSize   Decimal? @map("max_size") @db.Decimal(10, 4)
-  
+  id       Int      @id @default(autoincrement())
+  partName String   @map("part_name") @db.NVarChar(100)
+  minSize  Decimal? @map("min_size") @db.Decimal(10, 4)
+  maxSize  Decimal? @map("max_size") @db.Decimal(10, 4)
+
   distributions PartWeightDistribution[]
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -379,10 +379,10 @@ model PartRmSize {
 }
 
 model PartWeightDistribution {
-  id              Int @id @default(autoincrement())
-  partName        String @map("part_name") @db.NVarChar(100)
-  chickenWeightId Int @map("chicken_weight_id")
-  partRmSizeId    Int @map("part_rm_size_id")
+  id              Int     @id @default(autoincrement())
+  partName        String  @map("part_name") @db.NVarChar(100)
+  chickenWeightId Int     @map("chicken_weight_id")
+  partRmSizeId    Int     @map("part_rm_size_id")
   percent         Decimal @db.Decimal(5, 2)
 
   chickenWeight ChickenWeight @relation(fields: [chickenWeightId], references: [id], onDelete: Cascade)
@@ -399,22 +399,100 @@ model PartWeightDistribution {
 // ERP Master Data Integration
 // -----------------------------------------------------
 model ErpItemMaster {
-  id              String   @id @default(uuid())
-  
-  erpItemId       String   @unique @map("erp_item_id")
-  erpItemCode     String   @unique @map("erp_item_code")
-  erpItemDesc     String   @map("erp_item_desc") @db.NVarChar(255)
-  erpItemType     String   @map("erp_item_type") @db.NVarChar(50)
-  erpItemUom      String   @map("erp_item_uom") @db.NVarChar(20)
-  
-  erpSecondaryUom String?  @map("erp_secondary_uom") @db.NVarChar(20)
-  erpIsActive     Boolean  @default(true) @map("erp_is_active")
-  
-  erpUpdatedAt    DateTime? @map("erp_updated_at")
-  lastSyncedAt    DateTime @default(now()) @map("last_synced_at")
-  
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id String @id @default(uuid())
+
+  erpItemId   String @unique @map("erp_item_id")
+  erpItemCode String @unique @map("erp_item_code")
+  erpItemDesc String @map("erp_item_desc") @db.NVarChar(255)
+  erpItemType String @map("erp_item_type") @db.NVarChar(50)
+  erpItemUom  String @map("erp_item_uom") @db.NVarChar(20)
+
+  erpSecondaryUom String? @map("erp_secondary_uom") @db.NVarChar(20)
+  erpIsActive     Boolean @default(true) @map("erp_is_active")
+
+  erpUpdatedAt DateTime? @map("erp_updated_at")
+  lastSyncedAt DateTime  @default(now()) @map("last_synced_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("erp_item_master")
+}
+
+model ErpSaleOrderHeader {
+  id String @id @default(uuid())
+
+  erpOrderHeaderId String   @unique @map("erp_order_header_id")
+  erpOrgId         String   @map("erp_org_id")
+  erpOrderDate     DateTime @map("erp_order_date")
+  erpOrderNumber   String   @unique @map("erp_order_number")
+  erpOrderType     String   @map("erp_order_type") @db.NVarChar(100)
+
+  erpCustomerNumber String  @map("erp_customer_number") @db.NVarChar(50)
+  erpCustomerName   String  @map("erp_customer_name") @db.NVarChar(255)
+  erpCustomerGrade  String? @map("erp_customer_grade") @db.NVarChar(50)
+
+  erpCreationDate   DateTime @map("erp_creation_date")
+  erpLastUpdateDate DateTime @map("erp_last_update_date")
+  erpOrderStatus    String   @map("erp_order_status") @db.NVarChar(50)
+
+  lastSyncedAt     DateTime           @default(now()) @map("last_synced_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  ErpSaleOrderLine ErpSaleOrderLine[]
+
+  @@index([erpOrderDate])
+  @@map("erp_sale_order_headers")
+}
+
+model ErpSaleOrderLine {
+  id String @id @default(uuid())
+
+  erpOrderLineId String             @unique @map("erp_order_line_id")
+  headerId       String             @map("header_id")
+  header         ErpSaleOrderHeader @relation(fields: [headerId], references: [id], onDelete: Cascade)
+
+  erpItemId        String  @map("erp_item_id")
+  erpItemCode      String  @map("erp_item_code") @db.NVarChar(50)
+  orderedQuantity  Decimal @map("ordered_quantity") @db.Decimal(15, 4)
+  orderQuantityUom String  @map("order_quantity_uom") @db.NVarChar(20)
+  unitSellingPrice Decimal @map("unit_selling_price") @db.Decimal(15, 4)
+
+  scheduleShipDate  DateTime? @map("schedule_ship_date")
+  erpCreationDate   DateTime  @map("erp_creation_date")
+  erpLastUpdateDate DateTime  @map("erp_last_update_date")
+
+  lastSyncedAt DateTime @default(now()) @map("last_synced_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([headerId])
+  @@index([erpItemId])
+  @@index([scheduleShipDate])
+  @@map("erp_sale_order_lines")
+}
+
+model SystemSetting {
+  key         String  @id @db.NVarChar(100)
+  value       String  @db.NVarChar(Max)
+  description String? @db.NVarChar(255)
+  category    String  @default("GENERAL") @db.NVarChar(50)
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy Int?     @map("updated_by")
+
+  @@map("system_settings")
+}
+
+model MonthlyChickenReceiving {
+  id                String   @id @default(uuid())
+  receiveDate       DateTime @map("receive_date") @db.Date
+  numberOfChickens  Int      @map("number_of_chickens")
+  totalWeight       Decimal  @map("total_weight") @db.Decimal(15, 2)
+  averageWeight     Decimal  @map("average_weight") @db.Decimal(10, 2)
+  
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("monthly_chicken_receiving")
 }

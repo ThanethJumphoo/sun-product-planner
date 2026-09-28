@@ -13,10 +13,16 @@ import { ChickenWeightsModule } from './modules/simulator/chicken-weights/chicke
 import { PartRmSizesModule } from './modules/simulator/part-rm-sizes/part-rm-sizes.module';
 import { OracleModule } from './modules/oracle/oracle.module';
 import { ErpItemMasterModule } from './modules/master-data/erp-item-master/erp-item-master.module';
+import { ErpSaleOrderModule } from './modules/master-data/erp-sale-order/erp-sale-order.module';
+import { SystemSettingsModule } from './modules/system-settings/system-settings.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { ChickenReceivingModule } from './modules/master-data/chicken-receiving/chicken-receiving.module';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     OracleModule,
+    SystemSettingsModule,
     AuthModule,
     UsersModule,
     RolesModule,
@@ -28,6 +34,8 @@ import { ErpItemMasterModule } from './modules/master-data/erp-item-master/erp-i
     ChickenWeightsModule,
     PartRmSizesModule,
     ErpItemMasterModule,
+    ErpSaleOrderModule,
+    ChickenReceivingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

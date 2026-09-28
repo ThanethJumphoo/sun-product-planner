@@ -60,7 +60,7 @@ export function WeightDistributionTable({ partName }: { partName: string }) {
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
-      <div className="flex justify-between items-center p-6 border-b border-border shrink-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 p-6 border-b border-border shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Weight Distribution: {partName}</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage chicken weight ranges and nested RM sizes</p>
@@ -114,7 +114,7 @@ export function WeightDistributionTable({ partName }: { partName: string }) {
               <div key={group.id} className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
                 {/* Group Header (Chicken Weight Range) */}
                 <div 
-                  className="bg-slate-50 px-6 py-4 flex justify-between items-center border-b border-border cursor-pointer hover:bg-slate-100 transition-colors"
+                  className="bg-slate-50 px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 border-b border-border cursor-pointer hover:bg-slate-100 transition-colors"
                   onClick={toggleExpand}
                 >
                   <div className="flex items-center gap-4">

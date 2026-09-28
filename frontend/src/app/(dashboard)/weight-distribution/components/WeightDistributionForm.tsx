@@ -56,7 +56,7 @@ export function WeightDistributionForm({ partName, initialData, onClose, onSave 
 
   const updateDistribution = (index: number, field: keyof RmSizeDistribution, value: string) => {
     const newDistributions = [...distributions];
-    newDistributions[index][field] = value as any;
+    (newDistributions[index] as any)[field] = value;
     setDistributions(newDistributions);
   };
 
@@ -118,7 +118,7 @@ export function WeightDistributionForm({ partName, initialData, onClose, onSave 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white w-full max-w-3xl rounded-lg shadow-xl border border-border flex flex-col max-h-[90vh]">
-        <div className="px-6 py-4 border-b border-border bg-slate-50 flex justify-between items-center shrink-0">
+        <div className="px-6 py-4 border-b border-border bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 shrink-0">
           <h2 className="text-xl font-bold text-slate-900">
             {initialData ? 'Edit Chicken Weight Range' : 'Add Chicken Weight Range'}
           </h2>
@@ -155,7 +155,7 @@ export function WeightDistributionForm({ partName, initialData, onClose, onSave 
 
             {/* RM Size Range Dynamic List */}
             <div className="space-y-4 pt-6 border-t border-border">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 uppercase">RM Sizes & Distributions</h3>
                   <p className="text-xs text-muted-foreground mt-1">Leave min or max blank for open-ended sizes (e.g., blank Max = "Up")</p>
@@ -221,7 +221,7 @@ export function WeightDistributionForm({ partName, initialData, onClose, onSave 
               </div>
 
               {/* Total Percent Summary */}
-              <div className="flex justify-between items-center bg-slate-100 p-4 rounded-lg border border-slate-200 mt-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 bg-slate-100 p-4 rounded-lg border border-slate-200 mt-4">
                 <span className="text-sm font-bold text-slate-700 uppercase tracking-wide">Total Distribution Percent</span>
                 <span className={`text-xl font-black ${
                   distributions.reduce((sum, d) => sum + (parseFloat(d.percent) || 0), 0) === 100 

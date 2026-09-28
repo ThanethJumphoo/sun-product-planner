@@ -2,9 +2,9 @@ import React from 'react';
 
 export default function RolesLoading() {
   return (
-    <div className="flex flex-col space-y-6 p-8">
+    <div className="flex flex-col space-y-6 p-4 md:p-8">
       {/* Page Header Skeleton */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0">
         <div className="space-y-2">
           <div className="h-8 w-48 animate-pulse rounded bg-muted" />
           <div className="h-4 w-64 animate-pulse rounded bg-muted" />

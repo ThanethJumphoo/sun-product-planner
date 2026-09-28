@@ -43,7 +43,7 @@ export function SimulatorNode({ id, data }: { id: string; data: any }) {
     <div className="bg-white border-2 border-primary/20 rounded-lg shadow-md min-w-[200px] overflow-hidden group">
       <Handle type="target" position={Position.Top} className="w-3 h-3 bg-primary" />
       
-      <div className="bg-muted/30 px-4 py-2 border-b border-border flex justify-between items-center relative">
+      <div className="bg-muted/30 px-4 py-2 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 relative">
         <div className="flex items-center gap-2 pr-12">
           <h3 className="font-bold text-sm text-slate-900">{data.name}</h3>
           <span className="text-[10px] uppercase font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full whitespace-nowrap">

@@ -21,7 +21,7 @@ import { NodeModal } from './components/NodeModal';
 import api from '@/lib/api';
 import { toast } from 'react-hot-toast';
 
-import { getLayoutedElements } from './utils/layout';
+import { getLayoutedElements } from './utils/flow-layout';
 
 import { Lock, Unlock } from 'lucide-react';
 
@@ -65,8 +65,9 @@ export default function ProductionFlowPage() {
     const node = nodes.find(n => n.id === nodeId);
     if (!node) return;
 
-    if (node.data.dynamicData?.subBoardId) {
-      const success = await loadBoard(node.data.dynamicData.subBoardId, dbNodeTypes, true);
+    const dynamicData = node.data.dynamicData as any;
+    if (dynamicData?.subBoardId) {
+      const success = await loadBoard(dynamicData.subBoardId, dbNodeTypes, true);
       if (success) {
         setBoardHistory(prev => [...prev, boardId]);
         return;
@@ -96,8 +97,9 @@ export default function ProductionFlowPage() {
       // Use 'Yield Percent', 'YieldPercent', or default to 100
       let parentYield = 100;
       if (parentNode?.data?.dynamicData) {
-        const yieldKey = Object.keys(parentNode.data.dynamicData).find(k => k.toLowerCase().includes('yield'));
-        if (yieldKey) parentYield = Number(parentNode.data.dynamicData[yieldKey]) || 100;
+        const parentDynamicData = parentNode.data.dynamicData as any;
+        const yieldKey = Object.keys(parentDynamicData).find(k => k.toLowerCase().includes('yield'));
+        if (yieldKey) parentYield = Number(parentDynamicData[yieldKey]) || 100;
       }
 
       const newBoardPayload = {
@@ -105,7 +107,7 @@ export default function ProductionFlowPage() {
         nodes: [
           {
             id: mainId,
-            nodeTypeId: parentNode ? parentNode.data.nodeTypeId : mainType.id,
+            nodeTypeId: parentNode ? (parentNode.data as any).nodeTypeId : mainType.id,
             name: parentNode ? parentNode.data.name : 'Source (Parent Output)',
             positionX: 100,
             positionY: 100,
@@ -139,7 +141,7 @@ export default function ProductionFlowPage() {
             ...n,
             data: {
               ...n.data,
-              dynamicData: { ...n.data.dynamicData, subBoardId: newBoardId }
+              dynamicData: { ...(n.data.dynamicData as any || {}), subBoardId: newBoardId }
             }
           };
         }
@@ -149,14 +151,17 @@ export default function ProductionFlowPage() {
       // Save parent board immediately
       const parentSavePayload = {
         name: parentBoardName,
-        nodes: updatedNodes.map(n => ({
-          id: n.id,
-          nodeTypeId: n.data.nodeTypeId,
-          name: n.data.name,
-          positionX: n.position.x,
-          positionY: n.position.y,
-          data: JSON.stringify(n.data.dynamicData),
-        })),
+        nodes: updatedNodes.map(n => {
+          const data = n.data as any;
+          return {
+            id: n.id,
+            nodeTypeId: data.nodeTypeId,
+            name: data.name,
+            positionX: n.position.x,
+            positionY: n.position.y,
+            data: JSON.stringify(data.dynamicData),
+          };
+        }),
         edges: edges.map(e => ({
           id: e.id,
           source: e.source,
@@ -313,9 +318,9 @@ export default function ProductionFlowPage() {
           const targetNode = nodes.find(n => n.id === targetId);
           if (targetNode) {
             let yieldPercent = 100;
-            if (targetNode.data?.dynamicData) {
-              for (const [key, value] of Object.entries(targetNode.data.dynamicData)) {
-                const fieldDef = targetNode.data.fieldSchema?.find((f: any) => f.fieldName === key);
+            if ((targetNode.data as any)?.dynamicData) {
+              for (const [key, value] of Object.entries((targetNode.data as any).dynamicData as Record<string, any>)) {
+                const fieldDef = ((targetNode.data as any).fieldSchema as any[])?.find((f: any) => f.fieldName === key);
                 const isPercent = fieldDef ? fieldDef.dataType === 'PERCENT' : key.toLowerCase().includes('percent');
                 if (isPercent) {
                   yieldPercent = Number(value) || 0;
@@ -345,9 +350,9 @@ export default function ProductionFlowPage() {
         let totalYield = 0;
         outgoingEdges.forEach(e => {
           const targetNode = nodes.find(tn => tn.id === e.target);
-          if (targetNode?.data?.dynamicData) {
-            for (const [key, value] of Object.entries(targetNode.data.dynamicData)) {
-              const fieldDef = targetNode.data.fieldSchema?.find((f: any) => f.fieldName === key);
+          if (targetNode && (targetNode.data as any)?.dynamicData) {
+            for (const [key, value] of Object.entries((targetNode.data as any).dynamicData as Record<string, any>)) {
+              const fieldDef = ((targetNode.data as any).fieldSchema as any[])?.find((f: any) => f.fieldName === key);
               const isPercent = fieldDef ? fieldDef.dataType === 'PERCENT' : key.toLowerCase().includes('percent');
               if (isPercent) {
                 totalYield += Number(value) || 0;
@@ -452,14 +457,17 @@ export default function ProductionFlowPage() {
 
       const payload = {
         name: boardName,
-        nodes: nodes.map(n => ({
-          id: n.id,
-          nodeTypeId: n.data.nodeTypeId,
-          name: n.data.name,
-          positionX: n.position.x,
-          positionY: n.position.y,
-          data: JSON.stringify(n.data.dynamicData),
-        })),
+        nodes: nodes.map(n => {
+          const data = n.data as any;
+          return {
+            id: n.id,
+            nodeTypeId: data.nodeTypeId,
+            name: data.name,
+            positionX: n.position.x,
+            positionY: n.position.y,
+            data: JSON.stringify(data.dynamicData),
+          };
+        }),
         edges: edges.map(e => ({
           id: e.id,
           source: e.source,
@@ -526,16 +534,16 @@ export default function ProductionFlowPage() {
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface">
-        <div className="flex items-center gap-6">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between px-4 md:px-6 py-4 border-b border-border bg-surface gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-6">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Production Flow Simulator</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-foreground">Production Flow Simulator</h1>
             <p className="text-sm text-muted-foreground">Design and visualize the production process</p>
           </div>
           
-          <div className="h-10 w-px bg-border"></div>
+          <div className="hidden lg:block h-10 w-px bg-border"></div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {boardHistory.length > 0 && (
               <button
                 onClick={handleBack}
@@ -574,7 +582,7 @@ export default function ProductionFlowPage() {
             )}
           </div>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
           <button
             onClick={() => setIsLocked(!isLocked)}
             className={`flex items-center gap-2 px-3 py-2 rounded-md font-medium transition-colors border ${

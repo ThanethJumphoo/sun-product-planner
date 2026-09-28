@@ -82,7 +82,7 @@ export function WeightDistributionField({ nodeId }: { nodeId: string }) {
         {rmSizes.map((rm: any) => (
           <div 
             key={rm.id} 
-            className="flex items-center justify-between px-3 py-1.5 rounded-md bg-white border border-slate-200 text-xs font-medium text-slate-700 shadow-sm"
+            className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0 px-3 py-1.5 rounded-md bg-white border border-slate-200 text-xs font-medium text-slate-700 shadow-sm"
           >
             <span>{formatRange(rm.minSize, rm.maxSize)}</span>
           </div>

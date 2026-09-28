@@ -97,7 +97,7 @@ export function PartWeightMatrix({ partName, refreshTrigger }: { partName: strin
 
   return (
     <div className="flex-1 flex flex-col bg-slate-50 overflow-hidden">
-      <div className="flex justify-between items-center p-6 pb-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 p-6 pb-4">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Distribution Matrix</h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -146,7 +146,7 @@ export function PartWeightMatrix({ partName, refreshTrigger }: { partName: strin
             return (
               <div key={group.chickenWeight.id} className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
                 <div 
-                  className="bg-slate-50 px-6 py-4 flex justify-between items-center border-b border-border cursor-pointer hover:bg-slate-100 transition-colors"
+                  className="bg-slate-50 px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 border-b border-border cursor-pointer hover:bg-slate-100 transition-colors"
                   onClick={toggleExpand}
                 >
                   <div className="flex items-center gap-4">

@@ -17,8 +17,8 @@ export default function ChickenYieldsPage() {
   const { openCreateDrawer } = useChickenYieldsUIStore();
 
   return (
-    <div className="flex flex-col space-y-6 p-8">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col space-y-6 p-4 md:p-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0">
         <div>
           <h1 className="text-pageTitle font-bold text-foreground">Chicken Yield</h1>
           <p className="text-body text-muted-foreground mt-1">

@@ -43,10 +43,10 @@ export default function WeightDistributionPage() {
   }
 
   return (
-    <div className="flex h-full bg-slate-50">
+    <div className="flex flex-col md:flex-row h-full bg-slate-50 overflow-hidden">
       {/* Left Sidebar for Parts List */}
-      <div className="w-64 bg-white border-r border-border flex flex-col shrink-0">
-        <div className="p-4 border-b border-border bg-slate-50">
+      <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-border flex flex-col shrink-0 md:h-full max-h-[300px] md:max-h-none overflow-y-auto">
+        <div className="p-4 border-b border-border bg-slate-50 shrink-0">
           <h2 className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-2">Master Data</h2>
           <button
             onClick={() => setSelectedPart('chicken-weights')}
@@ -60,7 +60,7 @@ export default function WeightDistributionPage() {
             Chicken Weights
           </button>
         </div>
-        <div className="p-4 pb-2 border-b border-border bg-slate-50">
+        <div className="p-4 pb-2 border-b border-border bg-slate-50 shrink-0">
           <h2 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Parts</h2>
           <p className="text-[10px] text-muted-foreground mt-0.5">Select a part to configure</p>
         </div>
@@ -86,7 +86,7 @@ export default function WeightDistributionPage() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-white">
+      <div className="flex-1 flex flex-col overflow-y-auto bg-white">
         {selectedPart === 'chicken-weights' ? (
           <ChickenWeightsManager />
         ) : selectedPart ? (

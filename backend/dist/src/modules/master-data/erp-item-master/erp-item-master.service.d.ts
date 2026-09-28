@@ -1,8 +1,17 @@
+import { OnModuleInit } from '@nestjs/common';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { SystemSettingsService } from '../../system-settings/system-settings.service';
 import { OracleService } from '../../oracle/oracle.service';
-export declare class ErpItemMasterService {
+export declare class ErpItemMasterService implements OnModuleInit {
     private readonly oracleService;
+    private readonly settingsService;
+    private readonly schedulerRegistry;
     private readonly logger;
-    constructor(oracleService: OracleService);
+    constructor(oracleService: OracleService, settingsService: SystemSettingsService, schedulerRegistry: SchedulerRegistry);
+    onModuleInit(): Promise<void>;
+    setupDeltaSyncJob(): Promise<void>;
+    runDeltaSync(): Promise<void>;
+    private processChunk;
     syncItems(itemCodes?: string[]): Promise<{
         success: boolean;
         count: number;

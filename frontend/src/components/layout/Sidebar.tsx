@@ -14,18 +14,28 @@ const menuSections = [
     label: "ERP Integration",
     items: [
       { name: "Item Master", href: "/erp/item-master", icon: Database },
+      { name: "Sale Orders", href: "/erp/sale-orders", icon: Database },
     ],
   },
   {
     label: "Production",
     items: [
       { name: "Dashboard", href: "/", icon: LayoutDashboard },
-      { name: "Demand Planning", href: "/demand", icon: Calendar },
-      { name: "MPS", href: "/mps", icon: ClipboardList },
-      { name: "Production Orders", href: "/orders", icon: Package },
-      { name: "Yield Management", href: "/yield", icon: PieChart },
+      { name: "Sale Orders", href: "/sale-orders", icon: Package },
+      { name: "Demand Planning", href: "/demand", icon: Calendar, disabled: true },
+      { name: "MPS", href: "/mps", icon: ClipboardList, disabled: true },
+      { name: "Production Orders", href: "/orders", icon: Package, disabled: true },
+      { name: "Yield Management", href: "/yield", icon: PieChart, disabled: true },
       { name: "Production Flow", href: "/production-flow", icon: Activity },
       { name: "Weight Distribution", href: "/weight-distribution", icon: ClipboardList },
+    ],
+  },
+  {
+    label: "Chicken Receiving",
+    items: [
+      { name: "Monthly", href: "/chicken-receiving/monthly", icon: Calendar },
+      { name: "Weekly", href: "/chicken-receiving/weekly", icon: Calendar, disabled: true },
+      { name: "Daily", href: "/chicken-receiving/daily", icon: Calendar, disabled: true },
     ],
   },
   {
@@ -49,17 +59,41 @@ export function Sidebar() {
     router.push("/login"); // Adjust this route if login page is different
   };
 
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   return (
-    <motion.aside
-      initial={{ width: 260 }}
-      animate={{ width: isSidebarOpen ? 260 : 80 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="h-screen bg-card border-r border-border flex flex-col overflow-hidden shrink-0"
-    >
-      <div className="h-16 flex items-center px-6 border-b border-border">
-        <motion.div
-          initial={{ opacity: 1 }}
-          animate={{ opacity: isSidebarOpen ? 1 : 0 }}
+    <>
+      {/* Mobile overlay */}
+      {isMobile && isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => useLayoutStore.getState().setSidebarOpen(false)}
+        />
+      )}
+      
+      <motion.aside
+        initial={false}
+        animate={{ 
+          width: isMobile ? 260 : (isSidebarOpen ? 260 : 80),
+          x: isMobile ? (isSidebarOpen ? 0 : -260) : 0
+        }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+        className={cn(
+          "h-screen bg-card border-r border-border flex flex-col overflow-hidden shrink-0",
+          isMobile ? "fixed left-0 top-0 bottom-0 z-50" : "relative z-30"
+        )}
+      >
+        <div className="h-16 flex items-center justify-between px-6 border-b border-border">
+          <motion.div
+            initial={{ opacity: 1 }}
+            animate={{ opacity: isMobile || (isMobile || isSidebarOpen) ? 1 : 0 }}
           transition={{ duration: 0.2 }}
           className="font-bold text-xl text-primary whitespace-nowrap"
         >
@@ -71,33 +105,44 @@ export function Sidebar() {
         {menuSections.map((section) => (
           <div key={section.label} className="space-y-1">
             <motion.p
-              animate={{ opacity: isSidebarOpen ? 1 : 0, height: isSidebarOpen ? "auto" : 0 }}
+              animate={{ opacity: (isMobile || isSidebarOpen) ? 1 : 0, height: (isMobile || isSidebarOpen) ? "auto" : 0 }}
               className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-3 mb-2 overflow-hidden"
             >
               {section.label}
             </motion.p>
             {section.items.map((item) => {
               const isActive = pathname === item.href;
-              return (
-                <Link key={item.name} href={item.href}>
-                  <div
-                    className={cn(
-                      "flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors cursor-pointer",
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    )}
-                    title={!isSidebarOpen ? item.name : undefined}
+              const content = (
+                <div
+                  className={cn(
+                    "flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground cursor-pointer"
+                      : item.disabled 
+                        ? "text-muted-foreground/50 cursor-not-allowed" 
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+                  )}
+                  title={!isSidebarOpen ? item.name : undefined}
+                >
+                  <item.icon className="w-5 h-5 shrink-0" />
+                  <motion.span
+                    animate={{ opacity: (isMobile || isSidebarOpen) ? 1 : 0, width: (isMobile || isSidebarOpen) ? "auto" : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="whitespace-nowrap overflow-hidden font-medium text-sm"
                   >
-                    <item.icon className="w-5 h-5 shrink-0" />
-                    <motion.span
-                      animate={{ opacity: isSidebarOpen ? 1 : 0, width: isSidebarOpen ? "auto" : 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="whitespace-nowrap overflow-hidden font-medium text-sm"
-                    >
-                      {item.name}
-                    </motion.span>
-                  </div>
+                    {item.name}
+                  </motion.span>
+                  {item.disabled && isSidebarOpen && (
+                    <span className="ml-auto text-[9px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">Soon</span>
+                  )}
+                </div>
+              );
+
+              return item.disabled ? (
+                <div key={item.name}>{content}</div>
+              ) : (
+                <Link key={item.name} href={item.href}>
+                  {content}
                 </Link>
               );
             })}
@@ -113,7 +158,7 @@ export function Sidebar() {
           >
             <Settings className="w-5 h-5 shrink-0" />
             <motion.span
-              animate={{ opacity: isSidebarOpen ? 1 : 0, width: isSidebarOpen ? "auto" : 0 }}
+              animate={{ opacity: (isMobile || isSidebarOpen) ? 1 : 0, width: (isMobile || isSidebarOpen) ? "auto" : 0 }}
               className="whitespace-nowrap overflow-hidden font-medium text-sm"
             >
               Settings
@@ -127,7 +172,7 @@ export function Sidebar() {
         >
           <LogOut className="w-5 h-5 shrink-0" />
           <motion.span
-            animate={{ opacity: isSidebarOpen ? 1 : 0, width: isSidebarOpen ? "auto" : 0 }}
+            animate={{ opacity: (isMobile || isSidebarOpen) ? 1 : 0, width: (isMobile || isSidebarOpen) ? "auto" : 0 }}
             className="whitespace-nowrap overflow-hidden font-medium text-sm"
           >
             Logout
@@ -135,5 +180,6 @@ export function Sidebar() {
         </div>
       </div>
     </motion.aside>
+    </>
   );
 }
