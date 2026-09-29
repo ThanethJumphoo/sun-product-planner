@@ -1,0 +1,71 @@
+INSERT INTO sun_product_planner.dbo.flow_edges (id,board_id,[source],target,source_handle,target_handle) VALUES
+	 (N'edge_1790222138319',1005,N'node_1790222138319_main',N'node_1790222138319_part',NULL,NULL),
+	 (N'edge_1790223096028',1006,N'node_1790223096028_main',N'node_1790223096028_part',NULL,NULL),
+	 (N'edge_1790239428557',1007,N'node_1790239428557_main',N'node_1790239428557_part',NULL,NULL),
+	 (N'xy-edge__node_1790070818655-node_1790071476366',1,N'node_1790070818655',N'node_1790071476366',NULL,NULL),
+	 (N'xy-edge__node_1790070818655-node_1790071804119',1,N'node_1790070818655',N'node_1790071804119',NULL,NULL),
+	 (N'xy-edge__node_1790070818655-node_1790071825654',1,N'node_1790070818655',N'node_1790071825654',NULL,NULL),
+	 (N'xy-edge__node_1790070818655-node_1790071853223',1,N'node_1790070818655',N'node_1790071853223',NULL,NULL),
+	 (N'xy-edge__node_1790070818655-node_1790071870166',1,N'node_1790070818655',N'node_1790071870166',NULL,NULL),
+	 (N'xy-edge__node_1790070818655-node_1790071898495',1,N'node_1790070818655',N'node_1790071898495',NULL,NULL),
+	 (N'xy-edge__node_1790070818655-node_1790071925431',1,N'node_1790070818655',N'node_1790071925431',NULL,NULL);
+INSERT INTO sun_product_planner.dbo.flow_edges (id,board_id,[source],target,source_handle,target_handle) VALUES
+	 (N'xy-edge__node_1790070818655-node_1790071974583',1,N'node_1790070818655',N'node_1790071974583',NULL,NULL),
+	 (N'xy-edge__node_1790070818655-node_1790072067768',1,N'node_1790070818655',N'node_1790072067768',NULL,NULL),
+	 (N'xy-edge__node_1790070818655-node_1790072101087',1,N'node_1790070818655',N'node_1790072101087',NULL,NULL),
+	 (N'xy-edge__node_1790222138319_part-node_1790222170380',1005,N'node_1790222138319_part',N'node_1790222170380',NULL,NULL),
+	 (N'xy-edge__node_1790222170380-node_1790222195628',1005,N'node_1790222170380',N'node_1790222195628',NULL,NULL),
+	 (N'xy-edge__node_1790222170380-node_1790222316004',1005,N'node_1790222170380',N'node_1790222316004',NULL,NULL),
+	 (N'xy-edge__node_1790222170380-node_1790222565860',1005,N'node_1790222170380',N'node_1790222565860',NULL,NULL),
+	 (N'xy-edge__node_1790222170380-node_1790222696028',1005,N'node_1790222170380',N'node_1790222696028',NULL,NULL),
+	 (N'xy-edge__node_1790222195628byproduct-node_1790222270517',1005,N'node_1790222195628',N'node_1790222270517',N'byproduct',NULL),
+	 (N'xy-edge__node_1790222195628byproduct-node_1790222282316',1005,N'node_1790222195628',N'node_1790222282316',N'byproduct',NULL);
+INSERT INTO sun_product_planner.dbo.flow_edges (id,board_id,[source],target,source_handle,target_handle) VALUES
+	 (N'xy-edge__node_1790222195628coproduct-node_1790222251459',1005,N'node_1790222195628',N'node_1790222251459',N'coproduct',NULL),
+	 (N'xy-edge__node_1790222195628product-node_1790222224316',1005,N'node_1790222195628',N'node_1790222224316',N'product',NULL),
+	 (N'xy-edge__node_1790222316004byproduct-node_1790222478061',1005,N'node_1790222316004',N'node_1790222478061',N'byproduct',NULL),
+	 (N'xy-edge__node_1790222316004byproduct-node_1790222487604',1005,N'node_1790222316004',N'node_1790222487604',N'byproduct',NULL),
+	 (N'xy-edge__node_1790222316004coproduct-node_1790222456028',1005,N'node_1790222316004',N'node_1790222456028',N'coproduct',NULL),
+	 (N'xy-edge__node_1790222316004product-node_1790222361900',1005,N'node_1790222316004',N'node_1790222361900',N'product',NULL),
+	 (N'xy-edge__node_1790222565860byproduct-node_1790222615172',1005,N'node_1790222565860',N'node_1790222615172',N'byproduct',NULL),
+	 (N'xy-edge__node_1790222565860byproduct-node_1790222626524',1005,N'node_1790222565860',N'node_1790222626524',N'byproduct',NULL),
+	 (N'xy-edge__node_1790222565860byproduct-node_1790222635436',1005,N'node_1790222565860',N'node_1790222635436',N'byproduct',NULL),
+	 (N'xy-edge__node_1790222565860coproduct-node_1790222598772',1005,N'node_1790222565860',N'node_1790222598772',N'coproduct',NULL);
+INSERT INTO sun_product_planner.dbo.flow_edges (id,board_id,[source],target,source_handle,target_handle) VALUES
+	 (N'xy-edge__node_1790222565860product-node_1790222586260',1005,N'node_1790222565860',N'node_1790222586260',N'product',NULL),
+	 (N'xy-edge__node_1790222696028byproduct-node_1790222731149',1005,N'node_1790222696028',N'node_1790222731149',N'byproduct',NULL),
+	 (N'xy-edge__node_1790222696028byproduct-node_1790222743028',1005,N'node_1790222696028',N'node_1790222743028',N'byproduct',NULL),
+	 (N'xy-edge__node_1790222696028byproduct-node_1790222750036',1005,N'node_1790222696028',N'node_1790222750036',N'byproduct',NULL),
+	 (N'xy-edge__node_1790222696028coproduct-node_1790222722988',1005,N'node_1790222696028',N'node_1790222722988',N'coproduct',NULL),
+	 (N'xy-edge__node_1790222696028product-node_1790222712749',1005,N'node_1790222696028',N'node_1790222712749',N'product',NULL),
+	 (N'xy-edge__node_1790223096028_part-node_1790230653708',1006,N'node_1790223096028_part',N'node_1790230653708',NULL,NULL),
+	 (N'xy-edge__node_1790230653708-node_1790230692901',1006,N'node_1790230653708',N'node_1790230692901',NULL,NULL),
+	 (N'xy-edge__node_1790230653708-node_1790230796781',1006,N'node_1790230653708',N'node_1790230796781',NULL,NULL),
+	 (N'xy-edge__node_1790230653708-node_1790230808012',1006,N'node_1790230653708',N'node_1790230808012',NULL,NULL);
+INSERT INTO sun_product_planner.dbo.flow_edges (id,board_id,[source],target,source_handle,target_handle) VALUES
+	 (N'xy-edge__node_1790230692901byproduct-node_1790231008237',1006,N'node_1790230692901',N'node_1790231008237',NULL,NULL),
+	 (N'xy-edge__node_1790230692901product-node_1790230992405',1006,N'node_1790230692901',N'node_1790230992405',NULL,NULL),
+	 (N'xy-edge__node_1790230796781byproduct-node_1790231621549',1006,N'node_1790230796781',N'node_1790231621549',NULL,NULL),
+	 (N'xy-edge__node_1790230796781byproduct-node_1790231637652',1006,N'node_1790230796781',N'node_1790231637652',NULL,NULL),
+	 (N'xy-edge__node_1790230796781product-node_1790231123869',1006,N'node_1790230796781',N'node_1790231123869',NULL,NULL),
+	 (N'xy-edge__node_1790230796781product-node_1790231490173',1006,N'node_1790230796781',N'node_1790231490173',NULL,NULL),
+	 (N'xy-edge__node_1790230808012product-node_1790238527877',1006,N'node_1790230808012',N'node_1790238527877',NULL,NULL),
+	 (N'xy-edge__node_1790238527877-node_1790238942566',1006,N'node_1790238527877',N'node_1790238942566',NULL,NULL),
+	 (N'xy-edge__node_1790238942566byproduct-node_1790239054333',1006,N'node_1790238942566',N'node_1790239054333',NULL,NULL),
+	 (N'xy-edge__node_1790238942566byproduct-node_1790239134485',1006,N'node_1790238942566',N'node_1790239134485',NULL,NULL);
+INSERT INTO sun_product_planner.dbo.flow_edges (id,board_id,[source],target,source_handle,target_handle) VALUES
+	 (N'xy-edge__node_1790238942566byproduct-node_1790239166885',1006,N'node_1790238942566',N'node_1790239166885',NULL,NULL),
+	 (N'xy-edge__node_1790238942566byproduct-node_1790239229294',1006,N'node_1790238942566',N'node_1790239229294',NULL,NULL),
+	 (N'xy-edge__node_1790238942566byproduct-node_1790239240349',1006,N'node_1790238942566',N'node_1790239240349',NULL,NULL),
+	 (N'xy-edge__node_1790238942566byproduct-node_1790239253653',1006,N'node_1790238942566',N'node_1790239253653',NULL,NULL),
+	 (N'xy-edge__node_1790238942566product-node_1790239014957',1006,N'node_1790238942566',N'node_1790239014957',NULL,NULL),
+	 (N'xy-edge__node_1790239014957-node_1790239406293',1006,N'node_1790239014957',N'node_1790239406293',NULL,NULL),
+	 (N'xy-edge__node_1790239428557_part-node_1790241110821',1007,N'node_1790239428557_part',N'node_1790241110821',NULL,NULL),
+	 (N'xy-edge__node_1790241110821-node_1790243070773',1007,N'node_1790241110821',N'node_1790243070773',NULL,NULL),
+	 (N'xy-edge__node_1790243070773coproduct-node_1790243171741',1007,N'node_1790243070773',N'node_1790243171741',N'coproduct',NULL),
+	 (N'xy-edge__node_1790243070773product-node_1790243141261',1007,N'node_1790243070773',N'node_1790243141261',N'product',NULL);
+INSERT INTO sun_product_planner.dbo.flow_edges (id,board_id,[source],target,source_handle,target_handle) VALUES
+	 (N'xy-edge__node_1790243171741-node_1790301864038',1007,N'node_1790243171741',N'node_1790301864038',NULL,NULL),
+	 (N'xy-edge__node_1790301864038coproduct-node_1790302040831',1007,N'node_1790301864038',N'node_1790302040831',N'coproduct',NULL),
+	 (N'xy-edge__node_1790301864038product-node_1790302014821',1007,N'node_1790301864038',N'node_1790302014821',N'product',NULL),
+	 (N'xy-edge__node_1790302040831-node_1790302145957',1007,N'node_1790302040831',N'node_1790302145957',NULL,NULL);

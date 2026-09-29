@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SystemSettingsController = void 0;
 const common_1 = require("@nestjs/common");
+const cache_manager_1 = require("@nestjs/cache-manager");
 const system_settings_service_1 = require("./system-settings.service");
 let SystemSettingsController = class SystemSettingsController {
     settingsService;
@@ -43,6 +44,7 @@ __decorate([
 ], SystemSettingsController.prototype, "updateSettings", null);
 exports.SystemSettingsController = SystemSettingsController = __decorate([
     (0, common_1.Controller)('api/v1/system-settings'),
+    (0, common_1.UseInterceptors)(cache_manager_1.CacheInterceptor),
     __metadata("design:paramtypes", [system_settings_service_1.SystemSettingsService])
 ], SystemSettingsController);
 //# sourceMappingURL=system-settings.controller.js.map

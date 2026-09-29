@@ -18,6 +18,21 @@ let FlowBoardsService = class FlowBoardsService {
             orderBy: { updatedAt: 'desc' },
         });
     }
+    async getMenuStructure() {
+        const parts = await prisma_1.default.flowNode.findMany({
+            where: {
+                nodeType: {
+                    typeCode: 'PART',
+                },
+            },
+            select: {
+                name: true,
+            },
+            distinct: ['name'],
+            orderBy: { name: 'asc' },
+        });
+        return parts;
+    }
     async findOne(id) {
         const board = await prisma_1.default.flowBoard.findUnique({
             where: { id },

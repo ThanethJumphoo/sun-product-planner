@@ -97,3 +97,10 @@
     font-family: var(--font-sans);
   }
 }
+
+/* Custom Hover Scrollbar */
+.hover-scrollbar::-webkit-scrollbar { width: 6px; }
+.hover-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.hover-scrollbar::-webkit-scrollbar-thumb { background-color: transparent; border-radius: 10px; }
+.hover-scrollbar:hover::-webkit-scrollbar-thumb { background-color: rgba(156, 163, 175, 0.5); }
+

@@ -1,0 +1,75 @@
+INSERT INTO sun_product_planner.dbo.flow_nodes (id,board_id,node_type_id,name,position_x,position_y,[data]) VALUES
+	 (N'node_1790070818655',1,1,N'Chicken',1849.5,0.0,N'{"Yield Percent":"95.4"}'),
+	 (N'node_1790071476366',1,2,N'Head',0.0,302.0,N'{"Yield Percent":"2.3"}'),
+	 (N'node_1790071804119',1,2,N'Feathers',411.0,302.0,N'{"Yield Percent":"2.3"}'),
+	 (N'node_1790071825654',1,2,N'Blood',822.0,302.0,N'{"Yield Percent":"5"}'),
+	 (N'node_1790071853223',1,2,N'Leg',1233.0,302.0,N'{"Yield Percent":"2.3"}'),
+	 (N'node_1790071870166',1,2,N'Fillet',1644.0,302.0,N'{"Yield Percent":"4","subBoardId":1005}'),
+	 (N'node_1790071898495',1,2,N'BIL',2055.0,302.0,N'{"Yield Percent":"25","subBoardId":1006}'),
+	 (N'node_1790071925431',1,2,N'BB',2466.0,302.0,N'{"Yield Percent":"22.5"}'),
+	 (N'node_1790071974583',1,2,N'Wing',2877.0,302.0,N'{"Yield Percent":"7.6"}'),
+	 (N'node_1790072067768',1,2,N'Offal',3288.0,302.0,N'{"Yield Percent":"5.8"}');
+INSERT INTO sun_product_planner.dbo.flow_nodes (id,board_id,node_type_id,name,position_x,position_y,[data]) VALUES
+	 (N'node_1790072101087',1,2,N'Carcass',3699.0,302.0,N'{"Yield Percent":"18"}'),
+	 (N'node_1790222138319_main',1005,1,N'Chicken',3239.0,0.0,N'{"Yield Percent":"100"}'),
+	 (N'node_1790222138319_part',1005,2,N'Fillet',3239.0,302.0,N'{"Yield Percent":"4","subBoardId":1004}'),
+	 (N'node_1790222170380',1005,1002,N'RM Sizes for Fillet',3197.5,604.0,N'{}'),
+	 (N'node_1790222195628',1005,1004,N'Fillet Unsize',676.25,1075.0,N'{"Process":"1"}'),
+	 (N'node_1790222224316',1005,2002,N'RM Fillet Unsize',0.0,1498.0,N'{"Yield Percent":"88.7"}'),
+	 (N'node_1790222251459',1005,2002,N'RM Fillet B Grade',443.0,1498.0,N'{"Yield Percent":"9.30"}'),
+	 (N'node_1790222270517',1005,2002,N'ลูกสันใน',893.0,1498.0,N'{"Yield Percent":"0.8"}'),
+	 (N'node_1790222282316',1005,2002,N'เศษสันใน',1304.0,1498.0,N'{"Yield Percent":"0.2"}'),
+	 (N'node_1790222316004',1005,1004,N'Fillet T/C',2377.0,1085.0,N'{"Process":"2"}');
+INSERT INTO sun_product_planner.dbo.flow_nodes (id,board_id,node_type_id,name,position_x,position_y,[data]) VALUES
+	 (N'node_1790222361900',1005,2002,N'RM Fillet T/C',1715.0,1498.0,N'{"Yield Percent":"82.7"}'),
+	 (N'node_1790222456028',1005,2002,N'RM Fillet B Grade',2136.0,1498.0,N'{"Yield Percent":"9.3"}'),
+	 (N'node_1790222478061',1005,2002,N'เศษสันในติดเอ็น',2586.0,1498.0,N'{"Yield Percent":"7"}'),
+	 (N'node_1790222487604',1005,2002,N'เศษสันใน',3022.0,1498.0,N'{"Yield Percent":"1"}'),
+	 (N'node_1790222565860',1005,1004,N'Fillet W/O',4322.5,1085.0,N'{"Process":"3"}'),
+	 (N'node_1790222586260',1005,2002,N'RM Fillet W/O',3433.0,1498.0,N'{"Yield Percent":"80.7"}'),
+	 (N'node_1790222598772',1005,2002,N'RM Fillet B Grade',3860.0,1498.0,N'{"Yield Percent":"9.3"}'),
+	 (N'node_1790222615172',1005,2002,N'เศษสันในติดเอ็น',4310.0,1498.0,N'{"Yield Percent":"5"}'),
+	 (N'node_1790222626524',1005,2002,N'เศษสันใน',4746.0,1498.0,N'{"Yield Percent":"3.5"}'),
+	 (N'node_1790222635436',1005,2002,N'ลูกสันใน',5157.0,1498.0,N'{"Yield Percent":"1.5"}');
+INSERT INTO sun_product_planner.dbo.flow_nodes (id,board_id,node_type_id,name,position_x,position_y,[data]) VALUES
+	 (N'node_1790222696028',1005,1004,N'Fillet HC',6447.5,1085.0,N'{"Process":"4"}'),
+	 (N'node_1790222712749',1005,2002,N'RM Fillet HC',5568.0,1498.0,N'{"Yield Percent":"80.7"}'),
+	 (N'node_1790222722988',1005,2002,N'RM Fillet B Grade',5985.0,1498.0,N'{"Yield Percent":"9.3"}'),
+	 (N'node_1790222731149',1005,2002,N'เศษสันในติดเอ็น',6435.0,1498.0,N'{"Yield Percent":"7"}'),
+	 (N'node_1790222743028',1005,2002,N'เศษสันใน',6871.0,1498.0,N'{"Yield Percent":"2"}'),
+	 (N'node_1790222750036',1005,2002,N'ลูกสันใน',7282.0,1498.0,N'{"Yield Percent":"1"}'),
+	 (N'node_1790223096028_main',1006,1,N'Chicken',846.75,0.0,N'{"Yield Percent":"100"}'),
+	 (N'node_1790223096028_part',1006,2,N'BIL',846.75,302.0,N'{"Yield Percent":"25"}'),
+	 (N'node_1790230653708',1006,1002,N'RM Sizes for BIL',811.25,662.0,N'{}'),
+	 (N'node_1790230692901',1006,1004,N'BIL',8.0,1133.0,N'{"Process":"1"}');
+INSERT INTO sun_product_planner.dbo.flow_nodes (id,board_id,node_type_id,name,position_x,position_y,[data]) VALUES
+	 (N'node_1790230796781',1006,1004,N'BIL DR+TH',1043.5,1133.0,N'{"Process":"2"}'),
+	 (N'node_1790230808012',1006,1004,N'BIL To BL',2524.0,1133.0,N'{"Process":"3"}'),
+	 (N'node_1790230992405',1006,2002,N'RM BIL Sizing',0.0,1536.0,N'{"Yield Percent":"96"}'),
+	 (N'node_1790231008237',1006,2002,N'ข้อสั้น',427.0,1536.0,N'{"Yield Percent":"4"}'),
+	 (N'node_1790231123869',1006,2002,N'RM BIL-DR',838.0,1536.0,N'{"Yield Percent":"40"}'),
+	 (N'node_1790231490173',1006,2002,N'RM BIL-TH',1249.0,1536.0,N'{"Yield Percent":"55"}'),
+	 (N'node_1790231621549',1006,2002,N'ข้อสั้น',1660.0,1536.0,N'{"Yield Percent":"4"}'),
+	 (N'node_1790231637652',1006,2002,N'หนังติดมันเกรด A',2071.0,1536.0,N'{"Yield Percent":"1"}'),
+	 (N'node_1790238527877',1006,2002,N'RM BIL For BL',2516.0,1536.0,N'{"Yield Percent":"100"}'),
+	 (N'node_1790238942566',1006,2004,N'Toridas Machine',2520.0,1896.0,N'{"Speed (PCS/HR)":"1500","Lines":"3","Machines Per Line":"4","Employee":"5"}');
+INSERT INTO sun_product_planner.dbo.flow_nodes (id,board_id,node_type_id,name,position_x,position_y,[data]) VALUES
+	 (N'node_1790239014957',1006,2002,N'RM BL',615.75,2505.0,N'{"Yield Percent":"74.5"}'),
+	 (N'node_1790239054333',1006,2002,N'หนังติดมันเกรด A',1026.75,2505.0,N'{"Yield Percent":"2.8"}'),
+	 (N'node_1790239134485',1006,2002,N'เศษ BL No.2',1471.75,2505.0,N'{"Yield Percent":"0.4"}'),
+	 (N'node_1790239166885',1006,2002,N'เศษเนื้อแข้งติดกระดูก',1886.75,2505.0,N'{"Yield Percent":"0"}'),
+	 (N'node_1790239229294',1006,2002,N'กระดูกน่องสะโพกติดข้อเต็ม',2356.75,2505.0,N'{"Yield Percent":"20.6"}'),
+	 (N'node_1790239240349',1006,2002,N'กระดูกน่อง',2864.75,2505.0,N'{"Yield Percent":"0"}'),
+	 (N'node_1790239253653',1006,2002,N'knee tendon',3275.75,2505.0,N'{"Yield Percent":"0.8"}'),
+	 (N'node_1790239406293',1006,2,N'BL',615.75,2865.0,N'{"Yield Percent":"100","subBoardId":1007}'),
+	 (N'node_1790239428557_main',1007,2002,N'RM BL',214.5,0.0,N'{"Yield Percent":"74.5"}'),
+	 (N'node_1790239428557_part',1007,2,N'BL',214.5,302.0,N'{"Yield Percent":"100"}');
+INSERT INTO sun_product_planner.dbo.flow_nodes (id,board_id,node_type_id,name,position_x,position_y,[data]) VALUES
+	 (N'node_1790241110821',1007,1002,N'RM Sizes for BL',181.0,662.0,N'{}'),
+	 (N'node_1790243070773',1007,2004,N'Belt Gate Machine',205.0,1133.0,N'{"Speed (PCS/HR)":"99999","Lines":"1","Machines Per Line":"1","Employee":"2"}'),
+	 (N'node_1790243141261',1007,2002,N'RM BL Sizing',0.0,1722.0,N'{"Yield Percent":"65"}'),
+	 (N'node_1790243171741',1007,2002,N'RM BL',423.0,1722.0,N'{"Yield Percent":"35"}'),
+	 (N'node_1790301864038',1007,2004,N'I-CUT Machine',423.0,2082.0,N'{}'),
+	 (N'node_1790302014821',1007,2002,N'RM BLK',217.5,2671.0,N'{"Yield Percent":"80"}'),
+	 (N'node_1790302040831',1007,2002,N'RM BLB',628.5,2671.0,N'{"Yield Percent":"20"}'),
+	 (N'node_1790302145957',1007,1004,N'Manual Trimming',622.0,3031.0,N'{"Process":"1"}');

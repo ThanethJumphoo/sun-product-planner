@@ -9,6 +9,24 @@ export class FlowBoardsService {
     });
   }
 
+  async getMenuStructure() {
+    // Get all distinct parts (nodes with typeCode 'PART')
+    const parts = await prisma.flowNode.findMany({
+      where: {
+        nodeType: {
+          typeCode: 'PART',
+        },
+      },
+      select: {
+        name: true,
+      },
+      distinct: ['name'],
+      orderBy: { name: 'asc' },
+    });
+
+    return parts;
+  }
+
   async findOne(id: number) {
     const board = await prisma.flowBoard.findUnique({
       where: { id },

@@ -1,11 +1,18 @@
-import { Controller, Get, Post, Body, Param, UseGuards, ParseIntPipe, Put, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, ParseIntPipe, Put, Delete, UseInterceptors } from '@nestjs/common';
+import { CacheInterceptor } from '@nestjs/cache-manager';
 import { FlowBoardsService } from './flow-boards.service';
 import { JwtAuthGuard } from '../../../core/guards/jwt-auth.guard';
 
 @Controller('api/v1/simulator/boards')
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(CacheInterceptor)
 export class FlowBoardsController {
   constructor(private readonly flowBoardsService: FlowBoardsService) {}
+
+  @Get('menu')
+  getMenuStructure() {
+    return this.flowBoardsService.getMenuStructure();
+  }
 
   @Get()
   findAll() {

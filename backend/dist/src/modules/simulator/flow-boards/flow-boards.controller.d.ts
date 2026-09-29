@@ -2,6 +2,9 @@ import { FlowBoardsService } from './flow-boards.service';
 export declare class FlowBoardsController {
     private readonly flowBoardsService;
     constructor(flowBoardsService: FlowBoardsService);
+    getMenuStructure(): Promise<{
+        name: string;
+    }[]>;
     findAll(): Promise<{
         id: number;
         createdAt: Date;
@@ -14,17 +17,17 @@ export declare class FlowBoardsController {
             name: string;
             data: string;
             nodeTypeId: number;
+            boardId: number;
             positionX: number;
             positionY: number;
-            boardId: number;
         }[];
         edges: {
             id: string;
+            boardId: number;
             source: string;
             target: string;
             sourceHandle: string | null;
             targetHandle: string | null;
-            boardId: number;
         }[];
     } & {
         id: number;
@@ -42,17 +45,17 @@ export declare class FlowBoardsController {
             name: string;
             data: string;
             nodeTypeId: number;
+            boardId: number;
             positionX: number;
             positionY: number;
-            boardId: number;
         }[];
         edges: {
             id: string;
+            boardId: number;
             source: string;
             target: string;
             sourceHandle: string | null;
             targetHandle: string | null;
-            boardId: number;
         }[];
     } & {
         id: number;
@@ -70,17 +73,17 @@ export declare class FlowBoardsController {
             name: string;
             data: string;
             nodeTypeId: number;
+            boardId: number;
             positionX: number;
             positionY: number;
-            boardId: number;
         }[];
         edges: {
             id: string;
+            boardId: number;
             source: string;
             target: string;
             sourceHandle: string | null;
             targetHandle: string | null;
-            boardId: number;
         }[];
     } & {
         id: number;

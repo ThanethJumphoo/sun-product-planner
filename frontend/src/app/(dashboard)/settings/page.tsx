@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import { Database, Settings2 } from 'lucide-react';
+import { Database, Settings2, LayoutTemplate } from 'lucide-react';
 import SimulatorSettings from './components/SimulatorSettings';
 import ErpSettings from './components/ErpSettings';
+import UiSettings from './components/UiSettings';
 
 export default function SettingsPage() {
   return (
@@ -30,6 +31,13 @@ export default function SettingsPage() {
             <Database className="w-4 h-4" />
             ERP Integration
           </Tabs.Trigger>
+          <Tabs.Trigger
+            value="ui"
+            className="flex items-center gap-2 px-6 py-3 text-sm font-medium text-slate-600 hover:text-primary border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary transition-all"
+          >
+            <LayoutTemplate className="w-4 h-4" />
+            UI Preferences
+          </Tabs.Trigger>
         </Tabs.List>
 
         <Tabs.Content value="simulator" className="flex-1 outline-none">
@@ -38,6 +46,10 @@ export default function SettingsPage() {
 
         <Tabs.Content value="erp" className="flex-1 outline-none">
           <ErpSettings />
+        </Tabs.Content>
+
+        <Tabs.Content value="ui" className="flex-1 outline-none">
+          <UiSettings />
         </Tabs.Content>
       </Tabs.Root>
     </div>

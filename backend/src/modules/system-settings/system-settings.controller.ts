@@ -1,7 +1,9 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseInterceptors } from '@nestjs/common';
+import { CacheInterceptor } from '@nestjs/cache-manager';
 import { SystemSettingsService } from './system-settings.service';
 
 @Controller('api/v1/system-settings')
+@UseInterceptors(CacheInterceptor)
 export class SystemSettingsController {
   constructor(private readonly settingsService: SystemSettingsService) {}
 

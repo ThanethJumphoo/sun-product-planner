@@ -5,23 +5,26 @@ export declare class FlowBoardsService {
         updatedAt: Date;
         name: string;
     }[]>;
+    getMenuStructure(): Promise<{
+        name: string;
+    }[]>;
     findOne(id: number): Promise<{
         nodes: {
             id: string;
             name: string;
             data: string;
             nodeTypeId: number;
+            boardId: number;
             positionX: number;
             positionY: number;
-            boardId: number;
         }[];
         edges: {
             id: string;
+            boardId: number;
             source: string;
             target: string;
             sourceHandle: string | null;
             targetHandle: string | null;
-            boardId: number;
         }[];
     } & {
         id: number;
@@ -39,17 +42,17 @@ export declare class FlowBoardsService {
             name: string;
             data: string;
             nodeTypeId: number;
+            boardId: number;
             positionX: number;
             positionY: number;
-            boardId: number;
         }[];
         edges: {
             id: string;
+            boardId: number;
             source: string;
             target: string;
             sourceHandle: string | null;
             targetHandle: string | null;
-            boardId: number;
         }[];
     } & {
         id: number;
@@ -67,17 +70,17 @@ export declare class FlowBoardsService {
             name: string;
             data: string;
             nodeTypeId: number;
+            boardId: number;
             positionX: number;
             positionY: number;
-            boardId: number;
         }[];
         edges: {
             id: string;
+            boardId: number;
             source: string;
             target: string;
             sourceHandle: string | null;
             targetHandle: string | null;
-            boardId: number;
         }[];
     } & {
         id: number;

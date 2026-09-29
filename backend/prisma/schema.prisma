@@ -335,6 +335,7 @@ model FlowNode {
   positionY  Float        @map("position_y")
   data       String       @db.NVarChar(Max) // JSON string of dynamic field values
 
+  @@index([boardId])
   @@map("flow_nodes")
 }
 
@@ -347,6 +348,7 @@ model FlowEdge {
   sourceHandle String?   @map("source_handle") @db.NVarChar(100)
   targetHandle String?   @map("target_handle") @db.NVarChar(100)
 
+  @@index([boardId])
   @@map("flow_edges")
 }
 

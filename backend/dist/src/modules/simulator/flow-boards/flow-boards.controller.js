@@ -14,12 +14,16 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FlowBoardsController = void 0;
 const common_1 = require("@nestjs/common");
+const cache_manager_1 = require("@nestjs/cache-manager");
 const flow_boards_service_1 = require("./flow-boards.service");
 const jwt_auth_guard_1 = require("../../../core/guards/jwt-auth.guard");
 let FlowBoardsController = class FlowBoardsController {
     flowBoardsService;
     constructor(flowBoardsService) {
         this.flowBoardsService = flowBoardsService;
+    }
+    getMenuStructure() {
+        return this.flowBoardsService.getMenuStructure();
     }
     findAll() {
         return this.flowBoardsService.findAll();
@@ -38,6 +42,12 @@ let FlowBoardsController = class FlowBoardsController {
     }
 };
 exports.FlowBoardsController = FlowBoardsController;
+__decorate([
+    (0, common_1.Get)('menu'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], FlowBoardsController.prototype, "getMenuStructure", null);
 __decorate([
     (0, common_1.Get)(),
     __metadata("design:type", Function),
@@ -76,6 +86,7 @@ __decorate([
 exports.FlowBoardsController = FlowBoardsController = __decorate([
     (0, common_1.Controller)('api/v1/simulator/boards'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseInterceptors)(cache_manager_1.CacheInterceptor),
     __metadata("design:paramtypes", [flow_boards_service_1.FlowBoardsService])
 ], FlowBoardsController);
 //# sourceMappingURL=flow-boards.controller.js.map

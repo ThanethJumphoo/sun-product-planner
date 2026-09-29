@@ -26,12 +26,17 @@ const erp_sale_order_module_1 = require("./modules/master-data/erp-sale-order/er
 const system_settings_module_1 = require("./modules/system-settings/system-settings.module");
 const schedule_1 = require("@nestjs/schedule");
 const chicken_receiving_module_1 = require("./modules/master-data/chicken-receiving/chicken-receiving.module");
+const cache_manager_1 = require("@nestjs/cache-manager");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
+            cache_manager_1.CacheModule.register({
+                isGlobal: true,
+                ttl: 60000,
+            }),
             schedule_1.ScheduleModule.forRoot(),
             oracle_module_1.OracleModule,
             system_settings_module_1.SystemSettingsModule,

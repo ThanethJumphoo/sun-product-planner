@@ -17,9 +17,14 @@ import { ErpSaleOrderModule } from './modules/master-data/erp-sale-order/erp-sal
 import { SystemSettingsModule } from './modules/system-settings/system-settings.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ChickenReceivingModule } from './modules/master-data/chicken-receiving/chicken-receiving.module';
+import { CacheModule } from '@nestjs/cache-manager';
 
 @Module({
   imports: [
+    CacheModule.register({
+      isGlobal: true,
+      ttl: 60000, // 60 seconds memory cache
+    }),
     ScheduleModule.forRoot(),
     OracleModule,
     SystemSettingsModule,
