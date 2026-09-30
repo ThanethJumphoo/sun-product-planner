@@ -38,6 +38,9 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
 var OracleService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OracleService = void 0;
@@ -46,10 +49,19 @@ const oracledb = __importStar(require("oracledb"));
 let OracleService = OracleService_1 = class OracleService {
     logger = new common_1.Logger(OracleService_1.name);
     pool;
+    constructor() {
+        try {
+            oracledb.initOracleClient();
+            this.logger.log('✅ Oracle Client initialized in Thick mode');
+        }
+        catch (err) {
+            if (err.message && !err.message.includes('already been initialized')) {
+                this.logger.error('Failed to initialize Oracle Client:', err.message);
+            }
+        }
+    }
     async onModuleInit() {
         try {
-            oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
-            oracledb.fetchArraySize = 10000;
             const dbHost = process.env.ORACLE_DB_HOST;
             const dbPort = process.env.ORACLE_DB_PORT;
             const dbService = process.env.ORACLE_DB_SERVICE;
@@ -144,6 +156,7 @@ let OracleService = OracleService_1 = class OracleService {
 };
 exports.OracleService = OracleService;
 exports.OracleService = OracleService = OracleService_1 = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __metadata("design:paramtypes", [])
 ], OracleService);
 //# sourceMappingURL=oracle.service.js.map

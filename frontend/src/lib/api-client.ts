@@ -32,7 +32,7 @@ apiClient.interceptors.response.use(
       // In a real app, you would attempt token refresh here
       // If refresh fails, logout:
       useAuthStore.getState().logout();
-      window.location.href = '/login';
+      window.location.href = '/sun-product-planner/login';
     }
 
     return Promise.reject(error);

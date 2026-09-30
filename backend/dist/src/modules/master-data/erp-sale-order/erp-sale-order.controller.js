@@ -24,7 +24,7 @@ let ErpSaleOrderController = class ErpSaleOrderController {
         return this.erpSaleOrderService.syncSaleOrders();
     }
     async getLocalSaleOrders(query) {
-        const { page, limit, search, orderNumber, customer, itemCode, orderStatus, dateFrom, dateTo } = query;
+        const { page, limit, search, orderNumber, customer, itemCode, orderStatus, dateFrom, dateTo, } = query;
         return this.erpSaleOrderService.getLocalSaleOrders({
             page: page ? parseInt(page, 10) : 1,
             limit: limit ? parseInt(limit, 10) : 50,
@@ -34,7 +34,7 @@ let ErpSaleOrderController = class ErpSaleOrderController {
             itemCode,
             orderStatus,
             dateFrom,
-            dateTo
+            dateTo,
         });
     }
     async getSaleOrderLines(headerId) {

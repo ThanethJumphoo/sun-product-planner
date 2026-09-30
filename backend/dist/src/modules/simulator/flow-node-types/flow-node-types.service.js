@@ -17,8 +17,8 @@ let FlowNodeTypesService = class FlowNodeTypesService {
         return prisma_1.default.flowNodeType.findMany({
             include: {
                 fields: {
-                    orderBy: { sortOrder: 'asc' }
-                }
+                    orderBy: { sortOrder: 'asc' },
+                },
             },
             orderBy: { typeName: 'asc' },
         });
@@ -28,8 +28,8 @@ let FlowNodeTypesService = class FlowNodeTypesService {
             where: { id },
             include: {
                 fields: {
-                    orderBy: { sortOrder: 'asc' }
-                }
+                    orderBy: { sortOrder: 'asc' },
+                },
             },
         });
         if (!nodeType)
@@ -37,21 +37,25 @@ let FlowNodeTypesService = class FlowNodeTypesService {
         return nodeType;
     }
     async create(data) {
-        const existing = await prisma_1.default.flowNodeType.findUnique({ where: { typeCode: data.typeCode } });
+        const existing = await prisma_1.default.flowNodeType.findUnique({
+            where: { typeCode: data.typeCode },
+        });
         if (existing)
             throw new common_1.ConflictException('Type code already exists');
         const { fields, ...nodeTypeData } = data;
         return prisma_1.default.flowNodeType.create({
             data: {
                 ...nodeTypeData,
-                fields: fields && fields.length > 0 ? {
-                    create: fields.map((f, i) => ({
-                        fieldName: f.fieldName,
-                        dataType: f.dataType,
-                        isRequired: f.isRequired || false,
-                        sortOrder: f.sortOrder ?? i,
-                    }))
-                } : undefined
+                fields: fields && fields.length > 0
+                    ? {
+                        create: fields.map((f, i) => ({
+                            fieldName: f.fieldName,
+                            dataType: f.dataType,
+                            isRequired: f.isRequired || false,
+                            sortOrder: f.sortOrder ?? i,
+                        })),
+                    }
+                    : undefined,
             },
             include: { fields: true },
         });
@@ -59,7 +63,9 @@ let FlowNodeTypesService = class FlowNodeTypesService {
     async update(id, data) {
         await this.findOne(id);
         if (data.typeCode) {
-            const existing = await prisma_1.default.flowNodeType.findFirst({ where: { typeCode: data.typeCode, NOT: { id } } });
+            const existing = await prisma_1.default.flowNodeType.findFirst({
+                where: { typeCode: data.typeCode, NOT: { id } },
+            });
             if (existing)
                 throw new common_1.ConflictException('Type code already taken');
         }
@@ -74,8 +80,8 @@ let FlowNodeTypesService = class FlowNodeTypesService {
                         dataType: f.dataType,
                         isRequired: f.isRequired || false,
                         sortOrder: f.sortOrder ?? i,
-                    }
-                }))
+                    },
+                })),
             ]);
         }
         return prisma_1.default.flowNodeType.update({
@@ -91,7 +97,7 @@ let FlowNodeTypesService = class FlowNodeTypesService {
             throw new common_1.ConflictException(`Cannot delete node type. It is being used by ${usage} nodes.`);
         }
         return prisma_1.default.flowNodeType.delete({
-            where: { id }
+            where: { id },
         });
     }
 };

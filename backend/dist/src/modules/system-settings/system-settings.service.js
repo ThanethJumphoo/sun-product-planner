@@ -15,17 +15,17 @@ const prisma_1 = __importDefault(require("../../lib/prisma"));
 let SystemSettingsService = class SystemSettingsService {
     async getSettings() {
         return prisma_1.default.systemSetting.findMany({
-            orderBy: { category: 'asc' }
+            orderBy: { category: 'asc' },
         });
     }
     async getSettingByKey(key, defaultValue = '') {
         const setting = await prisma_1.default.systemSetting.findUnique({
-            where: { key }
+            where: { key },
         });
         return setting?.value ?? defaultValue;
     }
     async updateSettings(settings) {
-        await prisma_1.default.$transaction(settings.map(s => prisma_1.default.systemSetting.upsert({
+        await prisma_1.default.$transaction(settings.map((s) => prisma_1.default.systemSetting.upsert({
             where: { key: s.key },
             update: {
                 value: s.value,
@@ -36,8 +36,8 @@ let SystemSettingsService = class SystemSettingsService {
                 key: s.key,
                 value: s.value,
                 description: s.description ?? '',
-                category: s.category ?? 'GENERAL'
-            }
+                category: s.category ?? 'GENERAL',
+            },
         })));
         return { success: true };
     }

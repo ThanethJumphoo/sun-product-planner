@@ -2,7 +2,11 @@ import { ErpSaleOrderService } from './erp-sale-order.service';
 export declare class ErpSaleOrderController {
     private readonly erpSaleOrderService;
     constructor(erpSaleOrderService: ErpSaleOrderService);
-    syncSaleOrders(): Promise<unknown>;
+    syncSaleOrders(): Promise<{
+        success: boolean;
+        headerCount: number;
+        lineCount: number;
+    }>;
     getLocalSaleOrders(query: any): Promise<{
         data: {
             id: string;
@@ -37,6 +41,7 @@ export declare class ErpSaleOrderController {
         erpLastUpdateDate: Date;
         erpOrderLineId: string;
         headerId: string;
+        erpLineNumber: string | null;
         orderedQuantity: import("@prisma/client/runtime/library").Decimal;
         orderQuantityUom: string;
         unitSellingPrice: import("@prisma/client/runtime/library").Decimal;

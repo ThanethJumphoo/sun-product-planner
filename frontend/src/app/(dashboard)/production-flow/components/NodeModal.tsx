@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '@/lib/api';
+import { ItemSelectorField } from './ItemSelectorField';
 
 interface NodeModalProps {
   isOpen: boolean;
@@ -46,19 +47,20 @@ export function NodeModal({ isOpen, onClose, onSave, initialData, nodeTypes }: N
     });
   };
 
-  const handleDynamicChange = (fieldName: string, value: string | number) => {
+  const handleDynamicChange = (fieldName: string, value: any) => {
     setDynamicData(prev => ({ ...prev, [fieldName]: value }));
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white w-full max-w-md rounded-lg shadow-lg border border-border overflow-hidden">
-        <div className="px-6 py-4 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 bg-slate-50">
+      <div className="bg-white w-full max-w-md rounded-lg shadow-lg border border-border overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 bg-slate-50 shrink-0">
           <h2 className="text-xl font-bold text-slate-900">{initialData ? "Edit Card" : "Add New Card"}</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-slate-900">✕</button>
         </div>
         
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col min-h-0 overflow-hidden">
+          <div className="p-6 space-y-4 overflow-y-auto flex-1">
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-900">Card Name</label>
             <input 
@@ -100,6 +102,11 @@ export function NodeModal({ isOpen, onClose, onSave, initialData, nodeTypes }: N
                     <div className="text-xs text-muted-foreground bg-slate-50 p-2 rounded border border-slate-200">
                       This field automatically loads weight distribution data when connected to a Part node.
                     </div>
+                  ) : field.dataType === 'ITEM_LIST' ? (
+                    <ItemSelectorField
+                      value={dynamicData[field.fieldName] || []}
+                      onChange={(val) => handleDynamicChange(field.fieldName, val)}
+                    />
                   ) : field.dataType === 'PERCENT' ? (
                     <div className="relative">
                       <input 
@@ -134,7 +141,8 @@ export function NodeModal({ isOpen, onClose, onSave, initialData, nodeTypes }: N
             </div>
           )}
 
-          <div className="pt-4 flex justify-end space-x-2">
+          </div>
+          <div className="px-6 py-4 flex justify-end space-x-2 shrink-0 border-t border-border bg-slate-50">
             <button 
               type="button" 
               onClick={onClose}

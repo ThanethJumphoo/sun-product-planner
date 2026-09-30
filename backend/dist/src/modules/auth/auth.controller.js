@@ -34,7 +34,7 @@ let AuthController = class AuthController {
         });
         return {
             accessToken: tokens.accessToken,
-            user: { id: user.id, username: user.username, roleId: user.roleId }
+            user: { id: user.id, username: user.username, roleId: user.roleId },
         };
     }
     async refresh(req) {

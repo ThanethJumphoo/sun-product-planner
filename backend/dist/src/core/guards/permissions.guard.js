@@ -19,10 +19,7 @@ let PermissionsGuard = class PermissionsGuard {
         this.reflector = reflector;
     }
     async canActivate(context) {
-        const requiredPermissions = this.reflector.getAllAndOverride(require_permissions_decorator_1.PERMISSIONS_KEY, [
-            context.getHandler(),
-            context.getClass(),
-        ]);
+        const requiredPermissions = this.reflector.getAllAndOverride(require_permissions_decorator_1.PERMISSIONS_KEY, [context.getHandler(), context.getClass()]);
         if (!requiredPermissions || requiredPermissions.length === 0) {
             return true;
         }

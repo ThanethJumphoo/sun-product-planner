@@ -6,7 +6,7 @@ export class PartRmSizesService {
   async findAllByPart(partName: string) {
     return prisma.partRmSize.findMany({
       where: { partName },
-      orderBy: { minSize: 'asc' }
+      orderBy: { minSize: 'asc' },
     });
   }
 
@@ -15,8 +15,8 @@ export class PartRmSizesService {
       data: {
         partName,
         minSize: data.minSize ?? null,
-        maxSize: data.maxSize ?? null
-      }
+        maxSize: data.maxSize ?? null,
+      },
     });
   }
 
@@ -28,8 +28,8 @@ export class PartRmSizesService {
       where: { id },
       data: {
         minSize: data.minSize ?? null,
-        maxSize: data.maxSize ?? null
-      }
+        maxSize: data.maxSize ?? null,
+      },
     });
   }
 
@@ -38,7 +38,7 @@ export class PartRmSizesService {
     if (!existing) throw new NotFoundException('Part RM Size not found');
 
     return prisma.partRmSize.delete({
-      where: { id }
+      where: { id },
     });
   }
 }

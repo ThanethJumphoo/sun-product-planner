@@ -20,7 +20,7 @@ export function AuthGuard({ children, requiredPermissions = [], requireAll = fal
 
   useEffect(() => {
     if (!isAuthenticated) {
-      router.replace(`/login?callbackUrl=${encodeURIComponent(pathname)}`);
+      router.replace(`/sun-product-planner/login?callbackUrl=${encodeURIComponent(pathname)}`);
       return;
     }
 

@@ -4,6 +4,6 @@ import { FlowBoardsService } from './flow-boards.service';
 
 @Module({
   controllers: [FlowBoardsController],
-  providers: [FlowBoardsService]
+  providers: [FlowBoardsService],
 })
 export class FlowBoardsModule {}

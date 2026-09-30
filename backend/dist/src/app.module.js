@@ -26,6 +26,8 @@ const erp_sale_order_module_1 = require("./modules/master-data/erp-sale-order/er
 const system_settings_module_1 = require("./modules/system-settings/system-settings.module");
 const schedule_1 = require("@nestjs/schedule");
 const chicken_receiving_module_1 = require("./modules/master-data/chicken-receiving/chicken-receiving.module");
+const product_spec_module_1 = require("./modules/master-data/product-spec/product-spec.module");
+const demand_planning_module_1 = require("./modules/demand-planning/demand-planning.module");
 const cache_manager_1 = require("@nestjs/cache-manager");
 let AppModule = class AppModule {
 };
@@ -53,6 +55,8 @@ exports.AppModule = AppModule = __decorate([
             erp_item_master_module_1.ErpItemMasterModule,
             erp_sale_order_module_1.ErpSaleOrderModule,
             chicken_receiving_module_1.ChickenReceivingModule,
+            product_spec_module_1.ProductSpecModule,
+            demand_planning_module_1.DemandPlanningModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

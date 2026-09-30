@@ -16,7 +16,7 @@ exports.FlowBoardsModule = FlowBoardsModule;
 exports.FlowBoardsModule = FlowBoardsModule = __decorate([
     (0, common_1.Module)({
         controllers: [flow_boards_controller_1.FlowBoardsController],
-        providers: [flow_boards_service_1.FlowBoardsService]
+        providers: [flow_boards_service_1.FlowBoardsService],
     })
 ], FlowBoardsModule);
 //# sourceMappingURL=flow-boards.module.js.map

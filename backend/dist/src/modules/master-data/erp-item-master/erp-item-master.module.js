@@ -18,7 +18,7 @@ exports.ErpItemMasterModule = ErpItemMasterModule = __decorate([
     (0, common_1.Module)({
         imports: [system_settings_module_1.SystemSettingsModule],
         providers: [erp_item_master_service_1.ErpItemMasterService],
-        controllers: [erp_item_master_controller_1.ErpItemMasterController]
+        controllers: [erp_item_master_controller_1.ErpItemMasterController],
     })
 ], ErpItemMasterModule);
 //# sourceMappingURL=erp-item-master.module.js.map

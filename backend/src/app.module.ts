@@ -17,6 +17,8 @@ import { ErpSaleOrderModule } from './modules/master-data/erp-sale-order/erp-sal
 import { SystemSettingsModule } from './modules/system-settings/system-settings.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ChickenReceivingModule } from './modules/master-data/chicken-receiving/chicken-receiving.module';
+import { ProductSpecModule } from './modules/master-data/product-spec/product-spec.module';
+import { DemandPlanningModule } from './modules/demand-planning/demand-planning.module';
 import { CacheModule } from '@nestjs/cache-manager';
 
 @Module({
@@ -41,6 +43,8 @@ import { CacheModule } from '@nestjs/cache-manager';
     ErpItemMasterModule,
     ErpSaleOrderModule,
     ChickenReceivingModule,
+    ProductSpecModule,
+    DemandPlanningModule,
   ],
   controllers: [AppController],
   providers: [AppService],

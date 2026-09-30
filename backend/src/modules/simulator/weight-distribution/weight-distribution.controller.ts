@@ -1,9 +1,21 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { WeightDistributionService } from './weight-distribution.service';
 
 @Controller('api/v1/weight-distribution')
 export class WeightDistributionController {
-  constructor(private readonly weightDistributionService: WeightDistributionService) {}
+  constructor(
+    private readonly weightDistributionService: WeightDistributionService,
+  ) {}
 
   @Get('parts')
   async getParts() {

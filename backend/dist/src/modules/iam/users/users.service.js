@@ -65,7 +65,11 @@ let UsersService = class UsersService {
         const [data, total] = await Promise.all([
             prisma_1.default.user.findMany({
                 where,
-                include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
+                include: {
+                    userRoles: {
+                        include: { role: { select: { id: true, roleName: true } } },
+                    },
+                },
                 skip,
                 take: limit,
                 orderBy,
@@ -81,7 +85,11 @@ let UsersService = class UsersService {
     async findOne(id) {
         const user = await prisma_1.default.user.findUnique({
             where: { id },
-            include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
+            include: {
+                userRoles: {
+                    include: { role: { select: { id: true, roleName: true } } },
+                },
+            },
         });
         if (!user)
             throw new common_1.NotFoundException('User not found');
@@ -89,7 +97,9 @@ let UsersService = class UsersService {
         return result;
     }
     async create(data) {
-        const existing = await prisma_1.default.user.findUnique({ where: { username: data.username } });
+        const existing = await prisma_1.default.user.findUnique({
+            where: { username: data.username },
+        });
         if (existing)
             throw new common_1.ConflictException('Username already exists');
         const hashedPassword = await bcrypt.hash(data.password, 12);
@@ -98,15 +108,21 @@ let UsersService = class UsersService {
             data: {
                 ...userData,
                 password: hashedPassword,
-                ...(roles && roles.length > 0 ? {
-                    userRoles: {
-                        create: roles.map(r => ({
-                            roleId: r.roleId
-                        }))
+                ...(roles && roles.length > 0
+                    ? {
+                        userRoles: {
+                            create: roles.map((r) => ({
+                                roleId: r.roleId,
+                            })),
+                        },
                     }
-                } : {})
+                    : {}),
             },
-            include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
+            include: {
+                userRoles: {
+                    include: { role: { select: { id: true, roleName: true } } },
+                },
+            },
         });
         const { password, ...result } = user;
         return result;
@@ -114,7 +130,9 @@ let UsersService = class UsersService {
     async update(id, data) {
         await this.findOne(id);
         if (data.username) {
-            const existing = await prisma_1.default.user.findFirst({ where: { username: data.username, NOT: { id } } });
+            const existing = await prisma_1.default.user.findFirst({
+                where: { username: data.username, NOT: { id } },
+            });
             if (existing)
                 throw new common_1.ConflictException('Username already taken');
         }
@@ -122,13 +140,17 @@ let UsersService = class UsersService {
         if (roles) {
             await prisma_1.default.$transaction([
                 prisma_1.default.userRole.deleteMany({ where: { userId: id } }),
-                ...roles.map(r => prisma_1.default.userRole.create({ data: { userId: id, roleId: r.roleId } }))
+                ...roles.map((r) => prisma_1.default.userRole.create({ data: { userId: id, roleId: r.roleId } })),
             ]);
         }
         const user = await prisma_1.default.user.update({
             where: { id },
             data: updateData,
-            include: { userRoles: { include: { role: { select: { id: true, roleName: true } } } } },
+            include: {
+                userRoles: {
+                    include: { role: { select: { id: true, roleName: true } } },
+                },
+            },
         });
         const { password, ...result } = user;
         return result;
@@ -136,7 +158,10 @@ let UsersService = class UsersService {
     async resetPassword(id, newPassword) {
         await this.findOne(id);
         const hashedPassword = await bcrypt.hash(newPassword, 12);
-        await prisma_1.default.user.update({ where: { id }, data: { password: hashedPassword } });
+        await prisma_1.default.user.update({
+            where: { id },
+            data: { password: hashedPassword },
+        });
         return { message: 'Password reset successfully' };
     }
     async changePassword(userId, currentPassword, newPassword) {
@@ -147,7 +172,10 @@ let UsersService = class UsersService {
         if (!isMatch)
             throw new common_1.ConflictException('Current password is incorrect');
         const hashedPassword = await bcrypt.hash(newPassword, 12);
-        await prisma_1.default.user.update({ where: { id: userId }, data: { password: hashedPassword } });
+        await prisma_1.default.user.update({
+            where: { id: userId },
+            data: { password: hashedPassword },
+        });
         return { message: 'Password changed successfully' };
     }
     async disable(id) {

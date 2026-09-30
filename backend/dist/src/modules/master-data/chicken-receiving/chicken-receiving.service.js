@@ -50,11 +50,13 @@ let ChickenReceivingService = class ChickenReceivingService {
         });
     }
     async bulkCreateMonthlyRecords(records) {
-        const formattedRecords = records.map(data => {
+        const formattedRecords = records.map((data) => {
             const receiveDate = new Date(data.receiveDate);
             const totalWeight = Number(data.totalWeight);
             const numberOfChickens = Number(data.numberOfChickens);
-            const averageWeight = numberOfChickens > 0 ? Number((totalWeight / numberOfChickens).toFixed(2)) : 0;
+            const averageWeight = numberOfChickens > 0
+                ? Number((totalWeight / numberOfChickens).toFixed(2))
+                : 0;
             return {
                 receiveDate,
                 numberOfChickens,
@@ -67,20 +69,29 @@ let ChickenReceivingService = class ChickenReceivingService {
         });
     }
     async updateMonthlyRecord(id, data) {
-        const record = await prisma_1.default.monthlyChickenReceiving.findUnique({ where: { id } });
+        const record = await prisma_1.default.monthlyChickenReceiving.findUnique({
+            where: { id },
+        });
         if (!record)
             throw new common_1.NotFoundException('Record not found');
         const updateData = {};
         if (data.receiveDate)
             updateData.receiveDate = new Date(data.receiveDate);
-        let numberOfChickens = data.numberOfChickens !== undefined ? Number(data.numberOfChickens) : Number(record.numberOfChickens);
-        let totalWeight = data.totalWeight !== undefined ? Number(data.totalWeight) : Number(record.totalWeight);
+        const numberOfChickens = data.numberOfChickens !== undefined
+            ? Number(data.numberOfChickens)
+            : Number(record.numberOfChickens);
+        const totalWeight = data.totalWeight !== undefined
+            ? Number(data.totalWeight)
+            : Number(record.totalWeight);
         if (data.numberOfChickens !== undefined)
             updateData.numberOfChickens = numberOfChickens;
         if (data.totalWeight !== undefined)
             updateData.totalWeight = totalWeight;
         if (data.numberOfChickens !== undefined || data.totalWeight !== undefined) {
-            updateData.averageWeight = numberOfChickens > 0 ? Number((totalWeight / numberOfChickens).toFixed(2)) : 0;
+            updateData.averageWeight =
+                numberOfChickens > 0
+                    ? Number((totalWeight / numberOfChickens).toFixed(2))
+                    : 0;
         }
         return prisma_1.default.monthlyChickenReceiving.update({
             where: { id },

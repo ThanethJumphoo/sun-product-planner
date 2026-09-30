@@ -5,7 +5,7 @@ import prisma from '../../../lib/prisma';
 export class ChickenWeightsService {
   async findAll() {
     return prisma.chickenWeight.findMany({
-      orderBy: { minWeight: 'asc' }
+      orderBy: { minWeight: 'asc' },
     });
   }
 
@@ -13,8 +13,8 @@ export class ChickenWeightsService {
     return prisma.chickenWeight.create({
       data: {
         minWeight: data.minWeight,
-        maxWeight: data.maxWeight
-      }
+        maxWeight: data.maxWeight,
+      },
     });
   }
 
@@ -26,8 +26,8 @@ export class ChickenWeightsService {
       where: { id },
       data: {
         minWeight: data.minWeight,
-        maxWeight: data.maxWeight
-      }
+        maxWeight: data.maxWeight,
+      },
     });
   }
 
@@ -36,7 +36,7 @@ export class ChickenWeightsService {
     if (!existing) throw new NotFoundException('Chicken weight not found');
 
     return prisma.chickenWeight.delete({
-      where: { id }
+      where: { id },
     });
   }
 }

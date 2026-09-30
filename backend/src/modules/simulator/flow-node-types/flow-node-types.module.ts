@@ -4,6 +4,6 @@ import { FlowNodeTypesService } from './flow-node-types.service';
 
 @Module({
   controllers: [FlowNodeTypesController],
-  providers: [FlowNodeTypesService]
+  providers: [FlowNodeTypesService],
 })
 export class FlowNodeTypesModule {}

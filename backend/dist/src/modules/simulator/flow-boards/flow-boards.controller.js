@@ -40,10 +40,14 @@ let FlowBoardsController = class FlowBoardsController {
     remove(id) {
         return this.flowBoardsService.remove(id);
     }
+    toggleLock(id, isLocked) {
+        return this.flowBoardsService.toggleLock(id, isLocked);
+    }
 };
 exports.FlowBoardsController = FlowBoardsController;
 __decorate([
     (0, common_1.Get)('menu'),
+    (0, common_1.UseInterceptors)(cache_manager_1.CacheInterceptor),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
@@ -83,10 +87,17 @@ __decorate([
     __metadata("design:paramtypes", [Number]),
     __metadata("design:returntype", void 0)
 ], FlowBoardsController.prototype, "remove", null);
+__decorate([
+    (0, common_1.Put)(':id/lock'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)('isLocked')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Boolean]),
+    __metadata("design:returntype", void 0)
+], FlowBoardsController.prototype, "toggleLock", null);
 exports.FlowBoardsController = FlowBoardsController = __decorate([
     (0, common_1.Controller)('api/v1/simulator/boards'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.UseInterceptors)(cache_manager_1.CacheInterceptor),
     __metadata("design:paramtypes", [flow_boards_service_1.FlowBoardsService])
 ], FlowBoardsController);
 //# sourceMappingURL=flow-boards.controller.js.map

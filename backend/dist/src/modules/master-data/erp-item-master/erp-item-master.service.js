@@ -60,7 +60,7 @@ let ErpItemMasterService = ErpItemMasterService_1 = class ErpItemMasterService {
             const lookbackStr = await this.settingsService.getSettingByKey('erp_lookback_days', '30');
             const lookback = parseInt(lookbackStr, 10);
             const lastSyncedRecord = await prisma_1.default.erpItemMaster.findFirst({
-                orderBy: { lastSyncedAt: 'desc' }
+                orderBy: { lastSyncedAt: 'desc' },
             });
             let lastSyncDate = new Date();
             lastSyncDate.setDate(lastSyncDate.getDate() - lookback);
@@ -68,28 +68,51 @@ let ErpItemMasterService = ErpItemMasterService_1 = class ErpItemMasterService {
                 lastSyncDate = lastSyncedRecord.lastSyncedAt;
                 lastSyncDate.setMinutes(lastSyncDate.getMinutes() - 5);
             }
-            const lastSyncStr = lastSyncDate.toISOString().replace('T', ' ').substring(0, 19);
-            const sql = `
-          SELECT ITM.INVENTORY_ITEM_ID AS ERP_ITEM_ID,
-                 ITM.ORGANIZATION_ID   AS ERP_ORG_ID,
-                 ITM.ITEM_TYPE         AS ERP_ITEM_TYPE,
-                 ITM.SEGMENT1          AS ERP_ITEM_CODE,
-                 ITM.DESCRIPTION       AS ERP_ITEM_DESC,
-                 ITM.PRIMARY_UOM_CODE  AS ERP_ITEM_UOM,
-                 ITM.SECONDARY_UOM_CODE AS ERP_SECONDARY_UOM,
-                 ITM.CREATION_DATE     AS ERP_CREATION_DATE,
-                 ITM.LAST_UPDATE_DATE  AS ERP_LAST_UPDATE_DATE,
-                 ITM.ENABLED_FLAG      AS ERP_ENABLED_FLAG
-          FROM  MTL_SYSTEM_ITEMS_B ITM
-          WHERE ITM.ORGANIZATION_ID = :orgId
-          AND   ITM.ENABLED_FLAG = 'Y'
-          AND   ITM.LAST_UPDATE_DATE >= TO_DATE(:lastSync, 'YYYY-MM-DD HH24:MI:SS')
-      `;
-            const erpItems = await this.oracleService.executeQuery(sql, { orgId, lastSync: lastSyncStr });
-            if (erpItems.length > 0) {
-                await this.processChunk(erpItems);
-                this.logger.log(`Delta Sync: Upserted ${erpItems.length} Items`);
+            const lastSyncStr = lastSyncDate
+                .toISOString()
+                .replace('T', ' ')
+                .substring(0, 19);
+            const existingItems = await prisma_1.default.erpItemMaster.findMany({
+                select: { erpItemCode: true },
+            });
+            if (existingItems.length === 0) {
+                this.logger.log('No local items found for Delta Sync. Skipping.');
+                return;
             }
+            const targetCodes = existingItems.map((i) => i.erpItemCode);
+            const chunkSize = 990;
+            let totalUpserted = 0;
+            for (let i = 0; i < targetCodes.length; i += chunkSize) {
+                const chunk = targetCodes.slice(i, i + chunkSize);
+                let sql = `
+            SELECT ITM.INVENTORY_ITEM_ID AS ERP_ITEM_ID,
+                   ITM.ORGANIZATION_ID   AS ERP_ORG_ID,
+                   ITM.ITEM_TYPE         AS ERP_ITEM_TYPE,
+                   ITM.SEGMENT1          AS ERP_ITEM_CODE,
+                   ITM.DESCRIPTION       AS ERP_ITEM_DESC,
+                   ITM.PRIMARY_UOM_CODE  AS ERP_ITEM_UOM,
+                   ITM.SECONDARY_UOM_CODE AS ERP_SECONDARY_UOM,
+                   ITM.CREATION_DATE     AS ERP_CREATION_DATE,
+                   ITM.LAST_UPDATE_DATE  AS ERP_LAST_UPDATE_DATE,
+                   ITM.ENABLED_FLAG      AS ERP_ENABLED_FLAG
+            FROM  MTL_SYSTEM_ITEMS_B ITM
+            WHERE ITM.ORGANIZATION_ID = :orgId
+            AND   ITM.ENABLED_FLAG = 'Y'
+            AND   ITM.LAST_UPDATE_DATE >= TO_DATE(:lastSync, 'YYYY-MM-DD HH24:MI:SS')
+        `;
+                const binds = { orgId, lastSync: lastSyncStr };
+                const inClause = chunk.map((_, idx) => `:item${idx}`).join(', ');
+                sql += ` AND ITM.SEGMENT1 IN (${inClause})`;
+                chunk.forEach((code, idx) => {
+                    binds[`item${idx}`] = code;
+                });
+                const erpItems = await this.oracleService.executeQuery(sql, binds);
+                if (erpItems && erpItems.length > 0) {
+                    await this.processChunk(erpItems);
+                    totalUpserted += erpItems.length;
+                }
+            }
+            this.logger.log(`Delta Sync: Upserted ${totalUpserted} Items`);
         }
         catch (error) {
             this.logger.error('Error in Background Delta Sync for Items', error);
@@ -105,7 +128,9 @@ let ErpItemMasterService = ErpItemMasterService_1 = class ErpItemMasterService {
                 erpItemUom: item.ERP_ITEM_UOM || '',
                 erpSecondaryUom: item.ERP_SECONDARY_UOM || null,
                 erpIsActive: item.ERP_ENABLED_FLAG === 'Y',
-                erpUpdatedAt: item.ERP_LAST_UPDATE_DATE ? new Date(item.ERP_LAST_UPDATE_DATE) : null,
+                erpUpdatedAt: item.ERP_LAST_UPDATE_DATE
+                    ? new Date(item.ERP_LAST_UPDATE_DATE)
+                    : null,
                 lastSyncedAt: new Date(),
             },
             create: {
@@ -116,56 +141,63 @@ let ErpItemMasterService = ErpItemMasterService_1 = class ErpItemMasterService {
                 erpItemUom: item.ERP_ITEM_UOM || '',
                 erpSecondaryUom: item.ERP_SECONDARY_UOM || null,
                 erpIsActive: item.ERP_ENABLED_FLAG === 'Y',
-                erpUpdatedAt: item.ERP_LAST_UPDATE_DATE ? new Date(item.ERP_LAST_UPDATE_DATE) : null,
-            }
+                erpUpdatedAt: item.ERP_LAST_UPDATE_DATE
+                    ? new Date(item.ERP_LAST_UPDATE_DATE)
+                    : null,
+            },
         })));
     }
     async syncItems(itemCodes) {
         this.logger.log('Starting ERP Item Master sync...');
         try {
-            let sql = `
-          SELECT ITM.INVENTORY_ITEM_ID AS ERP_ITEM_ID,
-                 ITM.ORGANIZATION_ID   AS ERP_ORG_ID,
-                 ITM.ITEM_TYPE         AS ERP_ITEM_TYPE,
-                 ITM.SEGMENT1          AS ERP_ITEM_CODE,
-                 ITM.DESCRIPTION       AS ERP_ITEM_DESC,
-                 ITM.PRIMARY_UOM_CODE  AS ERP_ITEM_UOM,
-                 ITM.SECONDARY_UOM_CODE AS ERP_SECONDARY_UOM,
-                 ITM.CREATION_DATE     AS ERP_CREATION_DATE,
-                 ITM.LAST_UPDATE_DATE  AS ERP_LAST_UPDATE_DATE,
-                 ITM.ENABLED_FLAG      AS ERP_ENABLED_FLAG
-          FROM  MTL_SYSTEM_ITEMS_B ITM
-          WHERE ITM.ORGANIZATION_ID = :orgId
-          AND   ITM.ENABLED_FLAG = 'Y'
-      `;
-            const orgId = await this.settingsService.getSettingByKey('erp_org_id', '82');
-            let binds = { orgId };
-            if (itemCodes && itemCodes.length > 0) {
-                const inClause = itemCodes.map((_, i) => `:item${i}`).join(', ');
-                sql += ` AND ITM.SEGMENT1 IN (${inClause})`;
-                itemCodes.forEach((code, i) => {
-                    binds[`item${i}`] = code;
+            let targetCodes = itemCodes;
+            if (!targetCodes || targetCodes.length === 0) {
+                const existingItems = await prisma_1.default.erpItemMaster.findMany({
+                    select: { erpItemCode: true },
                 });
+                targetCodes = existingItems.map((i) => i.erpItemCode);
+                if (targetCodes.length === 0) {
+                    this.logger.log('No local items found to sync. Returning early.');
+                    return { success: true, count: 0 };
+                }
             }
-            this.logger.log(`Executing Oracle query...`);
-            const erpItems = await this.oracleService.executeQuery(sql, binds);
-            this.logger.log(`Fetched ${erpItems.length} items from ERP.`);
-            if (erpItems.length === 0) {
-                return { success: true, count: 0, message: 'No items to sync.' };
-            }
-            const chunkSize = 500;
+            const orgId = await this.settingsService.getSettingByKey('erp_org_id', '82');
             let syncedCount = 0;
-            for (let i = 0; i < erpItems.length; i += chunkSize) {
-                const chunk = erpItems.slice(i, i + chunkSize);
-                await this.processChunk(chunk);
-                syncedCount += chunk.length;
-                this.logger.log(`Synced ${syncedCount}/${erpItems.length} items to database.`);
+            const chunkSize = 990;
+            for (let i = 0; i < targetCodes.length; i += chunkSize) {
+                const chunk = targetCodes.slice(i, i + chunkSize);
+                let sql = `
+            SELECT ITM.INVENTORY_ITEM_ID AS ERP_ITEM_ID,
+                   ITM.ORGANIZATION_ID   AS ERP_ORG_ID,
+                   ITM.ITEM_TYPE         AS ERP_ITEM_TYPE,
+                   ITM.SEGMENT1          AS ERP_ITEM_CODE,
+                   ITM.DESCRIPTION       AS ERP_ITEM_DESC,
+                   ITM.PRIMARY_UOM_CODE  AS ERP_ITEM_UOM,
+                   ITM.SECONDARY_UOM_CODE AS ERP_SECONDARY_UOM,
+                   ITM.CREATION_DATE     AS ERP_CREATION_DATE,
+                   ITM.LAST_UPDATE_DATE  AS ERP_LAST_UPDATE_DATE,
+                   ITM.ENABLED_FLAG      AS ERP_ENABLED_FLAG
+            FROM  MTL_SYSTEM_ITEMS_B ITM
+            WHERE ITM.ORGANIZATION_ID = :orgId
+            AND   ITM.ENABLED_FLAG = 'Y'
+        `;
+                const binds = { orgId };
+                const inClause = chunk.map((_, idx) => `:item${idx}`).join(', ');
+                sql += ` AND ITM.SEGMENT1 IN (${inClause})`;
+                chunk.forEach((code, idx) => {
+                    binds[`item${idx}`] = code;
+                });
+                const result = await this.oracleService.executeQuery(sql, binds);
+                if (result && result.length > 0) {
+                    await this.processChunk(result);
+                    syncedCount += result.length;
+                }
             }
-            this.logger.log('ERP Item Master sync completed successfully.');
+            this.logger.log(`ERP Item Master sync completed. Total synced: ${syncedCount}`);
             return { success: true, count: syncedCount };
         }
         catch (error) {
-            this.logger.error('Error during ERP Item Master sync', error);
+            this.logger.error('Error during ERP Item Master sync setup', error);
             throw error;
         }
     }

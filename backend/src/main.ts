@@ -8,11 +8,15 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : 'http://localhost:3000',
+    origin: process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',')
+      : 'http://localhost:3000',
     credentials: true,
   });
 
   await app.listen(process.env.PORT ?? 3001);
-  console.log(`🚀 Backend running on http://localhost:${process.env.PORT ?? 3001}`);
+  console.log(
+    `🚀 Backend running on http://localhost:${process.env.PORT ?? 3001}`,
+  );
 }
 bootstrap();

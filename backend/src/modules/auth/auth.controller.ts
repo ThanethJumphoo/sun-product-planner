@@ -1,4 +1,13 @@
-import { Controller, Post, Body, Res, Req, UnauthorizedException, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Res,
+  Req,
+  UnauthorizedException,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import type { Response, Request } from 'express';
 
@@ -9,13 +18,16 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() body: any, @Res({ passthrough: true }) res: Response) {
-    const user = await this.authService.validateUser(body.username, body.password);
+    const user = await this.authService.validateUser(
+      body.username,
+      body.password,
+    );
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    
+
     const tokens = await this.authService.login(user);
-    
+
     // Set HttpOnly Cookie for Refresh Token
     res.cookie('refresh_token', tokens.refreshToken, {
       httpOnly: true,
@@ -26,7 +38,7 @@ export class AuthController {
 
     return {
       accessToken: tokens.accessToken,
-      user: { id: user.id, username: user.username, roleId: user.roleId }
+      user: { id: user.id, username: user.username, roleId: user.roleId },
     };
   }
 
@@ -37,7 +49,7 @@ export class AuthController {
     if (!refreshToken) {
       throw new UnauthorizedException('No refresh token provided');
     }
-    
+
     const tokens = await this.authService.refresh(refreshToken);
     return { accessToken: tokens.accessToken };
   }

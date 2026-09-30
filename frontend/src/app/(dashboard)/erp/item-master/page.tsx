@@ -1,42 +1,97 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Database, RefreshCw, Search } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import { ColDef } from "ag-grid-community";
+import api from "../../../../lib/api";
+import toast from "react-hot-toast";
 
 export default function ItemMasterPage() {
   const [rowData, setRowData] = useState<any[]>([]);
+  const [lastSyncedGlobal, setLastSyncedGlobal] = useState<string>("Never");
 
   const [colDefs] = useState<ColDef[]>([
-    { field: "itemCode", headerName: "Item Code", sortable: true, filter: true },
-    { field: "itemName", headerName: "Item Name", sortable: true, filter: true, flex: 2 },
-    { field: "category", headerName: "Category", sortable: true, filter: true },
-    { field: "uom", headerName: "UOM", sortable: true, filter: true, width: 100 },
-    { field: "lastSynced", headerName: "Last Synced", sortable: true },
+    { field: "erpItemCode", headerName: "Item Code", sortable: true, filter: true },
+    { field: "erpItemDesc", headerName: "Item Name", sortable: true, filter: true, flex: 2 },
+    { field: "erpItemType", headerName: "Category", sortable: true, filter: true },
+    { field: "erpItemUom", headerName: "UOM", sortable: true, filter: true, width: 100 },
+    { 
+      field: "erpUpdatedAt", 
+      headerName: "Last Synced", 
+      sortable: true,
+      valueFormatter: (params) => {
+        if (!params.value) return "-";
+        return new Date(params.value).toLocaleString();
+      }
+    },
   ]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [syncItemCodes, setSyncItemCodes] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const handleAddItems = () => {
-    if (!syncItemCodes.trim()) {
-      return; // Do nothing if empty
+  const fetchItems = async () => {
+    try {
+      const response = await api.get('/api/v1/erp/item-master');
+      // Backend returns { data, total, page, limit, totalPages }
+      const items = response.data.data || [];
+      setRowData(items);
+      if (items.length > 0) {
+        // Find the most recent date
+        const mostRecent = items.reduce((latest: Date, item: any) => {
+          const itemDate = new Date(item.erpUpdatedAt || item.erpCreationDate || 0);
+          return itemDate > latest ? itemDate : latest;
+        }, new Date(0));
+        
+        if (mostRecent.getTime() > 0) {
+          setLastSyncedGlobal(mostRecent.toLocaleString());
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch items:", error);
+      toast.error("Failed to load item master data");
     }
-    setIsAdding(true);
-    setTimeout(() => {
-      setIsAdding(false);
-      setIsAddModalOpen(false);
-      setSyncItemCodes("");
-    }, 1500);
   };
 
-  const handleSyncUpdates = () => {
+  useEffect(() => {
+    fetchItems();
+  }, []);
+
+  const handleAddItems = async () => {
+    if (!syncItemCodes.trim()) {
+      return;
+    }
+    
+    const codes = syncItemCodes.split(/[\n,]+/).map(i => i.trim()).filter(i => i);
+    
+    setIsAdding(true);
+    try {
+      await api.post('/api/v1/erp/item-master/sync', { itemCodes: codes });
+      toast.success(`Successfully pulled ${codes.length} items!`);
+      setIsAddModalOpen(false);
+      setSyncItemCodes("");
+      fetchItems();
+    } catch (error) {
+      console.error("Sync failed:", error);
+      toast.error("Failed to pull items from ERP");
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleSyncUpdates = async () => {
     setIsSyncing(true);
-    setTimeout(() => {
+    try {
+      await api.post('/api/v1/erp/item-master/sync');
+      toast.success("Successfully synchronized items with ERP!");
+      fetchItems();
+    } catch (error) {
+      console.error("Global sync failed:", error);
+      toast.error("Failed to synchronize with ERP");
+    } finally {
       setIsSyncing(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -84,7 +139,7 @@ export default function ItemMasterPage() {
             />
           </div>
           <div className="text-sm text-muted-foreground">
-            Last synced: Never
+            Last synced: {lastSyncedGlobal}
           </div>
         </div>
 

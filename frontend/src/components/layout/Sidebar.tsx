@@ -23,12 +23,13 @@ const staticMenuSections = [
     items: [
       { name: "Dashboard", href: "/", icon: LayoutDashboard },
       { name: "Sale Orders", href: "/sale-orders", icon: Package },
-      { name: "Demand Planning", href: "/demand", icon: Calendar, disabled: true },
+      { name: "Demand Planning", href: "/demand-planning", icon: Calendar },
       { name: "MPS", href: "/mps", icon: ClipboardList, disabled: true },
       { name: "Production Orders", href: "/orders", icon: Package, disabled: true },
       { name: "Yield Management", href: "/yield", icon: PieChart, disabled: true },
       { name: "Production Flow", href: "/production-flow", icon: Activity },
       { name: "Weight Distribution", href: "/weight-distribution", icon: ClipboardList },
+      { name: "Product Spec", href: "/product-spec", icon: ClipboardList },
     ],
   },
   {
@@ -103,7 +104,7 @@ export function Sidebar() {
 
   const handleLogout = async () => {
     await logout();
-    router.push("/login"); // Adjust this route if login page is different
+    router.push("/sun-product-planner/login"); // Adjust this route if login page is different
   };
 
   const [isMobile, setIsMobile] = React.useState(false);

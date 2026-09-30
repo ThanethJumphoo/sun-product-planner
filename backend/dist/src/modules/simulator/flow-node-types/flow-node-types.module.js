@@ -16,7 +16,7 @@ exports.FlowNodeTypesModule = FlowNodeTypesModule;
 exports.FlowNodeTypesModule = FlowNodeTypesModule = __decorate([
     (0, common_1.Module)({
         controllers: [flow_node_types_controller_1.FlowNodeTypesController],
-        providers: [flow_node_types_service_1.FlowNodeTypesService]
+        providers: [flow_node_types_service_1.FlowNodeTypesService],
     })
 ], FlowNodeTypesModule);
 //# sourceMappingURL=flow-node-types.module.js.map

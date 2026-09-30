@@ -12,7 +12,17 @@ export class ErpSaleOrderController {
 
   @Get()
   async getLocalSaleOrders(@Query() query: any) {
-    const { page, limit, search, orderNumber, customer, itemCode, orderStatus, dateFrom, dateTo } = query;
+    const {
+      page,
+      limit,
+      search,
+      orderNumber,
+      customer,
+      itemCode,
+      orderStatus,
+      dateFrom,
+      dateTo,
+    } = query;
     return this.erpSaleOrderService.getLocalSaleOrders({
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 50,
@@ -22,7 +32,7 @@ export class ErpSaleOrderController {
       itemCode,
       orderStatus,
       dateFrom,
-      dateTo
+      dateTo,
     });
   }
 

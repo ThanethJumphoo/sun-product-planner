@@ -57,7 +57,9 @@ let AuthService = class AuthService {
     }
     async validateUser(username, pass) {
         const user = await prisma_1.default.user.findUnique({ where: { username } });
-        if (user && user.status === 'ACTIVE' && (await bcrypt.compare(pass, user.password))) {
+        if (user &&
+            user.status === 'ACTIVE' &&
+            (await bcrypt.compare(pass, user.password))) {
             const { password, ...result } = user;
             return result;
         }
@@ -67,10 +69,16 @@ let AuthService = class AuthService {
         const userData = await prisma_1.default.user.findUnique({
             where: { id: user.id },
             include: {
-                userRoles: { include: { role: { include: { permissions: { include: { permission: true } } } } } }
-            }
+                userRoles: {
+                    include: {
+                        role: {
+                            include: { permissions: { include: { permission: true } } },
+                        },
+                    },
+                },
+            },
         });
-        const permissions = Array.from(new Set(userData?.userRoles.flatMap(ur => ur.role.permissions.map(rp => rp.permission.permissionCode)) || []));
+        const permissions = Array.from(new Set(userData?.userRoles.flatMap((ur) => ur.role.permissions.map((rp) => rp.permission.permissionCode)) || []));
         const payload = { username: user.username, sub: user.id, permissions };
         return {
             accessToken: this.jwtService.sign(payload, { expiresIn: '15m' }),
@@ -79,8 +87,14 @@ let AuthService = class AuthService {
     }
     async refresh(refreshToken) {
         try {
-            const payload = this.jwtService.verify(refreshToken, { secret: process.env.JWT_SECRET || 'super-secret' });
-            const newPayload = { username: payload.username, sub: payload.sub, permissions: payload.permissions || [] };
+            const payload = this.jwtService.verify(refreshToken, {
+                secret: process.env.JWT_SECRET || 'super-secret',
+            });
+            const newPayload = {
+                username: payload.username,
+                sub: payload.sub,
+                permissions: payload.permissions || [],
+            };
             return {
                 accessToken: this.jwtService.sign(newPayload, { expiresIn: '15m' }),
             };

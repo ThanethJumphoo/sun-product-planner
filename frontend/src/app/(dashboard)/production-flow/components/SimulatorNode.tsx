@@ -38,6 +38,7 @@ export function SimulatorNode({ id, data }: { id: string; data: any }) {
   const isProcess = data.nodeTypeCode === 'PROCESS' || data.nodeTypeCode === 'MACHINE';
   const isWeightDistribution = data.nodeTypeCode === 'WEIGHT_DISTRIBUTION';
   const isRawMaterial = data.nodeTypeCode === 'RAW_MATERIAL';
+  const isItem = data.nodeTypeCode === 'ITEM';
 
   return (
     <div className="bg-white border-2 border-primary/20 rounded-lg shadow-md min-w-[200px] overflow-hidden group">
@@ -73,8 +74,8 @@ export function SimulatorNode({ id, data }: { id: string; data: any }) {
       </div>
       
       <div className="p-4 space-y-3">
-        {/* Render Connection Type for Raw Material */}
-        {isRawMaterial && data.connectionType && (
+        {/* Render Connection Type */}
+        {(isRawMaterial || isItem) && data.connectionType && (
           <div className="flex flex-col space-y-1 mb-2">
             <label className="text-xs text-muted-foreground font-bold capitalize">Type (Connected From)</label>
             <input
@@ -93,11 +94,25 @@ export function SimulatorNode({ id, data }: { id: string; data: any }) {
               const value = data.dynamicData?.[key] || '';
               const isPercent = fieldDef.dataType === 'PERCENT';
               const isNumber = fieldDef.dataType === 'NUMBER';
+              const isItemList = fieldDef.dataType === 'ITEM_LIST';
 
               return (
                 <div key={key} className="flex flex-col space-y-1">
                   <label className="text-xs text-muted-foreground font-medium capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
-                  {isPercent ? (
+                  {isItemList ? (
+                    <div className="nodrag w-full rounded-md border border-input bg-muted/20 p-1.5 text-sm text-slate-900 cursor-default flex flex-col gap-1 max-h-32 overflow-y-auto">
+                      {Array.isArray(value) && value.length > 0 ? (
+                        value.map((item: any, idx: number) => (
+                          <div key={idx} className="bg-white border border-slate-200 px-2 py-1 rounded flex flex-col w-full" title={item.erpItemDesc}>
+                            <span className="text-[10px] font-bold text-slate-700">{item.erpItemCode}</span>
+                            <span className="text-[9px] text-slate-500 truncate leading-tight">{item.erpItemDesc}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic px-1">No items</span>
+                      )}
+                    </div>
+                  ) : isPercent ? (
                     <div className="relative">
                       <input
                         type="text"

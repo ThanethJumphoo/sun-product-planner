@@ -1,4 +1,16 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { ChickenYieldsService } from './chicken-yields.service';
 import { JwtAuthGuard } from '../../../core/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../../core/guards/permissions.guard';
@@ -23,19 +35,40 @@ export class ChickenYieldsController {
 
   @Post()
   @RequirePermissions('CHICKEN_YIELD.CREATE')
-  create(@Body() body: { partCode: string; partName: string; yieldPercent: number; sortOrder?: number; status?: string }) {
+  create(
+    @Body()
+    body: {
+      partCode: string;
+      partName: string;
+      yieldPercent: number;
+      sortOrder?: number;
+      status?: string;
+    },
+  ) {
     return this.chickenYieldsService.create(body);
   }
 
   @Put(':id')
   @RequirePermissions('CHICKEN_YIELD.EDIT')
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: { partName?: string; yieldPercent?: number; sortOrder?: number; status?: string }) {
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: {
+      partName?: string;
+      yieldPercent?: number;
+      sortOrder?: number;
+      status?: string;
+    },
+  ) {
     return this.chickenYieldsService.update(id, body);
   }
 
   @Patch(':id/status')
   @RequirePermissions('CHICKEN_YIELD.STATUS_CHANGE')
-  updateStatus(@Param('id', ParseIntPipe) id: number, @Body() body: { status: string }) {
+  updateStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { status: string },
+  ) {
     return this.chickenYieldsService.updateStatus(id, body.status);
   }
 

@@ -13,7 +13,17 @@ export class SystemSettingsController {
   }
 
   @Post()
-  async updateSettings(@Body() data: { settings: { key: string; value: string; description?: string; category?: string }[] }) {
+  async updateSettings(
+    @Body()
+    data: {
+      settings: {
+        key: string;
+        value: string;
+        description?: string;
+        category?: string;
+      }[];
+    },
+  ) {
     return this.settingsService.updateSettings(data.settings);
   }
 }

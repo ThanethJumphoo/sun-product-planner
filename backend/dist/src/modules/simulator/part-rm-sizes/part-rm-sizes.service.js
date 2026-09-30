@@ -16,7 +16,7 @@ let PartRmSizesService = class PartRmSizesService {
     async findAllByPart(partName) {
         return prisma_1.default.partRmSize.findMany({
             where: { partName },
-            orderBy: { minSize: 'asc' }
+            orderBy: { minSize: 'asc' },
         });
     }
     async create(partName, data) {
@@ -24,8 +24,8 @@ let PartRmSizesService = class PartRmSizesService {
             data: {
                 partName,
                 minSize: data.minSize ?? null,
-                maxSize: data.maxSize ?? null
-            }
+                maxSize: data.maxSize ?? null,
+            },
         });
     }
     async update(id, data) {
@@ -36,8 +36,8 @@ let PartRmSizesService = class PartRmSizesService {
             where: { id },
             data: {
                 minSize: data.minSize ?? null,
-                maxSize: data.maxSize ?? null
-            }
+                maxSize: data.maxSize ?? null,
+            },
         });
     }
     async remove(id) {
@@ -45,7 +45,7 @@ let PartRmSizesService = class PartRmSizesService {
         if (!existing)
             throw new common_1.NotFoundException('Part RM Size not found');
         return prisma_1.default.partRmSize.delete({
-            where: { id }
+            where: { id },
         });
     }
 };

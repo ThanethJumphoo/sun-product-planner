@@ -11,7 +11,11 @@ export declare class ErpSaleOrderService implements OnModuleInit {
     onModuleInit(): Promise<void>;
     setupDeltaSyncJob(): Promise<void>;
     runDeltaSync(): Promise<void>;
-    syncSaleOrders(): Promise<unknown>;
+    syncSaleOrders(): Promise<{
+        success: boolean;
+        headerCount: number;
+        lineCount: number;
+    }>;
     private processChunk;
     getSaleOrderLines(headerId: string): Promise<{
         id: string;
@@ -24,6 +28,7 @@ export declare class ErpSaleOrderService implements OnModuleInit {
         erpLastUpdateDate: Date;
         erpOrderLineId: string;
         headerId: string;
+        erpLineNumber: string | null;
         orderedQuantity: import("@prisma/client/runtime/library").Decimal;
         orderQuantityUom: string;
         unitSellingPrice: import("@prisma/client/runtime/library").Decimal;

@@ -10,6 +10,7 @@ export declare class FlowBoardsController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        isLocked: boolean;
     }[]>;
     findOne(id: number): Promise<{
         nodes: {
@@ -34,6 +35,7 @@ export declare class FlowBoardsController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        isLocked: boolean;
     }>;
     create(body: {
         name: string;
@@ -62,6 +64,7 @@ export declare class FlowBoardsController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        isLocked: boolean;
     }>;
     saveBoard(id: number, body: {
         name?: string;
@@ -90,11 +93,20 @@ export declare class FlowBoardsController {
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        isLocked: boolean;
     }>;
     remove(id: number): Promise<{
         id: number;
         createdAt: Date;
         updatedAt: Date;
         name: string;
+        isLocked: boolean;
+    }>;
+    toggleLock(id: number, isLocked: boolean): Promise<{
+        id: number;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        isLocked: boolean;
     }>;
 }

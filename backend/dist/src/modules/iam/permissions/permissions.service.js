@@ -31,7 +31,7 @@ let PermissionsService = class PermissionsService {
                 id: p.id,
                 permissionCode: p.permissionCode,
                 permissionName: p.permissionName,
-                description: p.description
+                description: p.description,
             });
         }
         return Array.from(modules.entries()).map(([moduleName, perms]) => ({

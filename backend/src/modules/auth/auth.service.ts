@@ -9,7 +9,11 @@ export class AuthService {
 
   async validateUser(username: string, pass: string): Promise<any> {
     const user = await prisma.user.findUnique({ where: { username } });
-    if (user && user.status === 'ACTIVE' && (await bcrypt.compare(pass, user.password))) {
+    if (
+      user &&
+      user.status === 'ACTIVE' &&
+      (await bcrypt.compare(pass, user.password))
+    ) {
       const { password, ...result } = user;
       return result;
     }
@@ -21,13 +25,23 @@ export class AuthService {
     const userData = await prisma.user.findUnique({
       where: { id: user.id },
       include: {
-        userRoles: { include: { role: { include: { permissions: { include: { permission: true } } } } } }
-      }
+        userRoles: {
+          include: {
+            role: {
+              include: { permissions: { include: { permission: true } } },
+            },
+          },
+        },
+      },
     });
-    
-    const permissions = Array.from(new Set(
-      userData?.userRoles.flatMap(ur => ur.role.permissions.map(rp => rp.permission.permissionCode)) || []
-    ));
+
+    const permissions = Array.from(
+      new Set(
+        userData?.userRoles.flatMap((ur) =>
+          ur.role.permissions.map((rp) => rp.permission.permissionCode),
+        ) || [],
+      ),
+    );
 
     const payload = { username: user.username, sub: user.id, permissions };
     return {
@@ -38,9 +52,15 @@ export class AuthService {
 
   async refresh(refreshToken: string) {
     try {
-      const payload = this.jwtService.verify(refreshToken, { secret: process.env.JWT_SECRET || 'super-secret' });
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: process.env.JWT_SECRET || 'super-secret',
+      });
       // Here you would check if the refresh token is revoked in DB/Redis
-      const newPayload = { username: payload.username, sub: payload.sub, permissions: payload.permissions || [] };
+      const newPayload = {
+        username: payload.username,
+        sub: payload.sub,
+        permissions: payload.permissions || [],
+      };
       return {
         accessToken: this.jwtService.sign(newPayload, { expiresIn: '15m' }),
       };
@@ -49,4 +69,3 @@ export class AuthService {
     }
   }
 }
-

@@ -15,11 +15,6 @@ export declare class ErpItemMasterService implements OnModuleInit {
     syncItems(itemCodes?: string[]): Promise<{
         success: boolean;
         count: number;
-        message: string;
-    } | {
-        success: boolean;
-        count: number;
-        message?: undefined;
     }>;
     getLocalItems(query: any): Promise<{
         data: {

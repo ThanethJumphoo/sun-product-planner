@@ -171,7 +171,11 @@ export default function MonthlyChickenReceivingPage() {
         const payload = rows.map(row => {
           let recDate = row[0];
           if (recDate instanceof Date) {
-            recDate = recDate.toISOString().split('T')[0];
+            // Use local date methods to avoid timezone shift from toISOString()
+            const y = recDate.getUTCFullYear();
+            const m = String(recDate.getUTCMonth() + 1).padStart(2, '0');
+            const d = String(recDate.getUTCDate()).padStart(2, '0');
+            recDate = `${y}-${m}-${d}`;
           } else {
             recDate = String(recDate).trim();
           }

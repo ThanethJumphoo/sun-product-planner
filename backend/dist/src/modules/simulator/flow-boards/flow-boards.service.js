@@ -46,29 +46,34 @@ let FlowBoardsService = class FlowBoardsService {
         return board;
     }
     async create(data) {
-        const { nodes, edges, ...boardData } = data;
+        const { nodes, edges, isLocked, ...boardData } = data;
         return prisma_1.default.flowBoard.create({
             data: {
                 ...boardData,
-                nodes: nodes ? {
-                    create: nodes.map(n => ({
-                        id: n.id,
-                        nodeTypeId: n.nodeTypeId,
-                        name: n.name,
-                        positionX: n.positionX,
-                        positionY: n.positionY,
-                        data: n.data,
-                    }))
-                } : undefined,
-                edges: edges ? {
-                    create: edges.map((e) => ({
-                        id: e.id,
-                        source: e.source,
-                        target: e.target,
-                        sourceHandle: e.sourceHandle,
-                        targetHandle: e.targetHandle,
-                    }))
-                } : undefined,
+                isLocked: isLocked || false,
+                nodes: nodes
+                    ? {
+                        create: nodes.map((n) => ({
+                            id: n.id,
+                            nodeTypeId: n.nodeTypeId,
+                            name: n.name,
+                            positionX: n.positionX,
+                            positionY: n.positionY,
+                            data: n.data,
+                        })),
+                    }
+                    : undefined,
+                edges: edges
+                    ? {
+                        create: edges.map((e) => ({
+                            id: e.id,
+                            source: e.source,
+                            target: e.target,
+                            sourceHandle: e.sourceHandle,
+                            targetHandle: e.targetHandle,
+                        })),
+                    }
+                    : undefined,
             },
             include: { nodes: true, edges: true },
         });
@@ -78,32 +83,43 @@ let FlowBoardsService = class FlowBoardsService {
         await prisma_1.default.$transaction([
             prisma_1.default.flowEdge.deleteMany({ where: { boardId: id } }),
             prisma_1.default.flowNode.deleteMany({ where: { boardId: id } }),
-            ...(data.name ? [prisma_1.default.flowBoard.update({ where: { id }, data: { name: data.name } })] : []),
-            ...(data.nodes && data.nodes.length > 0 ? [
-                prisma_1.default.flowNode.createMany({
-                    data: data.nodes.map(n => ({
-                        id: n.id,
-                        boardId: id,
-                        nodeTypeId: n.nodeTypeId,
-                        name: n.name,
-                        positionX: n.positionX,
-                        positionY: n.positionY,
-                        data: n.data,
-                    }))
-                })
-            ] : []),
-            ...(data.edges && data.edges.length > 0 ? [
-                prisma_1.default.flowEdge.createMany({
-                    data: data.edges.map(e => ({
-                        id: e.id,
-                        boardId: id,
-                        source: e.source,
-                        target: e.target,
-                        sourceHandle: e.sourceHandle,
-                        targetHandle: e.targetHandle,
-                    }))
-                })
-            ] : [])
+            ...(data.name || data.isLocked !== undefined
+                ? [
+                    prisma_1.default.flowBoard.update({
+                        where: { id },
+                        data: { name: data.name, isLocked: data.isLocked },
+                    }),
+                ]
+                : []),
+            ...(data.nodes && data.nodes.length > 0
+                ? [
+                    prisma_1.default.flowNode.createMany({
+                        data: data.nodes.map((n) => ({
+                            id: n.id,
+                            boardId: id,
+                            nodeTypeId: n.nodeTypeId,
+                            name: n.name,
+                            positionX: n.positionX,
+                            positionY: n.positionY,
+                            data: n.data,
+                        })),
+                    }),
+                ]
+                : []),
+            ...(data.edges && data.edges.length > 0
+                ? [
+                    prisma_1.default.flowEdge.createMany({
+                        data: data.edges.map((e) => ({
+                            id: e.id,
+                            boardId: id,
+                            source: e.source,
+                            target: e.target,
+                            sourceHandle: e.sourceHandle,
+                            targetHandle: e.targetHandle,
+                        })),
+                    }),
+                ]
+                : []),
         ]);
         return this.findOne(id);
     }
@@ -117,6 +133,15 @@ let FlowBoardsService = class FlowBoardsService {
         await prisma_1.default.flowEdge.deleteMany({ where: { boardId: id } });
         await prisma_1.default.flowNode.deleteMany({ where: { boardId: id } });
         return prisma_1.default.flowBoard.delete({ where: { id } });
+    }
+    async toggleLock(id, isLocked) {
+        const board = await prisma_1.default.flowBoard.findUnique({ where: { id } });
+        if (!board)
+            throw new common_1.NotFoundException('Board not found');
+        return prisma_1.default.flowBoard.update({
+            where: { id },
+            data: { isLocked },
+        });
     }
 };
 exports.FlowBoardsService = FlowBoardsService;

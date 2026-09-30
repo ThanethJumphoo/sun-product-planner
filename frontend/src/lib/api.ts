@@ -73,7 +73,7 @@ api.interceptors.response.use(
         setAccessToken(null);
         // Redirect to login
         if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+          window.location.href = '/sun-product-planner/login';
         }
         return Promise.reject(err);
       } finally {

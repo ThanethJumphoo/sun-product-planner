@@ -15,15 +15,15 @@ const prisma_1 = __importDefault(require("../../../lib/prisma"));
 let ChickenWeightsService = class ChickenWeightsService {
     async findAll() {
         return prisma_1.default.chickenWeight.findMany({
-            orderBy: { minWeight: 'asc' }
+            orderBy: { minWeight: 'asc' },
         });
     }
     async create(data) {
         return prisma_1.default.chickenWeight.create({
             data: {
                 minWeight: data.minWeight,
-                maxWeight: data.maxWeight
-            }
+                maxWeight: data.maxWeight,
+            },
         });
     }
     async update(id, data) {
@@ -34,8 +34,8 @@ let ChickenWeightsService = class ChickenWeightsService {
             where: { id },
             data: {
                 minWeight: data.minWeight,
-                maxWeight: data.maxWeight
-            }
+                maxWeight: data.maxWeight,
+            },
         });
     }
     async remove(id) {
@@ -43,7 +43,7 @@ let ChickenWeightsService = class ChickenWeightsService {
         if (!existing)
             throw new common_1.NotFoundException('Chicken weight not found');
         return prisma_1.default.chickenWeight.delete({
-            where: { id }
+            where: { id },
         });
     }
 };

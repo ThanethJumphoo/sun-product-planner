@@ -1,4 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
 import prisma from '../../lib/prisma';
@@ -8,10 +13,10 @@ export class PermissionsGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
+      PERMISSIONS_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     if (!requiredPermissions || requiredPermissions.length === 0) {
       return true;
@@ -29,12 +34,12 @@ export class PermissionsGuard implements CanActivate {
 
     // Temporarily bypassing permission check for development so you can use the CRUD
     // Uncomment the lines below to ENFORCE RBAC checking in production:
-    
+
     // const hasPermission = requiredPermissions.every((perm) => userPermissions.includes(perm));
     // if (!hasPermission) {
     //   throw new ForbiddenException('Insufficient permissions');
     // }
-    
+
     return true;
   }
 }

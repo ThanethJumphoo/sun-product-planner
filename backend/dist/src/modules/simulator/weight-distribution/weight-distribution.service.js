@@ -19,30 +19,30 @@ let WeightDistributionService = class WeightDistributionService {
             select: { name: true },
             distinct: ['name'],
         });
-        return parts.map(p => p.name).sort();
+        return parts.map((p) => p.name).sort();
     }
     async findMatrixByPart(partName) {
         const chickenWeights = await prisma_1.default.chickenWeight.findMany({
-            orderBy: { minWeight: 'asc' }
+            orderBy: { minWeight: 'asc' },
         });
         const rmSizes = await prisma_1.default.partRmSize.findMany({
             where: { partName },
-            orderBy: { minSize: 'asc' }
+            orderBy: { minSize: 'asc' },
         });
         const distributions = await prisma_1.default.partWeightDistribution.findMany({
-            where: { partName }
+            where: { partName },
         });
-        const matrix = chickenWeights.map(cw => {
+        const matrix = chickenWeights.map((cw) => {
             return {
                 chickenWeight: cw,
-                rmSizes: rmSizes.map(rm => {
-                    const existingDist = distributions.find(d => d.chickenWeightId === cw.id && d.partRmSizeId === rm.id);
+                rmSizes: rmSizes.map((rm) => {
+                    const existingDist = distributions.find((d) => d.chickenWeightId === cw.id && d.partRmSizeId === rm.id);
                     return {
                         rmSize: rm,
                         distributionId: existingDist?.id || null,
-                        percent: existingDist?.percent || 0
+                        percent: existingDist?.percent || 0,
                     };
-                })
+                }),
             };
         });
         return matrix;
@@ -51,16 +51,16 @@ let WeightDistributionService = class WeightDistributionService {
         const results = [];
         await prisma_1.default.$transaction(async (tx) => {
             await tx.partWeightDistribution.deleteMany({
-                where: { partName }
+                where: { partName },
             });
             if (updates.length > 0) {
                 await tx.partWeightDistribution.createMany({
-                    data: updates.map(u => ({
+                    data: updates.map((u) => ({
                         partName,
                         chickenWeightId: u.chickenWeightId,
                         partRmSizeId: u.partRmSizeId,
-                        percent: u.percent
-                    }))
+                        percent: u.percent,
+                    })),
                 });
             }
         });

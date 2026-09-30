@@ -315,6 +315,7 @@ model FlowNodeTypeField {
 model FlowBoard {
   id    Int        @id @default(autoincrement())
   name  String     @db.NVarChar(100)
+  isLocked Boolean @default(false) @map("is_locked")
   nodes FlowNode[]
   edges FlowEdge[]
 
@@ -322,6 +323,27 @@ model FlowBoard {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("flow_boards")
+}
+
+model ProductSpec {
+  id              Int      @id @default(autoincrement())
+  erpItemCode     String   @unique @map("erp_item_code")
+  itemCategory    String?  @map("item_category") // 'Product', 'Co-Product', 'By-Product'
+  productType     String?  @map("product_type") // 'Chilled' | 'Freeze'
+  yieldPercent    Float?   @map("yield_percent")
+  manSpeed        Float?   @map("man_speed")
+  iCutSpeed       Float?   @map("i_cut_speed")
+  leadMinDays     Int?     @map("lead_min_days")
+  leadMaxDays     Int?     @map("lead_max_days")
+  isExternalRm    Boolean  @default(false) @map("is_external_rm")
+  
+  // JSON array of PartRmSize IDs or "Unsize". e.g. [1, 2, "Unsize"]
+  rmSizesJson     String?  @map("rm_sizes_json") @db.NVarChar(Max)
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("product_specs")
 }
 
 model FlowNode {
@@ -454,6 +476,7 @@ model ErpSaleOrderLine {
   headerId       String             @map("header_id")
   header         ErpSaleOrderHeader @relation(fields: [headerId], references: [id], onDelete: Cascade)
 
+  erpLineNumber    String? @map("erp_line_number") @db.NVarChar(20)
   erpItemId        String  @map("erp_item_id")
   erpItemCode      String  @map("erp_item_code") @db.NVarChar(50)
   orderedQuantity  Decimal @map("ordered_quantity") @db.Decimal(15, 4)

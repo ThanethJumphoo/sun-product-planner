@@ -6,6 +6,6 @@ import { ErpItemMasterController } from './erp-item-master.controller';
 @Module({
   imports: [SystemSettingsModule],
   providers: [ErpItemMasterService],
-  controllers: [ErpItemMasterController]
+  controllers: [ErpItemMasterController],
 })
 export class ErpItemMasterModule {}

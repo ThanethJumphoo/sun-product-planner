@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import * as oracledb from 'oracledb';
 
 @Injectable()
@@ -6,16 +11,19 @@ export class OracleService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OracleService.name);
   private pool: oracledb.Pool;
 
+  constructor() {
+    try {
+      oracledb.initOracleClient();
+      this.logger.log('✅ Oracle Client initialized in Thick mode');
+    } catch (err: any) {
+      if (err.message && !err.message.includes('already been initialized')) {
+        this.logger.error('Failed to initialize Oracle Client:', err.message);
+      }
+    }
+  }
+
   async onModuleInit() {
     try {
-      // Configuration for Oracle Connection for fast loading
-      // Setting outFormat to Object globally for easier parsing
-      oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
-      
-      // Increase default fetch array size (default is 100). Higher size means fewer network round trips.
-      // This is crucial for fast data loading from ERP.
-      oracledb.fetchArraySize = 10000; 
-
       // Use environment variables for connection
       const dbHost = process.env.ORACLE_DB_HOST;
       const dbPort = process.env.ORACLE_DB_PORT;
@@ -24,7 +32,9 @@ export class OracleService implements OnModuleInit, OnModuleDestroy {
       const dbPass = process.env.ORACLE_DB_PASS;
 
       if (!dbHost || !dbPort || !dbService || !dbUser || !dbPass) {
-        throw new Error('Oracle DB credentials are not fully configured in environment variables.');
+        throw new Error(
+          'Oracle DB credentials are not fully configured in environment variables.',
+        );
       }
 
       const connectString = `${dbHost}:${dbPort}/${dbService}`;
@@ -37,10 +47,13 @@ export class OracleService implements OnModuleInit, OnModuleDestroy {
         poolMax: 10,
         poolIncrement: 2,
       });
-      
+
       this.logger.log('Oracle DB Connection Pool created successfully.');
     } catch (error) {
-      this.logger.error('Failed to create Oracle DB Connection Pool. Check environment variables.', error);
+      this.logger.error(
+        'Failed to create Oracle DB Connection Pool. Check environment variables.',
+        error,
+      );
     }
   }
 
@@ -59,15 +72,19 @@ export class OracleService implements OnModuleInit, OnModuleDestroy {
    * Fast Data Loading: Fetch all rows for a query.
    * Best for queries that return moderately large datasets that fit in memory.
    */
-  async executeQuery<T = any>(sql: string, binds: any = {}, options: oracledb.ExecuteOptions = {}): Promise<T[]> {
+  async executeQuery<T = any>(
+    sql: string,
+    binds: any = {},
+    options: oracledb.ExecuteOptions = {},
+  ): Promise<T[]> {
     let connection: oracledb.Connection;
     try {
       connection = await this.pool.getConnection();
-      
+
       const execOptions: oracledb.ExecuteOptions = {
         outFormat: oracledb.OUT_FORMAT_OBJECT,
         // Override global fetchArraySize if needed
-        fetchArraySize: 10000, 
+        fetchArraySize: 10000,
         ...options,
       };
 
@@ -89,17 +106,21 @@ export class OracleService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Fast Data Loading: Stream massive datasets.
-   * Best for huge tables (e.g. millions of rows) 
+   * Best for huge tables (e.g. millions of rows)
    * to avoid Out of Memory errors.
    */
-  async getStream(sql: string, binds: any = {}, options: oracledb.ExecuteOptions = {}) {
+  async getStream(
+    sql: string,
+    binds: any = {},
+    options: oracledb.ExecuteOptions = {},
+  ) {
     const connection = await this.pool.getConnection();
-    
+
     const execOptions: oracledb.ExecuteOptions = {
       outFormat: oracledb.OUT_FORMAT_OBJECT,
       resultSet: true, // Enable Result Set for streaming
       prefetchRows: 10000, // Pre-fetch rows for stream efficiency
-      fetchArraySize: 10000, 
+      fetchArraySize: 10000,
       ...options,
     };
 
@@ -120,7 +141,10 @@ export class OracleService implements OnModuleInit, OnModuleDestroy {
       try {
         await connection.close();
       } catch (closeErr) {
-        this.logger.error('Error closing connection from stream error handler', closeErr);
+        this.logger.error(
+          'Error closing connection from stream error handler',
+          closeErr,
+        );
       }
     });
 

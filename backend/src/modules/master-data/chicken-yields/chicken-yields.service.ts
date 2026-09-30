@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import prisma from '../../../lib/prisma';
 
 @Injectable()
@@ -51,14 +55,22 @@ export class ChickenYieldsService {
     return record;
   }
 
-  async create(data: { partCode: string; partName: string; yieldPercent: number; sortOrder?: number; status?: string }) {
+  async create(data: {
+    partCode: string;
+    partName: string;
+    yieldPercent: number;
+    sortOrder?: number;
+    status?: string;
+  }) {
     // Check code uniqueness
     const existing = await prisma.chickenYield.findUnique({
       where: { partCode: data.partCode },
     });
 
     if (existing && !existing.deletedAt) {
-      throw new BadRequestException(`Chicken yield with code ${data.partCode} already exists.`);
+      throw new BadRequestException(
+        `Chicken yield with code ${data.partCode} already exists.`,
+      );
     }
 
     // Check yield limit if ACTIVE
@@ -78,7 +90,15 @@ export class ChickenYieldsService {
     });
   }
 
-  async update(id: number, data: { partName?: string; yieldPercent?: number; sortOrder?: number; status?: string }) {
+  async update(
+    id: number,
+    data: {
+      partName?: string;
+      yieldPercent?: number;
+      sortOrder?: number;
+      status?: string;
+    },
+  ) {
     const record = await this.findOne(id);
 
     const newStatus = data.status ?? record.status;
@@ -122,7 +142,10 @@ export class ChickenYieldsService {
     });
   }
 
-  private async validateTotalActiveYield(newYield: number, excludeId: number | null) {
+  private async validateTotalActiveYield(
+    newYield: number,
+    excludeId: number | null,
+  ) {
     const activeRecords = await prisma.chickenYield.findMany({
       where: {
         status: 'ACTIVE',
@@ -131,10 +154,15 @@ export class ChickenYieldsService {
       },
     });
 
-    const currentTotal = activeRecords.reduce((sum, r) => sum + Number(r.yieldPercent), 0);
+    const currentTotal = activeRecords.reduce(
+      (sum, r) => sum + Number(r.yieldPercent),
+      0,
+    );
 
     if (currentTotal + newYield > 100) {
-      throw new BadRequestException('Cannot activate yield. Total active yield exceeds 100%.');
+      throw new BadRequestException(
+        'Cannot activate yield. Total active yield exceeds 100%.',
+      );
     }
   }
 }

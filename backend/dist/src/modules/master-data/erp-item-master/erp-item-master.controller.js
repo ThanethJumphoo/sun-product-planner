@@ -22,7 +22,12 @@ let ErpItemMasterController = class ErpItemMasterController {
         this.erpItemMasterService = erpItemMasterService;
     }
     async syncItems(itemCodes) {
-        return this.erpItemMasterService.syncItems(itemCodes);
+        try {
+            return await this.erpItemMasterService.syncItems(itemCodes);
+        }
+        catch (err) {
+            throw new common_1.HttpException(err instanceof Error ? err.message : 'Internal Server Error', common_1.HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
     async getLocalItems(query) {
         return this.erpItemMasterService.getLocalItems(query);
@@ -47,7 +52,7 @@ __decorate([
 ], ErpItemMasterController.prototype, "getLocalItems", null);
 exports.ErpItemMasterController = ErpItemMasterController = __decorate([
     (0, swagger_1.ApiTags)('ERP Item Master'),
-    (0, common_1.Controller)('erp-item-master'),
+    (0, common_1.Controller)('api/v1/erp/item-master'),
     __metadata("design:paramtypes", [erp_item_master_service_1.ErpItemMasterService])
 ], ErpItemMasterController);
 //# sourceMappingURL=erp-item-master.controller.js.map

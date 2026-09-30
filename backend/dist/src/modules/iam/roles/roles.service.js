@@ -50,8 +50,8 @@ let RolesService = class RolesService {
             include: {
                 userRoles: {
                     include: {
-                        user: { select: { id: true, username: true, status: true } }
-                    }
+                        user: { select: { id: true, username: true, status: true } },
+                    },
                 },
                 permissions: {
                     include: {
@@ -65,7 +65,9 @@ let RolesService = class RolesService {
         return role;
     }
     async create(data) {
-        const existing = await prisma_1.default.role.findUnique({ where: { roleCode: data.roleCode } });
+        const existing = await prisma_1.default.role.findUnique({
+            where: { roleCode: data.roleCode },
+        });
         if (existing)
             throw new common_1.ConflictException('Role code already exists');
         return prisma_1.default.role.create({ data });
@@ -73,7 +75,9 @@ let RolesService = class RolesService {
     async update(id, data) {
         await this.findOne(id);
         if (data.roleCode) {
-            const existing = await prisma_1.default.role.findFirst({ where: { roleCode: data.roleCode, NOT: { id } } });
+            const existing = await prisma_1.default.role.findFirst({
+                where: { roleCode: data.roleCode, NOT: { id } },
+            });
             if (existing)
                 throw new common_1.ConflictException('Role code already taken');
         }

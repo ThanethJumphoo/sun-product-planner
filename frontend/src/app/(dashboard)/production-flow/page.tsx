@@ -210,6 +210,9 @@ export default function ProductionFlowPage() {
       const board = await api.get(`/api/v1/simulator/boards/${id}`);
       setBoardId(board.data.id);
       
+      const boardIsLocked = board.data.isLocked || false;
+      setIsLocked(boardIsLocked);
+      
       const currentTypes = fetchedTypes || dbNodeTypes;
 
       const loadedNodes: Node[] = board.data.nodes.map((n: any) => {
@@ -228,7 +231,7 @@ export default function ProductionFlowPage() {
             fieldSchema: typeMatch?.fields || [],
             onEdit: handleEditNode,
             onDrillDown: handleDrillDown,
-            isLocked,
+            isLocked: boardIsLocked,
             isSubFlow: isSubFlowIndicator || false,
           },
         };
@@ -242,7 +245,7 @@ export default function ProductionFlowPage() {
         sourceHandle: e.sourceHandle || undefined,
         targetHandle: e.targetHandle || undefined,
         type: 'deletableEdge',
-        data: { isLocked },
+        data: { isLocked: boardIsLocked },
       }));
       setEdges(loadedEdges);
       return true;
@@ -372,7 +375,20 @@ export default function ProductionFlowPage() {
       const processTotalYield = processYields[node.id];
       
       const incomingEdge = edges.find(e => e.target === node.id);
-      const connectionType = incomingEdge?.sourceHandle || undefined;
+      
+      let connectionType = incomingEdge?.sourceHandle || undefined;
+      if (!connectionType && incomingEdge) {
+        // Trace back up the tree to find an inherited connectionType (useful for Item nodes)
+        let currSource = incomingEdge.source;
+        while (currSource && !connectionType) {
+          const parentEdge = edges.find(e => e.target === currSource);
+          if (parentEdge?.sourceHandle) {
+            connectionType = parentEdge.sourceHandle;
+            break;
+          }
+          currSource = parentEdge?.source || '';
+        }
+      }
 
       // Inject onEdit and isLocked
       if (
@@ -459,13 +475,18 @@ export default function ProductionFlowPage() {
         name: boardName,
         nodes: nodes.map(n => {
           const data = n.data as any;
+          // For ITEM nodes, explicitly inject the connectionType into dynamicData so the backend can read it
+          const dynamicDataToSave = { ...data.dynamicData };
+          if (data.nodeTypeCode === 'ITEM' && data.connectionType) {
+            dynamicDataToSave.itemCategory = data.connectionType;
+          }
           return {
             id: n.id,
             nodeTypeId: data.nodeTypeId,
             name: data.name,
             positionX: n.position.x,
             positionY: n.position.y,
-            data: JSON.stringify(data.dynamicData),
+            data: JSON.stringify(dynamicDataToSave),
           };
         }),
         edges: edges.map(e => ({
@@ -584,7 +605,24 @@ export default function ProductionFlowPage() {
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           <button
-            onClick={() => setIsLocked(!isLocked)}
+            onClick={async () => {
+              const newLockedState = !isLocked;
+              setIsLocked(newLockedState);
+              // Also update the nodes and edges so they can't be interacted with
+              setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, isLocked: newLockedState } })));
+              setEdges(eds => eds.map(e => ({ ...e, data: { ...e.data, isLocked: newLockedState } })));
+              
+              if (boardId) {
+                try {
+                  await api.put(`/api/v1/simulator/boards/${boardId}/lock`, { isLocked: newLockedState });
+                  toast.success(newLockedState ? 'Board Locked' : 'Board Unlocked');
+                } catch (err) {
+                  console.error(err);
+                  toast.error('Failed to save lock state');
+                  setIsLocked(!newLockedState); // Revert on failure
+                }
+              }
+            }}
             className={`flex items-center gap-2 px-3 py-2 rounded-md font-medium transition-colors border ${
               isLocked 
                 ? 'bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200' 

@@ -16,7 +16,7 @@ export class PermissionsService {
     });
 
     const modules = new Map<string, any[]>();
-    
+
     for (const p of permissions) {
       if (!modules.has(p.moduleName)) {
         modules.set(p.moduleName, []);
@@ -25,7 +25,7 @@ export class PermissionsService {
         id: p.id,
         permissionCode: p.permissionCode,
         permissionName: p.permissionName,
-        description: p.description
+        description: p.description,
       });
     }
 
