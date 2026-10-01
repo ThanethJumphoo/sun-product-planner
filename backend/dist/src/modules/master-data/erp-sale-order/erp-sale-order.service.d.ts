@@ -28,11 +28,11 @@ export declare class ErpSaleOrderService implements OnModuleInit {
         erpLastUpdateDate: Date;
         erpOrderLineId: string;
         headerId: string;
-        erpLineNumber: string | null;
         orderedQuantity: import("@prisma/client/runtime/library").Decimal;
         orderQuantityUom: string;
         unitSellingPrice: import("@prisma/client/runtime/library").Decimal;
         scheduleShipDate: Date | null;
+        erpLineNumber: string | null;
     }[]>;
     getLocalSaleOrders(query: any): Promise<{
         data: {

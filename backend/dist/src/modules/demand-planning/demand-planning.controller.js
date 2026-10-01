@@ -24,6 +24,9 @@ let DemandPlanningController = class DemandPlanningController {
     async getSalesOrdersForPart(partName) {
         return this.service.getSalesOrdersForPart(partName);
     }
+    async saveDemandPlans(partName, payload) {
+        return this.service.saveDemandPlans(partName, payload);
+    }
 };
 exports.DemandPlanningController = DemandPlanningController;
 __decorate([
@@ -33,6 +36,14 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], DemandPlanningController.prototype, "getSalesOrdersForPart", null);
+__decorate([
+    (0, common_1.Post)(':partName/sales-orders'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Array]),
+    __metadata("design:returntype", Promise)
+], DemandPlanningController.prototype, "saveDemandPlans", null);
 exports.DemandPlanningController = DemandPlanningController = __decorate([
     (0, common_1.Controller)('api/v1/demand-planning'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

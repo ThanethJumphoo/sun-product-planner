@@ -4,37 +4,52 @@ export declare class DemandPlanningService {
     constructor(productSpecService: ProductSpecService);
     getSalesOrdersForPart(partName: string): Promise<{
         product: {
-            priority: number;
+            priority: any;
             soNumber: any;
             lineNumber: any;
             itemCode: any;
             itemDesc: any;
+            productType: string | null;
             qty: number;
+            planQty: any;
             shipDate: any;
             planDate: null;
             status: null;
         }[];
         coproduct: {
-            priority: number;
+            priority: any;
             soNumber: any;
             lineNumber: any;
             itemCode: any;
             itemDesc: any;
+            productType: string | null;
             qty: number;
+            planQty: any;
             shipDate: any;
             planDate: null;
             status: null;
         }[];
         byproduct: {
-            priority: number;
+            priority: any;
             soNumber: any;
             lineNumber: any;
             itemCode: any;
             itemDesc: any;
+            productType: string | null;
             qty: number;
+            planQty: any;
             shipDate: any;
             planDate: null;
             status: null;
         }[];
+    }>;
+    saveDemandPlans(partName: string, payload: {
+        soNumber: string;
+        lineNumber: string;
+        itemCode: string;
+        priority: number;
+        planQty: number | null;
+    }[]): Promise<{
+        success: boolean;
     }>;
 }

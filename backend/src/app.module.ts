@@ -20,6 +20,7 @@ import { ChickenReceivingModule } from './modules/master-data/chicken-receiving/
 import { ProductSpecModule } from './modules/master-data/product-spec/product-spec.module';
 import { DemandPlanningModule } from './modules/demand-planning/demand-planning.module';
 import { CacheModule } from '@nestjs/cache-manager';
+import { MpsModule } from './modules/mps/mps.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { CacheModule } from '@nestjs/cache-manager';
     ChickenReceivingModule,
     ProductSpecModule,
     DemandPlanningModule,
+    MpsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

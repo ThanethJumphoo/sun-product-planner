@@ -38,4 +38,31 @@ export class ChickenReceivingController {
   async deleteMonthlyRecord(@Param('id') id: string) {
     return this.service.deleteMonthlyRecord(id);
   }
+
+  // --- Weekly Routes ---
+
+  @Get('weekly')
+  async getWeeklyRecords(@Query() query: any) {
+    return this.service.getWeeklyRecords(query);
+  }
+
+  @Post('weekly/bulk')
+  async bulkCreateWeeklyRecords(@Body() data: any[]) {
+    return this.service.bulkCreateWeeklyRecords(data);
+  }
+
+  @Post('weekly')
+  async createWeeklyRecord(@Body() data: any) {
+    return this.service.createWeeklyRecord(data);
+  }
+
+  @Put('weekly/:id')
+  async updateWeeklyRecord(@Param('id') id: string, @Body() data: any) {
+    return this.service.updateWeeklyRecord(id, data);
+  }
+
+  @Delete('weekly/:id')
+  async deleteWeeklyRecord(@Param('id') id: string) {
+    return this.service.deleteWeeklyRecord(id);
+  }
 }

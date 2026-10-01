@@ -302,13 +302,23 @@ export default function ProductionFlowPage() {
     nodes.forEach(n => {
       if (inDegree[n.id] === 0) {
         queue.push(n.id);
-        // Look for an 'Input' field on root nodes, otherwise default to 100
+        // Look for an 'Input' or 'Base' field on root nodes, otherwise default to 100
         let baseValue = 100;
+        let rootYieldPercent = 100;
         if (n.data?.dynamicData) {
-           const inputField = Object.entries(n.data.dynamicData).find(([k]) => k.toLowerCase().includes('input'));
+           const inputField = Object.entries(n.data.dynamicData).find(([k]) => k.toLowerCase().includes('input') || k.toLowerCase().includes('base'));
            if (inputField) baseValue = Number(inputField[1]) || 100;
+           
+           for (const [key, value] of Object.entries((n.data as any).dynamicData as Record<string, any>)) {
+             const fieldDef = ((n.data as any).fieldSchema as any[])?.find((f: any) => f.fieldName === key);
+             const isPercent = fieldDef ? fieldDef.dataType === 'PERCENT' : key.toLowerCase().includes('percent');
+             if (isPercent) {
+               rootYieldPercent = Number(value) || 0;
+               break;
+             }
+           }
         }
-        outputs[n.id] = baseValue; 
+        outputs[n.id] = baseValue * (rootYieldPercent / 100);
       }
     });
 

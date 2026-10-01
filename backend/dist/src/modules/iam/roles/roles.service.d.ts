@@ -48,17 +48,6 @@ export declare class RolesService {
         totalPages: number;
     }>;
     findOne(id: number): Promise<{
-        userRoles: ({
-            user: {
-                id: number;
-                status: string;
-                username: string;
-            };
-        } & {
-            id: number;
-            roleId: number;
-            userId: number;
-        })[];
         permissions: ({
             permission: {
                 id: number;
@@ -76,6 +65,17 @@ export declare class RolesService {
         } & {
             permissionId: number;
             roleId: number;
+        })[];
+        userRoles: ({
+            user: {
+                id: number;
+                status: string;
+                username: string;
+            };
+        } & {
+            id: number;
+            roleId: number;
+            userId: number;
         })[];
     } & {
         id: number;
@@ -128,17 +128,6 @@ export declare class RolesService {
         isSystemRole: boolean;
     }>;
     assignPermissions(roleId: number, permissionIds: number[]): Promise<{
-        userRoles: ({
-            user: {
-                id: number;
-                status: string;
-                username: string;
-            };
-        } & {
-            id: number;
-            roleId: number;
-            userId: number;
-        })[];
         permissions: ({
             permission: {
                 id: number;
@@ -156,6 +145,17 @@ export declare class RolesService {
         } & {
             permissionId: number;
             roleId: number;
+        })[];
+        userRoles: ({
+            user: {
+                id: number;
+                status: string;
+                username: string;
+            };
+        } & {
+            id: number;
+            roleId: number;
+            userId: number;
         })[];
     } & {
         id: number;

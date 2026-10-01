@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
+  // Force using localhost:3001 in development to bypass Next.js if NEXT_PUBLIC_API_URL is misconfigured to "/"
+  baseURL: process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'),
   withCredentials: true, // Send cookies (refresh_token) automatically
 });
 

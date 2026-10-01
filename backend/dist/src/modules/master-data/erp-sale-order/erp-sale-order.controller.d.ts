@@ -41,10 +41,10 @@ export declare class ErpSaleOrderController {
         erpLastUpdateDate: Date;
         erpOrderLineId: string;
         headerId: string;
-        erpLineNumber: string | null;
         orderedQuantity: import("@prisma/client/runtime/library").Decimal;
         orderQuantityUom: string;
         unitSellingPrice: import("@prisma/client/runtime/library").Decimal;
         scheduleShipDate: Date | null;
+        erpLineNumber: string | null;
     }[]>;
 }

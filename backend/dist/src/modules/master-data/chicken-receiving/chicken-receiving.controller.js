@@ -35,6 +35,21 @@ let ChickenReceivingController = class ChickenReceivingController {
     async deleteMonthlyRecord(id) {
         return this.service.deleteMonthlyRecord(id);
     }
+    async getWeeklyRecords(query) {
+        return this.service.getWeeklyRecords(query);
+    }
+    async bulkCreateWeeklyRecords(data) {
+        return this.service.bulkCreateWeeklyRecords(data);
+    }
+    async createWeeklyRecord(data) {
+        return this.service.createWeeklyRecord(data);
+    }
+    async updateWeeklyRecord(id, data) {
+        return this.service.updateWeeklyRecord(id, data);
+    }
+    async deleteWeeklyRecord(id) {
+        return this.service.deleteWeeklyRecord(id);
+    }
 };
 exports.ChickenReceivingController = ChickenReceivingController;
 __decorate([
@@ -73,6 +88,42 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], ChickenReceivingController.prototype, "deleteMonthlyRecord", null);
+__decorate([
+    (0, common_1.Get)('weekly'),
+    __param(0, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], ChickenReceivingController.prototype, "getWeeklyRecords", null);
+__decorate([
+    (0, common_1.Post)('weekly/bulk'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Array]),
+    __metadata("design:returntype", Promise)
+], ChickenReceivingController.prototype, "bulkCreateWeeklyRecords", null);
+__decorate([
+    (0, common_1.Post)('weekly'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], ChickenReceivingController.prototype, "createWeeklyRecord", null);
+__decorate([
+    (0, common_1.Put)('weekly/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ChickenReceivingController.prototype, "updateWeeklyRecord", null);
+__decorate([
+    (0, common_1.Delete)('weekly/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], ChickenReceivingController.prototype, "deleteWeeklyRecord", null);
 exports.ChickenReceivingController = ChickenReceivingController = __decorate([
     (0, common_1.Controller)('chicken-receiving'),
     __metadata("design:paramtypes", [chicken_receiving_service_1.ChickenReceivingService])

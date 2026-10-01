@@ -103,6 +103,104 @@ let ChickenReceivingService = class ChickenReceivingService {
             where: { id },
         });
     }
+    async getWeeklyRecords(query) {
+        const { page = 1, limit = 1000, dateFrom, dateTo } = query;
+        const skip = (page - 1) * limit;
+        const where = {};
+        if (dateFrom || dateTo) {
+            where.receiveDate = {};
+            if (dateFrom)
+                where.receiveDate.gte = new Date(dateFrom);
+            if (dateTo)
+                where.receiveDate.lte = new Date(dateTo);
+        }
+        const [data, total] = await Promise.all([
+            prisma_1.default.weeklyChickenReceiving.findMany({
+                where,
+                skip: Number(skip),
+                take: Number(limit),
+                orderBy: { receiveDate: 'asc' },
+            }),
+            prisma_1.default.weeklyChickenReceiving.count({ where }),
+        ]);
+        return { data, total, page: Number(page), limit: Number(limit) };
+    }
+    async createWeeklyRecord(data) {
+        const receiveDate = new Date(data.receiveDate);
+        const totalCount = Number(data.totalCount);
+        const totalWeight = Number(data.totalWeight);
+        const averageWeight = totalCount > 0 ? Number((totalWeight / totalCount).toFixed(2)) : 0;
+        return prisma_1.default.weeklyChickenReceiving.create({
+            data: {
+                receiveDate,
+                shift: data.shift || 'A',
+                totalCount,
+                totalWeight,
+                averageWeight,
+                farmName: data.farmName || '',
+                standardFarmName: data.standardFarmName || '',
+                house: data.house || '',
+                sex: data.sex || 'ผู้',
+                healthStatus: data.healthStatus || 'ปกติ',
+                batch: data.batch || '',
+            },
+        });
+    }
+    async bulkCreateWeeklyRecords(records) {
+        const formattedRecords = records.map((data) => {
+            const receiveDate = new Date(data.receiveDate);
+            const totalCount = Number(data.totalCount);
+            const totalWeight = Number(data.totalWeight);
+            const averageWeight = totalCount > 0 ? Number((totalWeight / totalCount).toFixed(2)) : 0;
+            return {
+                receiveDate,
+                shift: data.shift || 'A',
+                totalCount,
+                totalWeight,
+                averageWeight,
+                farmName: data.farmName || '',
+                standardFarmName: data.standardFarmName || '',
+                house: data.house || '',
+                sex: data.sex || 'ผู้',
+                healthStatus: data.healthStatus || 'ปกติ',
+                batch: data.batch || '',
+            };
+        });
+        return prisma_1.default.weeklyChickenReceiving.createMany({
+            data: formattedRecords,
+        });
+    }
+    async updateWeeklyRecord(id, data) {
+        const record = await prisma_1.default.weeklyChickenReceiving.findUnique({
+            where: { id },
+        });
+        if (!record)
+            throw new common_1.NotFoundException('Record not found');
+        const updateData = { ...data };
+        if (data.receiveDate)
+            updateData.receiveDate = new Date(data.receiveDate);
+        const totalCount = data.totalCount !== undefined ? Number(data.totalCount) : Number(record.totalCount);
+        const totalWeight = data.totalWeight !== undefined ? Number(data.totalWeight) : Number(record.totalWeight);
+        if (data.totalCount !== undefined)
+            updateData.totalCount = totalCount;
+        if (data.totalWeight !== undefined)
+            updateData.totalWeight = totalWeight;
+        if (data.totalCount !== undefined || data.totalWeight !== undefined) {
+            updateData.averageWeight = totalCount > 0 ? Number((totalWeight / totalCount).toFixed(2)) : 0;
+        }
+        delete updateData.id;
+        delete updateData.createdAt;
+        delete updateData.updatedAt;
+        return prisma_1.default.weeklyChickenReceiving.update({
+            where: { id },
+            data: updateData,
+        });
+    }
+    async deleteWeeklyRecord(id) {
+        return prisma_1.default.weeklyChickenReceiving.delete({
+            where: { id },
+        });
+    }
 };
 exports.ChickenReceivingService = ChickenReceivingService;
 exports.ChickenReceivingService = ChickenReceivingService = __decorate([

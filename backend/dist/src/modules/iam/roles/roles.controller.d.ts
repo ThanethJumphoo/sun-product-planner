@@ -51,17 +51,6 @@ export declare class RolesController {
         totalPages: number;
     }>;
     findOne(id: number): Promise<{
-        userRoles: ({
-            user: {
-                id: number;
-                status: string;
-                username: string;
-            };
-        } & {
-            id: number;
-            roleId: number;
-            userId: number;
-        })[];
         permissions: ({
             permission: {
                 id: number;
@@ -79,6 +68,17 @@ export declare class RolesController {
         } & {
             permissionId: number;
             roleId: number;
+        })[];
+        userRoles: ({
+            user: {
+                id: number;
+                status: string;
+                username: string;
+            };
+        } & {
+            id: number;
+            roleId: number;
+            userId: number;
         })[];
     } & {
         id: number;
@@ -133,17 +133,6 @@ export declare class RolesController {
     assignPermissions(id: number, body: {
         permissionIds: number[];
     }): Promise<{
-        userRoles: ({
-            user: {
-                id: number;
-                status: string;
-                username: string;
-            };
-        } & {
-            id: number;
-            roleId: number;
-            userId: number;
-        })[];
         permissions: ({
             permission: {
                 id: number;
@@ -161,6 +150,17 @@ export declare class RolesController {
         } & {
             permissionId: number;
             roleId: number;
+        })[];
+        userRoles: ({
+            user: {
+                id: number;
+                status: string;
+                username: string;
+            };
+        } & {
+            id: number;
+            roleId: number;
+            userId: number;
         })[];
     } & {
         id: number;

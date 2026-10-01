@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { toast } from 'react-hot-toast';
-import { Trash2 } from 'lucide-react';
+import { Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 
 export default function SimulatorSettings() {
   const [nodeTypes, setNodeTypes] = useState<any[]>([]);
@@ -59,6 +59,28 @@ export default function SimulatorSettings() {
     setFields(fields.filter((_, i) => i !== index));
   };
 
+  const handleMoveFieldUp = (index: number) => {
+    if (index === 0) return;
+    setFields(prev => {
+      const newFields = [...prev];
+      const temp = newFields[index];
+      newFields[index] = newFields[index - 1];
+      newFields[index - 1] = temp;
+      return newFields;
+    });
+  };
+
+  const handleMoveFieldDown = (index: number) => {
+    if (index === fields.length - 1) return;
+    setFields(prev => {
+      const newFields = [...prev];
+      const temp = newFields[index];
+      newFields[index] = newFields[index + 1];
+      newFields[index + 1] = temp;
+      return newFields;
+    });
+  };
+
   const handleFieldChange = (index: number, key: string, value: any) => {
     const newFields = [...fields];
     newFields[index][key] = value;
@@ -88,7 +110,11 @@ export default function SimulatorSettings() {
     const invalidField = fields.find(f => !f.fieldName || !f.dataType);
     if (invalidField) return toast.error('All fields must have a name and data type');
 
-    const payload = { typeCode, typeName, fields };
+    const payload = { 
+      typeCode, 
+      typeName, 
+      fields: fields.map((f, i) => ({ ...f, sortOrder: i + 1 })) 
+    };
 
     try {
       if (editingId) {
@@ -195,6 +221,24 @@ export default function SimulatorSettings() {
                 <div className="space-y-3">
                   {fields.map((field, idx) => (
                     <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-md border border-border">
+                      <div className="flex flex-col gap-1 px-1">
+                        <button
+                          type="button"
+                          onClick={() => handleMoveFieldUp(idx)}
+                          disabled={idx === 0}
+                          className="text-slate-400 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <ArrowUp size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveFieldDown(idx)}
+                          disabled={idx === fields.length - 1}
+                          className="text-slate-400 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <ArrowDown size={16} />
+                        </button>
+                      </div>
                       <div className="flex-1 space-y-2">
                         <input 
                           type="text" 

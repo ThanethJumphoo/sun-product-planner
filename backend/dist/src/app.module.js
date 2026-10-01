@@ -29,6 +29,7 @@ const chicken_receiving_module_1 = require("./modules/master-data/chicken-receiv
 const product_spec_module_1 = require("./modules/master-data/product-spec/product-spec.module");
 const demand_planning_module_1 = require("./modules/demand-planning/demand-planning.module");
 const cache_manager_1 = require("@nestjs/cache-manager");
+const mps_module_1 = require("./modules/mps/mps.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -57,6 +58,7 @@ exports.AppModule = AppModule = __decorate([
             chicken_receiving_module_1.ChickenReceivingModule,
             product_spec_module_1.ProductSpecModule,
             demand_planning_module_1.DemandPlanningModule,
+            mps_module_1.MpsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

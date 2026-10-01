@@ -31,6 +31,7 @@ let DemandPlanningService = class DemandPlanningService {
             where: { erpItemCode: { in: itemCodes } },
         });
         const specMap = new Map(productSpecs.map((s) => [s.erpItemCode, s.itemCategory]));
+        const specProductTypeMap = new Map(productSpecs.map((s) => [s.erpItemCode, s.productType]));
         const itemDescMap = new Map();
         const itemCategoryMap = new Map();
         items.forEach((i) => {
@@ -63,10 +64,20 @@ let DemandPlanningService = class DemandPlanningService {
             const cat = itemCategoryMap.get(line.erpItemCode) || 'product';
             groupedLines[cat].push(line);
         });
+        const savedPlans = await prisma_1.default.demandPlanLine.findMany({
+            where: { partName },
+        });
+        const savedPlansMap = new Map();
+        savedPlans.forEach(p => {
+            savedPlansMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}`, {
+                priority: p.priority,
+                planQty: p.planQty ? Number(p.planQty) : null
+            });
+        });
         const processGroup = (group) => {
             group.sort((a, b) => {
-                const dateA = a.scheduleShipDate ? new Date(a.scheduleShipDate).getTime() : 0;
-                const dateB = b.scheduleShipDate ? new Date(b.scheduleShipDate).getTime() : 0;
+                const dateA = a.scheduleShipDate ? new Date(a.scheduleShipDate).setHours(0, 0, 0, 0) : 0;
+                const dateB = b.scheduleShipDate ? new Date(b.scheduleShipDate).setHours(0, 0, 0, 0) : 0;
                 if (dateA !== dateB) {
                     if (dateA === 0)
                         return 1;
@@ -74,6 +85,19 @@ let DemandPlanningService = class DemandPlanningService {
                         return -1;
                     return dateA - dateB;
                 }
+                const typeA = (specProductTypeMap.get(a.erpItemCode) || '').toLowerCase();
+                const typeB = (specProductTypeMap.get(b.erpItemCode) || '').toLowerCase();
+                const getPriority = (type) => {
+                    if (type === 'chilled')
+                        return 1;
+                    if (type === 'freeze')
+                        return 2;
+                    return 3;
+                };
+                const pTypeA = getPriority(typeA);
+                const pTypeB = getPriority(typeB);
+                if (pTypeA !== pTypeB)
+                    return pTypeA - pTypeB;
                 const gradeA = a.header.erpCustomerGrade || 'Z';
                 const gradeB = b.header.erpCustomerGrade || 'Z';
                 const gradeCompare = gradeA.localeCompare(gradeB);
@@ -85,23 +109,62 @@ let DemandPlanningService = class DemandPlanningService {
                     return orderDateA - orderDateB;
                 return a.header.erpOrderNumber.localeCompare(b.header.erpOrderNumber);
             });
-            return group.map((line, index) => ({
-                priority: index + 1,
-                soNumber: line.header.erpOrderNumber,
-                lineNumber: line.erpLineNumber || '-',
-                itemCode: line.erpItemCode,
-                itemDesc: itemDescMap.get(line.erpItemCode) || 'Unknown',
-                qty: Number(line.orderedQuantity),
-                shipDate: line.scheduleShipDate,
-                planDate: null,
-                status: null,
-            }));
+            const mappedGroup = group.map((line, index) => {
+                const soNumber = line.header.erpOrderNumber;
+                const lineNumber = line.erpLineNumber || '-';
+                const itemCode = line.erpItemCode;
+                const key = `${soNumber}_${lineNumber}_${itemCode}`;
+                const saved = savedPlansMap.get(key);
+                return {
+                    priority: saved?.priority ?? (index + 1),
+                    soNumber,
+                    lineNumber,
+                    itemCode,
+                    itemDesc: itemDescMap.get(itemCode) || 'Unknown',
+                    productType: specProductTypeMap.get(itemCode) || null,
+                    qty: Number(line.orderedQuantity),
+                    planQty: saved?.planQty ?? Number(line.orderedQuantity),
+                    shipDate: line.scheduleShipDate,
+                    planDate: null,
+                    status: null,
+                };
+            });
+            mappedGroup.sort((a, b) => a.priority - b.priority);
+            return mappedGroup;
         };
         return {
             product: processGroup(groupedLines.product),
             coproduct: processGroup(groupedLines.coproduct),
             byproduct: processGroup(groupedLines.byproduct),
         };
+    }
+    async saveDemandPlans(partName, payload) {
+        const queries = payload.map((line) => {
+            return prisma_1.default.demandPlanLine.upsert({
+                where: {
+                    partName_soNumber_lineNumber_itemCode: {
+                        partName,
+                        soNumber: line.soNumber,
+                        lineNumber: line.lineNumber,
+                        itemCode: line.itemCode,
+                    }
+                },
+                update: {
+                    priority: line.priority,
+                    planQty: line.planQty,
+                },
+                create: {
+                    partName,
+                    soNumber: line.soNumber,
+                    lineNumber: line.lineNumber,
+                    itemCode: line.itemCode,
+                    priority: line.priority,
+                    planQty: line.planQty,
+                }
+            });
+        });
+        await prisma_1.default.$transaction(queries);
+        return { success: true };
     }
 };
 exports.DemandPlanningService = DemandPlanningService;

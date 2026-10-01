@@ -13,14 +13,14 @@ export declare class ProductSpecController {
         updatedAt: Date;
         yieldPercent: number | null;
         erpItemCode: string;
-        itemCategory: string | null;
         productType: string | null;
         manSpeed: number | null;
         iCutSpeed: number | null;
-        leadMinDays: number | null;
-        leadMaxDays: number | null;
         isExternalRm: boolean;
         rmSizesJson: string | null;
+        itemCategory: string | null;
+        leadMaxDays: number | null;
+        leadMinDays: number | null;
     } | null>;
     saveSpec(itemCode: string, body: any): Promise<{
         id: number;
@@ -28,13 +28,13 @@ export declare class ProductSpecController {
         updatedAt: Date;
         yieldPercent: number | null;
         erpItemCode: string;
-        itemCategory: string | null;
         productType: string | null;
         manSpeed: number | null;
         iCutSpeed: number | null;
-        leadMinDays: number | null;
-        leadMaxDays: number | null;
         isExternalRm: boolean;
         rmSizesJson: string | null;
+        itemCategory: string | null;
+        leadMaxDays: number | null;
+        leadMinDays: number | null;
     }>;
 }
