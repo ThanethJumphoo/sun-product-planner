@@ -15,6 +15,7 @@ export declare class DemandPlanningService {
             shipDate: any;
             planDate: null;
             status: null;
+            isSelected: boolean;
         }[];
         coproduct: {
             priority: any;
@@ -28,6 +29,7 @@ export declare class DemandPlanningService {
             shipDate: any;
             planDate: null;
             status: null;
+            isSelected: boolean;
         }[];
         byproduct: {
             priority: any;
@@ -41,6 +43,7 @@ export declare class DemandPlanningService {
             shipDate: any;
             planDate: null;
             status: null;
+            isSelected: boolean;
         }[];
     }>;
     saveDemandPlans(partName: string, payload: {
@@ -49,6 +52,26 @@ export declare class DemandPlanningService {
         itemCode: string;
         priority: number;
         planQty: number | null;
+    }[]): Promise<{
+        success: boolean;
+    }>;
+    getDailyProductionPlans(partName: string, startDate: string, endDate: string): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        partName: string;
+        itemCode: string;
+        soNumber: string;
+        lineNumber: string;
+        planDate: Date;
+        plannedQty: import("@prisma/client/runtime/library").Decimal;
+    }[]>;
+    saveDailyProductionPlan(partName: string, payload: {
+        planDate: string;
+        soNumber: string;
+        lineNumber: string;
+        itemCode: string;
+        plannedQty: number;
     }[]): Promise<{
         success: boolean;
     }>;

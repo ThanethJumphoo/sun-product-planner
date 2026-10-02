@@ -127,6 +127,7 @@ let DemandPlanningService = class DemandPlanningService {
                     shipDate: line.scheduleShipDate,
                     planDate: null,
                     status: null,
+                    isSelected: !!saved,
                 };
             });
             mappedGroup.sort((a, b) => a.priority - b.priority);
@@ -139,8 +140,16 @@ let DemandPlanningService = class DemandPlanningService {
         };
     }
     async saveDemandPlans(partName, payload) {
-        const queries = payload.map((line) => {
-            return prisma_1.default.demandPlanLine.upsert({
+        return prisma_1.default.$transaction(async (tx) => {
+            const existing = await tx.demandPlanLine.findMany({ where: { partName } });
+            const payloadKeys = new Set(payload.map(p => `${p.soNumber}_${p.lineNumber}_${p.itemCode}`));
+            const toDelete = existing.filter(e => !payloadKeys.has(`${e.soNumber}_${e.lineNumber}_${e.itemCode}`));
+            for (const item of toDelete) {
+                await tx.demandPlanLine.delete({
+                    where: { id: item.id }
+                });
+            }
+            const upserts = payload.map(line => tx.demandPlanLine.upsert({
                 where: {
                     partName_soNumber_lineNumber_itemCode: {
                         partName,
@@ -161,10 +170,61 @@ let DemandPlanningService = class DemandPlanningService {
                     priority: line.priority,
                     planQty: line.planQty,
                 }
-            });
+            }));
+            await Promise.all(upserts);
+            return { success: true };
         });
-        await prisma_1.default.$transaction(queries);
-        return { success: true };
+    }
+    async getDailyProductionPlans(partName, startDate, endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const transactions = await prisma_1.default.mpsProductionTransaction.findMany({
+            where: {
+                partName,
+                planDate: {
+                    gte: start,
+                    lte: end,
+                }
+            }
+        });
+        return transactions;
+    }
+    async saveDailyProductionPlan(partName, payload) {
+        return prisma_1.default.$transaction(async (tx) => {
+            const upserts = payload.map(line => {
+                const planDate = new Date(line.planDate);
+                return tx.mpsProductionTransaction.upsert({
+                    where: {
+                        unique_plan_line: {
+                            partName,
+                            planDate,
+                            soNumber: line.soNumber,
+                            lineNumber: line.lineNumber,
+                            itemCode: line.itemCode,
+                        }
+                    },
+                    update: {
+                        plannedQty: line.plannedQty,
+                    },
+                    create: {
+                        partName,
+                        planDate,
+                        soNumber: line.soNumber,
+                        lineNumber: line.lineNumber,
+                        itemCode: line.itemCode,
+                        plannedQty: line.plannedQty,
+                    }
+                });
+            });
+            await Promise.all(upserts);
+            await tx.mpsProductionTransaction.deleteMany({
+                where: {
+                    partName,
+                    plannedQty: { lte: 0 }
+                }
+            });
+            return { success: true };
+        });
     }
 };
 exports.DemandPlanningService = DemandPlanningService;

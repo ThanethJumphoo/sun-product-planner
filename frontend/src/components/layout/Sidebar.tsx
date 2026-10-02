@@ -12,24 +12,16 @@ import api from "@/lib/api";
 
 const staticMenuSections = [
   {
-    label: "ERP Integration",
+    label: "Main",
     items: [
-      { name: "Item Master", href: "/erp/item-master", icon: Database },
-      { name: "Sale Orders", href: "/erp/sale-orders", icon: Database },
+      { name: "Dashboard", href: "/", icon: LayoutDashboard },
     ],
   },
   {
-    label: "Production",
+    label: "Sales & Demand",
     items: [
-      { name: "Dashboard", href: "/", icon: LayoutDashboard },
       { name: "Sale Orders", href: "/sale-orders", icon: Package },
       { name: "Demand Planning", href: "/demand-planning", icon: Calendar },
-      { name: "MPS", href: "/mps", icon: ClipboardList, disabled: true },
-      { name: "Production Orders", href: "/orders", icon: Package, disabled: true },
-      { name: "Yield Management", href: "/yield", icon: PieChart, disabled: true },
-      { name: "Production Flow", href: "/production-flow", icon: Activity },
-      { name: "Weight Distribution", href: "/weight-distribution", icon: ClipboardList },
-      { name: "Product Spec", href: "/product-spec", icon: ClipboardList },
     ],
   },
   {
@@ -38,6 +30,21 @@ const staticMenuSections = [
       { name: "Monthly", href: "/chicken-receiving/monthly", icon: Calendar },
       { name: "Weekly", href: "/chicken-receiving/weekly", icon: Calendar },
       { name: "Daily", href: "/chicken-receiving/daily", icon: Calendar, disabled: true },
+    ],
+  },
+  {
+    label: "Master Data",
+    items: [
+      { name: "Product Spec", href: "/product-spec", icon: ClipboardList },
+      { name: "Production Flow", href: "/production-flow", icon: Activity },
+      { name: "Weight Distribution", href: "/weight-distribution", icon: PieChart },
+    ],
+  },
+  {
+    label: "ERP Data",
+    items: [
+      { name: "Item Master", href: "/erp/item-master", icon: Database },
+      { name: "Sale Orders (ERP)", href: "/erp/sale-orders", icon: Database },
     ],
   },
   {
@@ -67,7 +74,7 @@ export function Sidebar() {
     // Check UI settings and fetch dynamic Planning menus if enabled
     const loadMenus = async () => {
       if (!isAuthenticated) return;
-      
+
       try {
         const settingsRes = await api.get('/api/v1/system-settings');
         const hiddenPartsSetting = settingsRes.data.find((s: any) => s.key === 'ui_hidden_planning_parts')?.value;
@@ -107,7 +114,7 @@ export function Sidebar() {
 
   const handleLogout = async () => {
     await logout();
-    router.push("/sun-product-planner/login"); // Adjust this route if login page is different
+    router.push("/login"); // Next.js automatically prepends the basePath
   };
 
   const [isMobile, setIsMobile] = React.useState(false);

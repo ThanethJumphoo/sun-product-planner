@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Query } from '@nestjs/common';
 import { DemandPlanningService } from './demand-planning.service';
 import { JwtAuthGuard } from '../../core/guards/jwt-auth.guard';
 
@@ -18,6 +18,22 @@ export class DemandPlanningController {
     @Body() payload: { soNumber: string; lineNumber: string; itemCode: string; priority: number; planQty: number | null }[]
   ) {
     return this.service.saveDemandPlans(partName, payload);
+  }
+  @Get(':partName/daily-plans')
+  async getDailyProductionPlans(
+    @Param('partName') partName: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string
+  ) {
+    return this.service.getDailyProductionPlans(partName, startDate, endDate);
+  }
+
+  @Post(':partName/daily-plans')
+  async saveDailyProductionPlan(
+    @Param('partName') partName: string,
+    @Body() payload: { planDate: string; soNumber: string; lineNumber: string; itemCode: string; plannedQty: number }[]
+  ) {
+    return this.service.saveDailyProductionPlan(partName, payload);
   }
 }
 

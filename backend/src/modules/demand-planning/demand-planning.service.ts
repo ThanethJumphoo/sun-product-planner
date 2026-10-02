@@ -130,6 +130,7 @@ export class DemandPlanningService {
           shipDate: line.scheduleShipDate,
           planDate: null,
           status: null,
+          isSelected: !!saved,
         };
       });
 
@@ -147,34 +148,111 @@ export class DemandPlanningService {
   }
 
   async saveDemandPlans(partName: string, payload: { soNumber: string; lineNumber: string; itemCode: string; priority: number; planQty: number | null }[]) {
-    // Upsert each line
-    const queries = payload.map((line) => {
-      return prisma.demandPlanLine.upsert({
-        where: {
-          partName_soNumber_lineNumber_itemCode: {
+    return prisma.$transaction(async (tx) => {
+      // 1. Fetch existing plans for this part
+      const existing = await tx.demandPlanLine.findMany({ where: { partName } });
+      const payloadKeys = new Set(payload.map(p => `${p.soNumber}_${p.lineNumber}_${p.itemCode}`));
+      
+      // 2. Delete lines that are not in the payload anymore
+      const toDelete = existing.filter(e => !payloadKeys.has(`${e.soNumber}_${e.lineNumber}_${e.itemCode}`));
+      
+      for (const item of toDelete) {
+        await tx.demandPlanLine.delete({
+          where: { id: item.id }
+        });
+      }
+
+      // 3. Upsert the payload lines
+      const upserts = payload.map(line => 
+        tx.demandPlanLine.upsert({
+          where: {
+            partName_soNumber_lineNumber_itemCode: {
+              partName,
+              soNumber: line.soNumber,
+              lineNumber: line.lineNumber,
+              itemCode: line.itemCode,
+            }
+          },
+          update: {
+            priority: line.priority,
+            planQty: line.planQty,
+          },
+          create: {
             partName,
             soNumber: line.soNumber,
             lineNumber: line.lineNumber,
             itemCode: line.itemCode,
+            priority: line.priority,
+            planQty: line.planQty,
           }
-        },
-        update: {
-          priority: line.priority,
-          planQty: line.planQty,
-        },
-        create: {
-          partName,
-          soNumber: line.soNumber,
-          lineNumber: line.lineNumber,
-          itemCode: line.itemCode,
-          priority: line.priority,
-          planQty: line.planQty,
+        })
+      );
+      
+      await Promise.all(upserts);
+      return { success: true };
+    });
+  }
+
+  async getDailyProductionPlans(partName: string, startDate: string, endDate: string) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // We want to fetch all transactions within the date range
+    const transactions = await prisma.mpsProductionTransaction.findMany({
+      where: {
+        partName,
+        planDate: {
+          gte: start,
+          lte: end,
         }
-      });
+      }
     });
 
-    await prisma.$transaction(queries);
-    return { success: true };
+    return transactions;
+  }
+
+  async saveDailyProductionPlan(partName: string, payload: { planDate: string; soNumber: string; lineNumber: string; itemCode: string; plannedQty: number }[]) {
+    // For saving, we process the payload.
+    // Usually, the payload contains the plan for a SPECIFIC planDate.
+    // If we just upsert, we can do it directly.
+    return prisma.$transaction(async (tx) => {
+      const upserts = payload.map(line => {
+        const planDate = new Date(line.planDate);
+        return tx.mpsProductionTransaction.upsert({
+          where: {
+            unique_plan_line: {
+              partName,
+              planDate,
+              soNumber: line.soNumber,
+              lineNumber: line.lineNumber,
+              itemCode: line.itemCode,
+            }
+          },
+          update: {
+            plannedQty: line.plannedQty,
+          },
+          create: {
+            partName,
+            planDate,
+            soNumber: line.soNumber,
+            lineNumber: line.lineNumber,
+            itemCode: line.itemCode,
+            plannedQty: line.plannedQty,
+          }
+        });
+      });
+      await Promise.all(upserts);
+
+      // Delete any rows that have plannedQty = 0 to clean up
+      await tx.mpsProductionTransaction.deleteMany({
+        where: {
+          partName,
+          plannedQty: { lte: 0 }
+        }
+      });
+
+      return { success: true };
+    });
   }
 }
 

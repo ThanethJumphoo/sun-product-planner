@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, isSameMonth, isSameDay, addMonths, subMonths, endOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, X, Calendar as CalendarIcon, ClipboardList, Info, Package, Save, ShoppingCart } from "lucide-react";
 import api from '@/lib/api';
@@ -60,18 +60,150 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   const [isLoadingDemand, setIsLoadingDemand] = useState(false);
   const [isCreatingDemand, setIsCreatingDemand] = useState(false);
   
+  // Planned Demand (Right Panel) State
+  const [plannedDemands, setPlannedDemands] = useState<any[]>([]);
+  const [isLoadingPlannedDemands, setIsLoadingPlannedDemands] = useState(false);
+
+  const fetchPlannedDemands = useCallback(async () => {
+    setIsLoadingPlannedDemands(true);
+    try {
+      const res = await api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders`);
+      const { product = [], coproduct = [], byproduct = [] } = res.data || {};
+      const all = [...product, ...coproduct, ...byproduct];
+      const selected = all.filter(p => p.isSelected);
+      setPlannedDemands(selected);
+    } catch (error) {
+      console.error("Failed to fetch planned demands", error);
+    } finally {
+      setIsLoadingPlannedDemands(false);
+    }
+  }, [partName]);
+
+  // Only fetch planned demands when the right panel is open and Demand tab is active
+  useEffect(() => {
+    if (isRightOpen && activeSummaryTab === 'demand') {
+      fetchPlannedDemands();
+    }
+  }, [isRightOpen, activeSummaryTab, fetchPlannedDemands]);
+
+  // Daily Plans (Bottom Panel) State
+  const [dailyPlans, setDailyPlans] = useState<any[]>([]);
+  const [isLoadingDailyPlans, setIsLoadingDailyPlans] = useState(false);
+  const [dailyPlanColDefs] = useState<ColDef[]>([
+    { field: "soNumber", headerName: "SO Number", sortable: true, filter: true, flex: 1 },
+    { field: "itemCode", headerName: "Item Code", sortable: true, filter: true, flex: 1 },
+    { field: "plannedQty", headerName: "Planned Qty", type: 'numericColumn', valueFormatter: (p: any) => p.value?.toLocaleString(), width: 150 },
+  ]);
+
+  const fetchDailyPlans = useCallback(async () => {
+    if (!selectedDate || !isBottomOpen) return;
+    setIsLoadingDailyPlans(true);
+    try {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const [res] = await Promise.all([
+        api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/daily-plans`, {
+          params: { startDate: dateStr, endDate: dateStr }
+        }),
+        new Promise(resolve => setTimeout(resolve, 500))
+      ]);
+      setDailyPlans(res.data);
+    } catch (error) {
+      console.error("Failed to fetch daily plans:", error);
+    } finally {
+      setIsLoadingDailyPlans(false);
+    }
+  }, [selectedDate, isBottomOpen, partName]);
+
+  useEffect(() => {
+    fetchDailyPlans();
+  }, [fetchDailyPlans]);
+
+  // Right Panel Inputs State
+  const [produceQtyInputs, setProduceQtyInputs] = useState<Record<string, string>>({});
+  
+  const handleConfirmDemand = async (demand: any) => {
+    if (!selectedDate) {
+      toast.error("Please select a date on the calendar first");
+      return;
+    }
+    const key = `${demand.soNumber}-${demand.itemCode}`;
+    const qty = Number(produceQtyInputs[key]);
+    if (!qty || qty <= 0) {
+      toast.error("Please enter a valid Produce Qty");
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const payload = [{
+        planDate: format(selectedDate, 'yyyy-MM-dd'),
+        soNumber: demand.soNumber,
+        lineNumber: demand.lineNumber || "1",
+        itemCode: demand.itemCode,
+        plannedQty: qty
+      }];
+      await Promise.all([
+        api.post(`/api/v1/demand-planning/${encodeURIComponent(partName)}/daily-plans`, payload),
+        new Promise(resolve => setTimeout(resolve, 500))
+      ]);
+      toast.success("Daily production plan confirmed");
+      
+      setProduceQtyInputs(prev => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      
+      fetchDailyPlans();
+    } catch (error) {
+      toast.error("Failed to confirm plan");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleCreateDemand = async () => {
     setIsCreatingDemand(true);
     try {
-      // Placeholder for now
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const selectedProduct = demandData.product.filter(p => p.isSelected);
+      const selectedCoproduct = demandData.coproduct.filter(p => p.isSelected);
+      const selectedByproduct = demandData.byproduct.filter(p => p.isSelected);
+      
+      const payload = [...selectedProduct, ...selectedCoproduct, ...selectedByproduct].map(item => ({
+        soNumber: item.soNumber,
+        lineNumber: item.lineNumber,
+        itemCode: item.itemCode,
+        priority: item.priority,
+        planQty: item.planQty,
+      }));
+
+      await Promise.all([
+        api.post(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders`, payload),
+        new Promise(resolve => setTimeout(resolve, 500))
+      ]);
+      
       toast.success("Demand created successfully");
       setIsDemandModalOpen(false);
+      fetchPlannedDemands();
     } catch (error) {
       toast.error("Failed to create demand");
     } finally {
       setIsCreatingDemand(false);
     }
+  };
+
+  const onRowSelected = (e: any) => {
+    if (e.node.data) {
+      e.node.data.isSelected = e.node.isSelected();
+    }
+  };
+
+  const onFirstDataRendered = (params: any) => {
+    params.api.forEachNode((node: any) => {
+      if (node.data && node.data.isSelected) {
+        node.setSelected(true);
+      }
+    });
   };
 
   const [demandData, setDemandData] = useState<{product: any[], coproduct: any[], byproduct: any[]}>({ product: [], coproduct: [], byproduct: [] });
@@ -91,24 +223,31 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   const [isCalculating, setIsCalculating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Fetch saved supply data when month changes
+  const [isFetchingSupply, setIsFetchingSupply] = useState(false);
+
   useEffect(() => {
     const fetchSavedSupply = async () => {
+      setIsFetchingSupply(true);
       try {
         const monthStart = startOfMonth(currentMonth);
         const monthEnd = endOfMonth(currentMonth);
         const startDate = format(startOfWeek(monthStart), 'yyyy-MM-dd');
         const endDate = format(endOfWeek(monthEnd), 'yyyy-MM-dd');
         
-        const res = await api.get(`/api/v1/mps/${partName}/supply`, {
-          params: { startDate, endDate }
-        });
+        const [res] = await Promise.all([
+          api.get(`/api/v1/mps/${partName}/supply`, {
+            params: { startDate, endDate }
+          }),
+          new Promise(resolve => setTimeout(resolve, 500))
+        ]);
         
         if (res.data) {
           setCalculatedSupply(res.data);
         }
       } catch (error) {
         console.error("Failed to fetch saved supply data:", error);
+      } finally {
+        setIsFetchingSupply(false);
       }
     };
     
@@ -129,7 +268,10 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         weight: calculatedSupply[date]
       }));
 
-      await api.post(`/api/v1/mps/${partName}/supply`, payload);
+      await Promise.all([
+        api.post(`/api/v1/mps/${partName}/supply`, payload),
+        new Promise(resolve => setTimeout(resolve, 500))
+      ]);
       toast.success("Successfully saved MPS supply data!");
     } catch (error) {
       console.error("Failed to save supply data:", error);
@@ -146,7 +288,8 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
       console.log('Fetching boards and node types from API...');
       const [res, nodeTypesRes] = await Promise.all([
         api.get('/api/v1/simulator/boards'),
-        api.get('/api/v1/simulator/node-types')
+        api.get('/api/v1/simulator/node-types'),
+        new Promise(resolve => setTimeout(resolve, 500))
       ]);
       const boards = res.data?.data || res.data || [];
       const nodeTypes = nodeTypesRes.data?.data || nodeTypesRes.data || [];
@@ -237,10 +380,10 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
       const dateTo = format(monthEnd, 'yyyy-MM-dd');
 
       // Fetch both monthly and weekly data concurrently
-      // Note: We use absolute path /api/v1 if backend requires it, but chicken-receiving is at root controller in backend
       const [monthlyRes, weeklyRes] = await Promise.all([
         api.get('/chicken-receiving/monthly', { params: { dateFrom, dateTo, limit: 100 } }),
-        api.get('/chicken-receiving/weekly', { params: { dateFrom, dateTo, limit: 1000 } })
+        api.get('/chicken-receiving/weekly', { params: { dateFrom, dateTo, limit: 1000 } }),
+        new Promise(resolve => setTimeout(resolve, 500))
       ]);
 
       const monthlyRecords = monthlyRes.data?.data || monthlyRes.data || [];
@@ -289,7 +432,10 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
     setIsDemandModalOpen(true);
     setIsLoadingDemand(true);
     try {
-      const res = await api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders`);
+      const [res] = await Promise.all([
+        api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders`),
+        new Promise(resolve => setTimeout(resolve, 500))
+      ]);
       const { product = [], coproduct = [], byproduct = [] } = res.data || {};
       
       setDemandData({ product, coproduct, byproduct });
@@ -465,14 +611,14 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
               onClick={openSupplyModal}
               className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 font-medium rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors"
             >
-              <Package size={18} className="text-blue-500" />
+              <Package size={18} className="text-primary" />
               Supply
             </button>
             <button 
               onClick={openDemandModal}
               className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 font-medium rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors"
             >
-              <ShoppingCart size={18} className="text-orange-500" />
+              <ShoppingCart size={18} className="text-primary" />
               Demand
             </button>
             <button 
@@ -513,7 +659,13 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         <div className="flex-1 flex flex-col min-w-[30%]">
           
           {/* Top: Calendar */}
-          <div className="flex-1 flex flex-col border-r border-slate-200 overflow-hidden">
+          <div className="flex-1 flex flex-col border-r border-slate-200 overflow-hidden relative">
+            {isFetchingSupply && (
+              <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-2"></div>
+                <p className="text-sm text-slate-600 font-medium">Loading calendar...</p>
+              </div>
+            )}
             {renderDays()}
             {renderCells()}
           </div>
@@ -543,10 +695,28 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
               </div>
             </div>
             
-            <div className="flex-1 p-4 overflow-auto">
-              <div className="flex items-center justify-center h-full text-slate-400">
-                <p>Bottom Panel (Data Grid placeholder)</p>
-              </div>
+            <div className="flex-1 overflow-auto bg-white">
+              {isLoadingDailyPlans ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-500">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  <p className="text-sm font-medium">Loading daily plans...</p>
+                </div>
+              ) : (
+                <div className="h-full w-full ag-theme-alpine">
+                  <AgGridReact
+                    theme="legacy"
+                    rowData={dailyPlans}
+                    columnDefs={dailyPlanColDefs}
+                    defaultColDef={{
+                      sortable: true,
+                      filter: true,
+                      resizable: true,
+                    }}
+                    animateRows={true}
+                    overlayNoRowsTemplate="<span class='text-slate-500 font-medium'>No daily production plans for this date</span>"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -586,7 +756,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                 onClick={() => setActiveSummaryTab('demand')}
                 className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-colors ${
                   activeSummaryTab === 'demand'
-                    ? 'border-orange-500 text-orange-600'
+                    ? 'border-primary text-primary'
                     : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
@@ -598,18 +768,58 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
             </div>
           </div>
           
-          <div className="flex-1 p-4 overflow-auto ml-1 w-full min-w-[250px]">
+          <div className="flex-1 overflow-auto w-full min-w-[250px] bg-slate-50">
             {activeSummaryTab === 'supply' ? (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400">
+              <div className="flex flex-col items-center justify-center h-full text-slate-400 p-4">
                 <Package size={32} className="mb-2 text-slate-300" />
                 <p>Supply Summary</p>
                 <p className="text-xs mt-1 text-center">({selectedDate ? format(selectedDate, "dd MMM yyyy") : "Select a date"})</p>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                <ShoppingCart size={32} className="mb-2 text-slate-300" />
-                <p>Demand Summary</p>
-                <p className="text-xs mt-1 text-center">({selectedDate ? format(selectedDate, "dd MMM yyyy") : "Select a date"})</p>
+              <div className="flex flex-col">
+                {plannedDemands.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-40 text-slate-400 mt-10 p-4">
+                    <ShoppingCart size={32} className="mb-2 text-slate-300" />
+                    <p className="text-sm">No Demand Created</p>
+                    <p className="text-xs mt-1 text-center">Click 'Demand' button above to plan orders</p>
+                  </div>
+                ) : (
+                  plannedDemands.map((demand, i) => (
+                    <div key={`${demand.soNumber}-${demand.itemCode}-${i}`} className="bg-white p-3 border-b border-slate-200 flex flex-col gap-2 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+                      <div className="flex justify-between items-start ml-2">
+                        <div>
+                          <p className="font-semibold text-slate-800 text-sm">{demand.soNumber}</p>
+                          <p className="text-xs text-slate-500 line-clamp-1" title={demand.itemDesc}>{demand.itemCode} - {demand.itemDesc}</p>
+                        </div>
+                        <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded">
+                          {Number(demand.planQty).toLocaleString()}
+                        </span>
+                      </div>
+                      
+                      <div className="mt-1 flex items-center gap-2 ml-2">
+                        <input 
+                          type="number" 
+                          placeholder="Produce Qty" 
+                          value={produceQtyInputs[`${demand.soNumber}-${demand.itemCode}`] || ''}
+                          onChange={(e) => setProduceQtyInputs(prev => ({
+                            ...prev,
+                            [`${demand.soNumber}-${demand.itemCode}`]: e.target.value
+                          }))}
+                          className="flex-1 px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                        />
+                        <button 
+                          onClick={() => handleConfirmDemand(demand)}
+                          disabled={!selectedDate || isSaving}
+                          className="px-3 py-1.5 bg-primary text-white text-sm font-medium rounded hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={!selectedDate ? "Please select a date on the calendar first" : ""}
+                        >
+                          Confirm
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -694,7 +904,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-100 text-orange-600 rounded-lg">
+                <div className="p-2 bg-primary/10 text-primary rounded-lg">
                   <ShoppingCart size={20} />
                 </div>
                 <div>
@@ -756,6 +966,8 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                     pagination={true}
                     paginationPageSize={20}
                     rowSelection={{ mode: "multiRow" }}
+                    onRowSelected={onRowSelected}
+                    onFirstDataRendered={onFirstDataRendered}
                     animateRows={true}
                     overlayNoRowsTemplate="<span class='text-slate-500'>No demand data found</span>"
                   />
@@ -773,7 +985,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
               <button 
                 onClick={handleCreateDemand}
                 disabled={isCreatingDemand || (demandData.product.length === 0 && demandData.coproduct.length === 0 && demandData.byproduct.length === 0)}
-                className="px-6 py-2 bg-orange-500 text-white font-medium rounded-lg hover:bg-orange-600 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isCreatingDemand ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
