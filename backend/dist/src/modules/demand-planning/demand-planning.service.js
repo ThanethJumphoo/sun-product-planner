@@ -175,6 +175,18 @@ let DemandPlanningService = class DemandPlanningService {
             return { success: true };
         });
     }
+    async getSplitsForSalesOrder(partName, soNumber, itemCode) {
+        return prisma_1.default.mpsProductionTransaction.findMany({
+            where: {
+                partName,
+                soNumber,
+                itemCode
+            },
+            orderBy: {
+                planDate: 'asc'
+            }
+        });
+    }
     async getDailyProductionPlans(partName, startDate, endDate) {
         const start = new Date(startDate);
         const end = new Date(endDate);
@@ -201,10 +213,12 @@ let DemandPlanningService = class DemandPlanningService {
                             soNumber: line.soNumber,
                             lineNumber: line.lineNumber,
                             itemCode: line.itemCode,
+                            splitIndex: line.splitIndex || 0,
                         }
                     },
                     update: {
                         plannedQty: line.plannedQty,
+                        allocatedRmSize: line.allocatedRmSize || null,
                     },
                     create: {
                         partName,
@@ -212,7 +226,9 @@ let DemandPlanningService = class DemandPlanningService {
                         soNumber: line.soNumber,
                         lineNumber: line.lineNumber,
                         itemCode: line.itemCode,
+                        splitIndex: line.splitIndex || 0,
                         plannedQty: line.plannedQty,
+                        allocatedRmSize: line.allocatedRmSize || null,
                     }
                 });
             });

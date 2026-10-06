@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import api, { setAccessToken } from '@/lib/api';
 
 interface AuthUser {
@@ -17,39 +18,47 @@ interface AuthState {
   clearAuth: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  isAuthenticated: false,
-  isLoading: false,
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
 
-  login: async (username: string, password: string) => {
-    set({ isLoading: true });
-    try {
-      const { data } = await api.post('/api/v1/auth/login', { username, password });
-      setAccessToken(data.accessToken);
-      set({ user: data.user, isAuthenticated: true, isLoading: false });
-    } catch (error) {
-      set({ isLoading: false });
-      throw error;
+      login: async (username: string, password: string) => {
+        set({ isLoading: true });
+        try {
+          const { data } = await api.post('/api/v1/auth/login', { username, password });
+          setAccessToken(data.accessToken);
+          set({ user: data.user, isAuthenticated: true, isLoading: false });
+        } catch (error) {
+          set({ isLoading: false });
+          throw error;
+        }
+      },
+
+      logout: async () => {
+        try {
+          await api.post('/api/v1/auth/logout');
+        } finally {
+          setAccessToken(null);
+          set({ user: null, isAuthenticated: false });
+        }
+      },
+
+      setAuth: (user, token) => {
+        setAccessToken(token);
+        set({ user, isAuthenticated: true });
+      },
+
+      clearAuth: () => {
+        setAccessToken(null);
+        set({ user: null, isAuthenticated: false });
+      },
+    }),
+    {
+      name: 'auth-storage',
+      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
     }
-  },
-
-  logout: async () => {
-    try {
-      await api.post('/api/v1/auth/logout');
-    } finally {
-      setAccessToken(null);
-      set({ user: null, isAuthenticated: false });
-    }
-  },
-
-  setAuth: (user, token) => {
-    setAccessToken(token);
-    set({ user, isAuthenticated: true });
-  },
-
-  clearAuth: () => {
-    setAccessToken(null);
-    set({ user: null, isAuthenticated: false });
-  },
-}));
+  )
+);

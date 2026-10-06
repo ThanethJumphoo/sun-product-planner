@@ -6,21 +6,29 @@ const api = axios.create({
   withCredentials: true, // Send cookies (refresh_token) automatically
 });
 
-// In-memory token storage (not localStorage for security)
-let accessToken: string | null = null;
-
+// Token storage
 export function setAccessToken(token: string | null) {
-  accessToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) {
+      localStorage.setItem('accessToken', token);
+    } else {
+      localStorage.removeItem('accessToken');
+    }
+  }
 }
 
 export function getAccessToken() {
-  return accessToken;
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('accessToken');
+  }
+  return null;
 }
 
 // Request interceptor: attach Bearer token
 api.interceptors.request.use((config) => {
-  if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
+  const token = getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });

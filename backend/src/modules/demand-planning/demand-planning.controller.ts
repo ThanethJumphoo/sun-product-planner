@@ -19,6 +19,15 @@ export class DemandPlanningController {
   ) {
     return this.service.saveDemandPlans(partName, payload);
   }
+  @Get(':partName/sales-orders/:soNumber/items/:itemCode/splits')
+  async getSplitsForSalesOrder(
+    @Param('partName') partName: string,
+    @Param('soNumber') soNumber: string,
+    @Param('itemCode') itemCode: string
+  ) {
+    return this.service.getSplitsForSalesOrder(partName, soNumber, itemCode);
+  }
+
   @Get(':partName/daily-plans')
   async getDailyProductionPlans(
     @Param('partName') partName: string,
@@ -31,7 +40,7 @@ export class DemandPlanningController {
   @Post(':partName/daily-plans')
   async saveDailyProductionPlan(
     @Param('partName') partName: string,
-    @Body() payload: { planDate: string; soNumber: string; lineNumber: string; itemCode: string; plannedQty: number }[]
+    @Body() payload: { planDate: string; soNumber: string; lineNumber: string; itemCode: string; plannedQty: number; allocatedRmSize?: string | null; splitIndex?: number }[]
   ) {
     return this.service.saveDailyProductionPlan(partName, payload);
   }

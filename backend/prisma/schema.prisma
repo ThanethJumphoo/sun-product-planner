@@ -189,17 +189,19 @@ model DemandPlanLine {
 }
 
 model MpsProductionTransaction {
-  id           String   @id @default(uuid())
-  partName     String   @map("part_name") @db.NVarChar(100)
-  planDate     DateTime @map("plan_date") @db.Date
-  soNumber     String   @map("so_number") @db.NVarChar(100)
-  lineNumber   String   @map("line_number") @db.NVarChar(50)
-  itemCode     String   @map("item_code") @db.NVarChar(50)
-  plannedQty   Decimal  @map("planned_qty") @db.Decimal(15, 2)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(uuid())
+  partName        String   @map("part_name") @db.NVarChar(100)
+  planDate        DateTime @map("plan_date") @db.Date
+  soNumber        String   @map("so_number") @db.NVarChar(100)
+  lineNumber      String   @map("line_number") @db.NVarChar(50)
+  itemCode        String   @map("item_code") @db.NVarChar(50)
+  plannedQty      Decimal  @map("planned_qty") @db.Decimal(15, 2)
+  allocatedRmSize String?  @map("allocated_rm_size") @db.NVarChar(100)
+  splitIndex      Int      @default(0) @map("split_index")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  @@unique([partName, planDate, soNumber, lineNumber, itemCode], name: "unique_plan_line")
+  @@unique([partName, planDate, soNumber, lineNumber, itemCode, splitIndex], name: "unique_plan_line")
   @@map("mps_production_transactions")
 }
 

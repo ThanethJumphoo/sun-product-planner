@@ -55,6 +55,19 @@ export declare class DemandPlanningService {
     }[]): Promise<{
         success: boolean;
     }>;
+    getSplitsForSalesOrder(partName: string, soNumber: string, itemCode: string): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        partName: string;
+        itemCode: string;
+        soNumber: string;
+        lineNumber: string;
+        planDate: Date;
+        plannedQty: import("@prisma/client/runtime/library").Decimal;
+        allocatedRmSize: string | null;
+        splitIndex: number;
+    }[]>;
     getDailyProductionPlans(partName: string, startDate: string, endDate: string): Promise<{
         id: string;
         createdAt: Date;
@@ -65,6 +78,8 @@ export declare class DemandPlanningService {
         lineNumber: string;
         planDate: Date;
         plannedQty: import("@prisma/client/runtime/library").Decimal;
+        allocatedRmSize: string | null;
+        splitIndex: number;
     }[]>;
     saveDailyProductionPlan(partName: string, payload: {
         planDate: string;
@@ -72,6 +87,8 @@ export declare class DemandPlanningService {
         lineNumber: string;
         itemCode: string;
         plannedQty: number;
+        allocatedRmSize?: string | null;
+        splitIndex?: number;
     }[]): Promise<{
         success: boolean;
     }>;

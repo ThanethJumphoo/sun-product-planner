@@ -1,12 +1,269 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, isSameMonth, isSameDay, addMonths, subMonths, endOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, X, Calendar as CalendarIcon, ClipboardList, Info, Package, Save, ShoppingCart } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, X, Calendar as CalendarIcon, ClipboardList, Info, Package, Save, ShoppingCart, Search, Trash2, Wand2, CheckCircle2, XCircle } from "lucide-react";
 import api from '@/lib/api';
 import { toast } from 'react-hot-toast';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef } from 'ag-grid-community';
+import SupplySummaryPanel from './components/SupplySummaryPanel';
+import OutputsSummaryPanel from './components/OutputsSummaryPanel';
+import { generateAutoPlan } from './utils/autoGeneratePlan';
+
+const DemandCard = ({ demand, selectedDate, partName, isSaving, monthlyPlans, handleUpdateSplitPlan, fetchDailyPlans, fetchCalendarData, specs, rmSizes }: any) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [splits, setSplits] = useState<any[]>([]);
+  const [isLoadingSplits, setIsLoadingSplits] = useState(false);
+  const [produceQty, setProduceQty] = useState('');
+
+  const toggleExpand = async () => {
+    if (!isExpanded) {
+      setIsLoadingSplits(true);
+      try {
+        const res = await api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders/${encodeURIComponent(demand.soNumber)}/items/${encodeURIComponent(demand.itemCode)}/splits`);
+        setSplits(res.data || []);
+      } catch (error) {
+        toast.error("Failed to fetch splits");
+      } finally {
+        setIsLoadingSplits(false);
+      }
+    }
+    setIsExpanded(!isExpanded);
+  };
+  
+  // Auto-sync splits if data changes elsewhere (e.g. bottom panel edit)
+  useEffect(() => {
+    if (isExpanded) {
+      api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders/${encodeURIComponent(demand.soNumber)}/items/${encodeURIComponent(demand.itemCode)}/splits`)
+        .then(res => setSplits(res.data || []))
+        .catch(console.error);
+    }
+  }, [monthlyPlans, isExpanded, partName, demand.soNumber, demand.itemCode]);
+
+  // Calculate Target/Planned
+  // If expanded, use `splits` which has all splits. If not, use `monthlyPlans` as approximation.
+  const currentSplits = isExpanded ? splits : monthlyPlans.filter((p: any) => p.soNumber === demand.soNumber && p.itemCode === demand.itemCode);
+  const totalPlanned = currentSplits.reduce((sum: number, p: any) => sum + Number(p.plannedQty), 0);
+  const remainingQty = Number(demand.planQty) - totalPlanned;
+  const shipDateFormatted = demand.shipDate ? format(new Date(demand.shipDate), 'dd/MM/yyyy') : 'N/A';
+
+  const handleUpdateQty = async (oldDate: Date, newQtyStr: string) => {
+    const qty = Number(newQtyStr);
+    if(isNaN(qty)) return;
+    const payloadRow = {
+      ...demand,
+      plannedQty: qty,
+      allocatedRmSize: null
+    };
+    await handleUpdateSplitPlan(oldDate, [payloadRow]);
+    
+    // Refresh local
+    const res = await api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders/${encodeURIComponent(demand.soNumber)}/items/${encodeURIComponent(demand.itemCode)}/splits`);
+    setSplits(res.data || []);
+  };
+
+  const handleChangeSplitDate = async (oldDate: Date, newDateStr: string, currentQty: number) => {
+    if (!newDateStr) return; 
+    
+    try {
+      const payload = [
+        {
+          planDate: format(oldDate, 'yyyy-MM-dd'),
+          soNumber: demand.soNumber,
+          lineNumber: demand.lineNumber || "1",
+          itemCode: demand.itemCode,
+          plannedQty: 0
+        },
+        {
+          planDate: newDateStr, 
+          soNumber: demand.soNumber,
+          lineNumber: demand.lineNumber || "1",
+          itemCode: demand.itemCode,
+          plannedQty: currentQty
+        }
+      ];
+      await api.post(`/api/v1/demand-planning/${encodeURIComponent(partName)}/daily-plans`, payload);
+      toast.success("Updated plan date");
+      fetchDailyPlans();
+      fetchCalendarData();
+      
+      const res = await api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders/${encodeURIComponent(demand.soNumber)}/items/${encodeURIComponent(demand.itemCode)}/splits`);
+      setSplits(res.data || []);
+    } catch(err) {
+      toast.error("Failed to move plan date");
+    }
+  };
+
+  const handleConfirmProduce = async () => {
+    if (!selectedDate) {
+      toast.error("Please select a date on the calendar first");
+      return;
+    }
+    const qty = Number(produceQty);
+    if (!qty || qty <= 0) {
+      toast.error("Please enter a valid Produce Qty");
+      return;
+    }
+    // Determine default RM Size
+    let defaultRmSize = null;
+    if (specs && rmSizes && rmSizes.length > 0) {
+      const spec = specs[demand.itemCode];
+      let allowed: string[] = [];
+      try { allowed = JSON.parse(spec?.rmSizesJson || '[]'); } catch(e){}
+      
+      let candidateSizes = [];
+      if (allowed.length === 0 || allowed.includes("Unsize") || allowed.includes("All")) {
+        candidateSizes = [...rmSizes];
+      } else {
+        candidateSizes = rmSizes.filter((s: any) => allowed.includes(s.id.toString()));
+      }
+      
+      if (candidateSizes.length > 0) {
+        // Sort by minSize ascending
+        candidateSizes.sort((a: any, b: any) => (a.minSize || 0) - (b.minSize || 0));
+        defaultRmSize = candidateSizes[0].id.toString();
+      }
+      
+      // If it's a Co-product or By-product, they don't consume RM directly from RM Size distribution
+      if (spec && spec.itemCategory !== 'product') {
+        defaultRmSize = null;
+      }
+    }
+
+    const payloadRow = {
+      ...demand,
+      plannedQty: qty,
+      allocatedRmSize: defaultRmSize
+    };
+    await handleUpdateSplitPlan(selectedDate, [payloadRow]);
+    setProduceQty('');
+    const res = await api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders/${encodeURIComponent(demand.soNumber)}/items/${encodeURIComponent(demand.itemCode)}/splits`);
+    setSplits(res.data || []);
+  };
+
+  return (
+    <div className="bg-white border-b border-slate-200 flex flex-col relative overflow-hidden transition-all duration-200">
+      <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+      
+      {/* Header section (Always visible) */}
+      <div className="p-3">
+        <div 
+          className="cursor-pointer hover:bg-slate-50 flex items-start gap-2"
+          onClick={toggleExpand}
+        >
+          <div className="mt-1 text-slate-400">
+            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          </div>
+          <div className="flex-1">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="font-semibold text-slate-800 text-sm">{demand.soNumber}</p>
+                <p className="text-xs text-slate-500 line-clamp-1" title={demand.itemDesc}>{demand.itemCode} - {demand.itemDesc}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider">Ship Date</p>
+                <p className="text-xs font-medium text-slate-700">{shipDateFormatted}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center mt-2 bg-slate-50 p-2 rounded border border-slate-100">
+              <div className="text-center">
+                <p className="text-[10px] text-slate-400 uppercase">Target</p>
+                <p className="text-xs font-bold text-slate-700">{Number(demand.planQty).toLocaleString()}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-slate-400 uppercase">Planned</p>
+                <p className="text-xs font-bold text-blue-600">{totalPlanned.toLocaleString()}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-slate-400 uppercase">Remaining</p>
+                <p className={`text-xs font-bold ${remainingQty > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{remainingQty.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Expanded section */}
+        {isExpanded && (
+          <div className="mt-3 pt-3 border-t border-slate-100">
+            {isLoadingSplits ? (
+              <div className="flex justify-center py-2">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <div className="ml-6 space-y-3">
+                {splits.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-slate-400 font-semibold uppercase mb-2">Planned Splits</p>
+                    {splits.map((plan: any) => (
+                       <div key={plan.id || plan.planDate} className="flex items-center justify-between gap-1 bg-white p-2 rounded border border-slate-200 shadow-sm">
+                         {/* Date input to change split date */}
+                         <input 
+                           type="date"
+                           defaultValue={format(new Date(plan.planDate), 'yyyy-MM-dd')}
+                           className="text-xs text-slate-600 border border-transparent hover:border-slate-300 px-1 py-0.5 rounded cursor-pointer focus:outline-none focus:border-primary w-28"
+                           onBlur={(e) => {
+                             const newDateStr = e.target.value;
+                             const oldDateStr = format(new Date(plan.planDate), 'yyyy-MM-dd');
+                             if (newDateStr && newDateStr !== oldDateStr) {
+                               handleChangeSplitDate(new Date(plan.planDate), newDateStr, Number(plan.plannedQty));
+                             }
+                           }}
+                         />
+                         <div className="flex items-center gap-1">
+                           <input 
+                             type="number"
+                             defaultValue={plan.plannedQty}
+                             className="w-20 px-2 py-1 text-xs text-right border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                             onBlur={(e) => {
+                               const newVal = e.target.value;
+                               if(Number(newVal) !== Number(plan.plannedQty)) {
+                                 handleUpdateQty(new Date(plan.planDate), newVal);
+                               }
+                             }}
+                           />
+                           <button 
+                             onClick={() => handleUpdateQty(new Date(plan.planDate), "0")}
+                             className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                             title="Remove split"
+                           >
+                             <Trash2 size={14} />
+                           </button>
+                         </div>
+                       </div>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="pt-2">
+                  <p className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Add to {selectedDate ? format(selectedDate, 'dd MMM') : 'Selected Date'}</p>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="number" 
+                      placeholder="Produce Qty" 
+                      value={produceQty}
+                      onChange={(e) => setProduceQty(e.target.value)}
+                      className="flex-1 px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                    />
+                    <button 
+                      onClick={handleConfirmProduce}
+                      disabled={!selectedDate || isSaving}
+                      className="px-3 py-1.5 bg-primary text-white text-sm font-medium rounded hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={!selectedDate ? "Please select a date on the calendar first" : ""}
+                    >
+                      Confirm
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export default function MpsPage({ params }: { params: Promise<{ part: string }> }) {
   const unwrappedParams = React.use(params);
@@ -62,15 +319,35 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   
   // Planned Demand (Right Panel) State
   const [plannedDemands, setPlannedDemands] = useState<any[]>([]);
+  const [demandSearchInput, setDemandSearchInput] = useState("");
+  const [demandSearchQuery, setDemandSearchQuery] = useState("");
+  const [demandTab, setDemandTab] = useState<'product' | 'coproduct' | 'byproduct'>('product');
   const [isLoadingPlannedDemands, setIsLoadingPlannedDemands] = useState(false);
+
+  const filteredDemands = useMemo(() => {
+    let list = plannedDemands.filter(d => d.category === demandTab);
+    
+    if (!demandSearchQuery) return list;
+    const lower = demandSearchQuery.toLowerCase();
+    return list.filter(d => 
+      d.soNumber?.toLowerCase().includes(lower) || 
+      d.itemCode?.toLowerCase().includes(lower) || 
+      d.itemDesc?.toLowerCase().includes(lower) ||
+      (d.shipDate && format(new Date(d.shipDate), 'dd/MM/yyyy').includes(lower))
+    );
+  }, [plannedDemands, demandSearchQuery, demandTab]);
 
   const fetchPlannedDemands = useCallback(async () => {
     setIsLoadingPlannedDemands(true);
     try {
       const res = await api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders`);
       const { product = [], coproduct = [], byproduct = [] } = res.data || {};
-      const all = [...product, ...coproduct, ...byproduct];
-      const selected = all.filter(p => p.isSelected);
+      const all = [
+        ...product.map((p: any) => ({...p, category: 'product'})),
+        ...coproduct.map((p: any) => ({...p, category: 'coproduct'})),
+        ...byproduct.map((p: any) => ({...p, category: 'byproduct'}))
+      ];
+      const selected = all.filter((p: any) => p.isSelected);
       setPlannedDemands(selected);
     } catch (error) {
       console.error("Failed to fetch planned demands", error);
@@ -79,21 +356,128 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
     }
   }, [partName]);
 
-  // Only fetch planned demands when the right panel is open and Demand tab is active
+  // Fetch planned demands on load to ensure data is available for daily plans table
   useEffect(() => {
-    if (isRightOpen && activeSummaryTab === 'demand') {
-      fetchPlannedDemands();
-    }
-  }, [isRightOpen, activeSummaryTab, fetchPlannedDemands]);
+    fetchPlannedDemands();
+  }, [fetchPlannedDemands]);
 
   // Daily Plans (Bottom Panel) State
   const [dailyPlans, setDailyPlans] = useState<any[]>([]);
   const [isLoadingDailyPlans, setIsLoadingDailyPlans] = useState(false);
-  const [dailyPlanColDefs] = useState<ColDef[]>([
+  const [specs, setSpecs] = useState<Record<string, any>>({});
+  const fetchedSpecsRef = useRef<Record<string, boolean>>({});
+  
+  const [rmSizes, setRmSizes] = useState<any[]>([]);
+  useEffect(() => {
+    if (partName) {
+      api.get(`/api/v1/part-rm-sizes?partName=${encodeURIComponent(partName)}`).then(res => setRmSizes(res.data));
+    }
+  }, [partName]);
+
+  const getRmSizeName = useCallback((idOrUnsize: string) => {
+    if (!idOrUnsize || idOrUnsize === 'Unsize' || idOrUnsize === 'All' || idOrUnsize === 'None') return idOrUnsize || 'Unsize';
+    const s = rmSizes.find(s => s.id.toString() === idOrUnsize.toString());
+    if (s) {
+       return s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}g` : s.minSize ? `>${s.minSize}g` : `<${s.maxSize}g`;
+    }
+    return idOrUnsize;
+  }, [rmSizes]);
+  
+  const dailyPlanColDefs = useMemo<ColDef[]>(() => [
     { field: "soNumber", headerName: "SO Number", sortable: true, filter: true, flex: 1 },
     { field: "itemCode", headerName: "Item Code", sortable: true, filter: true, flex: 1 },
-    { field: "plannedQty", headerName: "Planned Qty", type: 'numericColumn', valueFormatter: (p: any) => p.value?.toLocaleString(), width: 150 },
-  ]);
+    { 
+      headerName: "Item Desc", 
+      valueGetter: (params) => {
+        if (!params.data) return '';
+        const so = plannedDemands.find(d => d.soNumber === params.data.soNumber && d.itemCode === params.data.itemCode);
+        return so ? so.itemDesc : '';
+      },
+      flex: 2
+    },
+    {
+      headerName: "Ship Date",
+      valueGetter: (params) => {
+        if (!params.data) return '';
+        const so = plannedDemands.find(d => d.soNumber === params.data.soNumber && d.itemCode === params.data.itemCode);
+        return so?.shipDate ? format(new Date(so.shipDate), 'dd/MM/yyyy') : '';
+      },
+      flex: 1
+    },
+    {
+      headerName: "Required RM",
+      valueGetter: (params) => {
+        if (!params.data) return 0;
+        const spec = specs[params.data.itemCode];
+        const yieldPercent = spec?.yieldPercent || 100;
+        const reqRM = Number(params.data.plannedQty) / (yieldPercent / 100);
+        return Number(reqRM.toFixed(2));
+      },
+      valueFormatter: (p: any) => p.value?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' kg',
+      width: 140
+    },
+    { 
+      field: "allocatedRmSize",
+      headerName: "RM Size",
+      editable: (params: any) => {
+        if (!params.data) return false;
+        const spec = specs[params.data.itemCode];
+        return spec?.itemCategory === 'product';
+      },
+      cellEditor: 'agSelectCellEditor',
+      cellEditorParams: (params: any) => {
+        if (!params.data) return { values: [] };
+        const spec = specs[params.data.itemCode];
+        let allowed = [];
+        try { allowed = JSON.parse(spec?.rmSizesJson || '[]'); } catch(e){}
+        if (allowed.length === 0 || allowed.includes("Unsize") || allowed.includes("All")) {
+          allowed = ["Unsize", ...rmSizes.map(s => s.id.toString())];
+        } else {
+          allowed = ["Unsize", ...allowed];
+        }
+        return { values: allowed };
+      },
+      valueFormatter: (p: any) => {
+        if (p.data) {
+          const spec = specs[p.data.itemCode];
+          if (spec && spec.itemCategory !== 'product') return '-';
+        }
+        return getRmSizeName(p.value);
+      },
+      width: 140,
+      cellStyle: (params: any) => {
+        if (!params.data) return null;
+        const spec = specs[params.data.itemCode];
+        if (spec && spec.itemCategory !== 'product') {
+          return { backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', color: '#94a3b8' } as any;
+        }
+        return { backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', cursor: 'pointer' } as any;
+      }
+    },
+    { 
+      field: "plannedQty", 
+      headerName: "Planned Qty", 
+      editable: true,
+      type: 'numericColumn',
+      valueFormatter: (p: any) => p.value?.toLocaleString(), 
+      width: 130,
+      cellStyle: { backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', cursor: 'text' } as any
+    },
+    {
+      headerName: "Actions",
+      width: 100,
+      cellRenderer: (params: any) => {
+        return (
+          <button 
+            onClick={() => handleSplitRow(params.data)}
+            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded"
+          >
+            Split
+          </button>
+        );
+      }
+    }
+  ], [plannedDemands, specs, rmSizes, getRmSizeName]);
 
   const fetchDailyPlans = useCallback(async () => {
     if (!selectedDate || !isBottomOpen) return;
@@ -106,7 +490,33 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         }),
         new Promise(resolve => setTimeout(resolve, 500))
       ]);
-      setDailyPlans(res.data);
+      
+      const data = res.data;
+      
+      const promises = [];
+      const specsToFetch: string[] = [];
+      
+      for (const plan of data) {
+        if (!fetchedSpecsRef.current[plan.itemCode] && !specsToFetch.includes(plan.itemCode)) {
+          specsToFetch.push(plan.itemCode);
+          fetchedSpecsRef.current[plan.itemCode] = true;
+        }
+      }
+      
+      if (specsToFetch.length > 0) {
+        for (const itemCode of specsToFetch) {
+          promises.push(
+            api.get(`/api/v1/product-spec/${itemCode}`).then(sRes => {
+              setSpecs(prev => ({ ...prev, [itemCode]: sRes.data }));
+            }).catch(() => {
+              fetchedSpecsRef.current[itemCode] = false; // Reset on failure
+            })
+          );
+        }
+        await Promise.all(promises);
+      }
+      
+      setDailyPlans(data);
     } catch (error) {
       console.error("Failed to fetch daily plans:", error);
     } finally {
@@ -120,6 +530,49 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
 
   // Right Panel Inputs State
   const [produceQtyInputs, setProduceQtyInputs] = useState<Record<string, string>>({});
+  
+  const handleUpdateSplitPlan = async (planDate: Date, allRowsForThisItem: any[]) => {
+    setIsSaving(true);
+    try {
+      const payload = allRowsForThisItem.map((row, index) => ({
+        planDate: format(planDate, 'yyyy-MM-dd'),
+        soNumber: row.soNumber,
+        lineNumber: row.lineNumber || "1",
+        itemCode: row.itemCode,
+        plannedQty: Number(row.plannedQty) || 0,
+        allocatedRmSize: row.allocatedRmSize || null,
+        splitIndex: index
+      }));
+      await Promise.all([
+        api.post(`/api/v1/demand-planning/${encodeURIComponent(partName)}/daily-plans`, payload),
+        new Promise(resolve => setTimeout(resolve, 500))
+      ]);
+      toast.success("Updated daily production plan");
+      
+      fetchDailyPlans();
+      fetchCalendarData();
+    } catch (error) {
+      toast.error("Failed to update plan");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  
+  const handleSplitRow = (rowData: any) => {
+    setDailyPlans(prev => {
+      const newPlans = [...prev];
+      const index = newPlans.findIndex(p => p === rowData);
+      if (index !== -1) {
+        newPlans.splice(index + 1, 0, {
+          ...rowData,
+          id: Math.random().toString(), // temporary ID
+          plannedQty: 0,
+          allocatedRmSize: null
+        });
+      }
+      return newPlans;
+    });
+  };
   
   const handleConfirmDemand = async (demand: any) => {
     if (!selectedDate) {
@@ -155,6 +608,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
       });
       
       fetchDailyPlans();
+      fetchCalendarData();
     } catch (error) {
       toast.error("Failed to confirm plan");
     } finally {
@@ -165,11 +619,9 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   const handleCreateDemand = async () => {
     setIsCreatingDemand(true);
     try {
-      const selectedProduct = demandData.product.filter(p => p.isSelected);
-      const selectedCoproduct = demandData.coproduct.filter(p => p.isSelected);
-      const selectedByproduct = demandData.byproduct.filter(p => p.isSelected);
+      const selectedItems = demandData.filter(p => p.isSelected);
       
-      const payload = [...selectedProduct, ...selectedCoproduct, ...selectedByproduct].map(item => ({
+      const payload = selectedItems.map(item => ({
         soNumber: item.soNumber,
         lineNumber: item.lineNumber,
         itemCode: item.itemCode,
@@ -198,16 +650,35 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
     }
   };
 
-  const onFirstDataRendered = (params: any) => {
-    params.api.forEachNode((node: any) => {
-      if (node.data && node.data.isSelected) {
-        node.setSelected(true);
-      }
-    });
+  const onRowDataUpdated = (params: any) => {
+    setTimeout(() => {
+      params.api.forEachNode((node: any) => {
+        if (node.data && node.data.isSelected) {
+          node.setSelected(true, false, true); 
+        }
+      });
+    }, 0);
   };
 
-  const [demandData, setDemandData] = useState<{product: any[], coproduct: any[], byproduct: any[]}>({ product: [], coproduct: [], byproduct: [] });
+  const [demandData, setDemandData] = useState<any[]>([]);
   const [activeDemandTab, setActiveDemandTab] = useState<'product' | 'coproduct' | 'byproduct'>('product');
+  const demandGridRef = useRef<AgGridReact>(null);
+
+  const isExternalFilterPresent = useCallback(() => true, []);
+  const doesExternalFilterPass = useCallback(
+    (node: any) => {
+      if (!node.data) return true;
+      return node.data.category === activeDemandTab;
+    },
+    [activeDemandTab]
+  );
+
+  useEffect(() => {
+    if (demandGridRef.current?.api) {
+      demandGridRef.current.api.onFilterChanged();
+    }
+  }, [activeDemandTab]);
+
   const [demandColDefs] = useState<ColDef[]>([
     { field: "priority", headerName: "Priority", sortable: true, width: 120 },
     { field: "shipDate", headerName: "Ship Date", sortable: true, filter: true, valueFormatter: (p) => p.value ? format(new Date(p.value), 'dd/MM/yyyy') : '-' },
@@ -223,36 +694,47 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   const [isCalculating, setIsCalculating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  const [monthlyPlans, setMonthlyPlans] = useState<any[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [isFetchingSupply, setIsFetchingSupply] = useState(false);
 
-  useEffect(() => {
-    const fetchSavedSupply = async () => {
-      setIsFetchingSupply(true);
-      try {
-        const monthStart = startOfMonth(currentMonth);
-        const monthEnd = endOfMonth(currentMonth);
-        const startDate = format(startOfWeek(monthStart), 'yyyy-MM-dd');
-        const endDate = format(endOfWeek(monthEnd), 'yyyy-MM-dd');
-        
-        const [res] = await Promise.all([
-          api.get(`/api/v1/mps/${partName}/supply`, {
-            params: { startDate, endDate }
-          }),
-          new Promise(resolve => setTimeout(resolve, 500))
-        ]);
-        
-        if (res.data) {
-          setCalculatedSupply(res.data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch saved supply data:", error);
-      } finally {
-        setIsFetchingSupply(false);
+  // Generate Plan Modal State
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+
+  const fetchCalendarData = useCallback(async () => {
+    setIsFetchingSupply(true);
+    try {
+      const monthStart = startOfMonth(currentMonth);
+      const monthEnd = endOfMonth(currentMonth);
+      const startDate = format(startOfWeek(monthStart), 'yyyy-MM-dd');
+      const endDate = format(endOfWeek(monthEnd), 'yyyy-MM-dd');
+      
+      const [supplyRes, plansRes] = await Promise.all([
+        api.get(`/api/v1/mps/${partName}/supply`, {
+          params: { startDate, endDate }
+        }),
+        api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/daily-plans`, {
+          params: { startDate, endDate }
+        }),
+        new Promise(resolve => setTimeout(resolve, 500))
+      ]);
+      
+      if (supplyRes.data) {
+        setCalculatedSupply(supplyRes.data);
       }
-    };
-    
-    fetchSavedSupply();
+      if (plansRes.data) {
+        setMonthlyPlans(plansRes.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch calendar data:", error);
+    } finally {
+      setIsFetchingSupply(false);
+    }
   }, [currentMonth, partName]);
+
+  useEffect(() => {
+    fetchCalendarData();
+  }, [fetchCalendarData]);
 
   const handleSaveSupply = async () => {
     const dates = Object.keys(calculatedSupply);
@@ -437,8 +919,13 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         new Promise(resolve => setTimeout(resolve, 500))
       ]);
       const { product = [], coproduct = [], byproduct = [] } = res.data || {};
+      const all = [
+        ...product.map((p: any) => ({ ...p, category: 'product' })),
+        ...coproduct.map((p: any) => ({ ...p, category: 'coproduct' })),
+        ...byproduct.map((p: any) => ({ ...p, category: 'byproduct' }))
+      ];
       
-      setDemandData({ product, coproduct, byproduct });
+      setDemandData(all);
       setActiveDemandTab('product');
     } catch (error) {
       console.error("Failed to fetch demand data:", error);
@@ -545,6 +1032,34 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         // If supply data exists but this day has none → disabled
         const isDisabledBySupply = hasSupplyData && isCurrentMonth && !hasSupply;
         
+        // Group plans for this date by itemCode
+        const rawDayPlans = monthlyPlans.filter((p: any) => format(new Date(p.planDate), 'yyyy-MM-dd') === dateKey);
+        
+        let filteredRawPlans = rawDayPlans;
+        if (demandSearchQuery) {
+           const lower = demandSearchQuery.toLowerCase();
+           filteredRawPlans = rawDayPlans.filter((p: any) => {
+             const demandInfo = plannedDemands.find(d => d.soNumber === p.soNumber && d.itemCode === p.itemCode);
+             const soMatch = p.soNumber?.toLowerCase().includes(lower);
+             const codeMatch = p.itemCode?.toLowerCase().includes(lower);
+             const descMatch = demandInfo?.itemDesc?.toLowerCase().includes(lower);
+             const dateMatch = demandInfo?.shipDate ? format(new Date(demandInfo.shipDate), 'dd/MM/yyyy').includes(lower) : false;
+             return soMatch || codeMatch || descMatch || dateMatch;
+           });
+        }
+
+        const groupedDayPlansMap = new Map<string, number>();
+        filteredRawPlans.forEach((p: any) => {
+          const qty = Number(p.plannedQty) || 0;
+          groupedDayPlansMap.set(p.itemCode, (groupedDayPlansMap.get(p.itemCode) || 0) + qty);
+        });
+        const dayPlans = Array.from(groupedDayPlansMap.entries()).map(([itemCode, plannedQty]) => ({
+          itemCode,
+          plannedQty
+        }));
+        
+        const hasSearchResults = demandSearchQuery && dayPlans.length > 0;
+        
         days.push(
           <div
             key={day.toString()}
@@ -552,8 +1067,9 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
             className={`min-h-[120px] p-2 border-r border-b border-slate-200 relative group transition-colors
               ${!isCurrentMonth ? "bg-slate-50 text-slate-400 cursor-not-allowed" : ""}
               ${isCurrentMonth && isDisabledBySupply ? "bg-slate-100/80 cursor-not-allowed opacity-60" : ""}
-              ${isCurrentMonth && !isDisabledBySupply ? "bg-white hover:bg-slate-50 cursor-pointer" : ""}
-              ${isToday && !isSelected && !isDisabledBySupply ? "bg-blue-50/20" : ""}
+              ${isCurrentMonth && !isDisabledBySupply && !hasSearchResults ? "bg-white hover:bg-slate-50 cursor-pointer" : ""}
+              ${isCurrentMonth && !isDisabledBySupply && hasSearchResults ? "bg-blue-50 hover:bg-blue-100 cursor-pointer ring-1 ring-inset ring-blue-300" : ""}
+              ${isToday && !isSelected && !isDisabledBySupply && !hasSearchResults ? "bg-blue-50/20" : ""}
               ${isSelected && !isDisabledBySupply ? "bg-primary/5 ring-2 ring-inset ring-primary" : ""}
             `}
           >
@@ -577,6 +1093,19 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                     {supplyValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                   </span>
                 </div>
+              </div>
+            )}
+
+            {/* Show Plans indicator */}
+            {isCurrentMonth && dayPlans.length > 0 && (
+              <div className="mt-1 space-y-1">
+                {dayPlans.map(plan => (
+                  <div key={plan.itemCode} className={`text-[10px] px-1.5 py-0.5 rounded flex justify-between font-medium border 
+                    ${demandSearchQuery ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                    <span className="truncate font-bold mr-1">{plan.itemCode}</span>
+                    <span>{plan.plannedQty.toLocaleString()}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -620,6 +1149,13 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
             >
               <ShoppingCart size={18} className="text-primary" />
               Demand
+            </button>
+            <button 
+              onClick={() => setIsGenerateModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 font-medium rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors"
+            >
+              <Wand2 size={18} className="text-primary" />
+              Generate Plan
             </button>
             <button 
               onClick={handleSaveSupply}
@@ -713,6 +1249,19 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                       resizable: true,
                     }}
                     animateRows={true}
+                    onCellValueChanged={async (event) => {
+                      if (event.colDef.field === 'plannedQty' || event.colDef.field === 'allocatedRmSize') {
+                        const { data, newValue, oldValue } = event;
+                        if (newValue !== oldValue) {
+                          // Find all splits for this item in the grid
+                          const allRowsForThisItem = dailyPlans.filter(p => 
+                            p.soNumber === data.soNumber && 
+                            p.itemCode === data.itemCode
+                          );
+                          await handleUpdateSplitPlan(new Date(data.planDate), allRowsForThisItem);
+                        }
+                      }
+                    }}
                     overlayNoRowsTemplate="<span class='text-slate-500 font-medium'>No daily production plans for this date</span>"
                   />
                 </div>
@@ -770,54 +1319,81 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
           
           <div className="flex-1 overflow-auto w-full min-w-[250px] bg-slate-50">
             {activeSummaryTab === 'supply' ? (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400 p-4">
-                <Package size={32} className="mb-2 text-slate-300" />
-                <p>Supply Summary</p>
-                <p className="text-xs mt-1 text-center">({selectedDate ? format(selectedDate, "dd MMM yyyy") : "Select a date"})</p>
-              </div>
+              <SupplySummaryPanel 
+                selectedDate={selectedDate}
+                partName={partName}
+                dailyPlans={dailyPlans}
+                calculatedSupply={calculatedSupply}
+                plannedDemands={plannedDemands}
+                specs={specs}
+              />
             ) : (
               <div className="flex flex-col">
-                {plannedDemands.length === 0 ? (
+                <div className="p-2 border-b border-slate-200 sticky top-0 bg-slate-50 z-10 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="SO, Item, Ship Date..."
+                      value={demandSearchInput}
+                      onChange={(e) => setDemandSearchInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setDemandSearchQuery(demandSearchInput);
+                        }
+                      }}
+                      className="block w-full px-3 py-1.5 border border-slate-300 rounded-md text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors bg-white"
+                    />
+                    <button
+                      onClick={() => setDemandSearchQuery(demandSearchInput)}
+                      className="flex items-center justify-center p-1.5 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+                      title="Search"
+                    >
+                      <Search size={16} />
+                    </button>
+                  </div>
+                  <div className="flex bg-slate-200/50 p-1 rounded-md">
+                    <button
+                      onClick={() => setDemandTab('product')}
+                      className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${demandTab === 'product' ? 'bg-white text-primary shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
+                    >
+                      Product
+                    </button>
+                    <button
+                      onClick={() => setDemandTab('coproduct')}
+                      className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${demandTab === 'coproduct' ? 'bg-white text-primary shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
+                    >
+                      Co-Product
+                    </button>
+                    <button
+                      onClick={() => setDemandTab('byproduct')}
+                      className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${demandTab === 'byproduct' ? 'bg-white text-primary shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
+                    >
+                      By-Product
+                    </button>
+                  </div>
+                </div>
+                
+                {filteredDemands.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-40 text-slate-400 mt-10 p-4">
                     <ShoppingCart size={32} className="mb-2 text-slate-300" />
-                    <p className="text-sm">No Demand Created</p>
-                    <p className="text-xs mt-1 text-center">Click 'Demand' button above to plan orders</p>
+                    <p className="text-sm">No Demands Found</p>
+                    <p className="text-xs mt-1 text-center">Try changing the category or search keyword</p>
                   </div>
                 ) : (
-                  plannedDemands.map((demand, i) => (
-                    <div key={`${demand.soNumber}-${demand.itemCode}-${i}`} className="bg-white p-3 border-b border-slate-200 flex flex-col gap-2 relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
-                      <div className="flex justify-between items-start ml-2">
-                        <div>
-                          <p className="font-semibold text-slate-800 text-sm">{demand.soNumber}</p>
-                          <p className="text-xs text-slate-500 line-clamp-1" title={demand.itemDesc}>{demand.itemCode} - {demand.itemDesc}</p>
-                        </div>
-                        <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded">
-                          {Number(demand.planQty).toLocaleString()}
-                        </span>
-                      </div>
-                      
-                      <div className="mt-1 flex items-center gap-2 ml-2">
-                        <input 
-                          type="number" 
-                          placeholder="Produce Qty" 
-                          value={produceQtyInputs[`${demand.soNumber}-${demand.itemCode}`] || ''}
-                          onChange={(e) => setProduceQtyInputs(prev => ({
-                            ...prev,
-                            [`${demand.soNumber}-${demand.itemCode}`]: e.target.value
-                          }))}
-                          className="flex-1 px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                        />
-                        <button 
-                          onClick={() => handleConfirmDemand(demand)}
-                          disabled={!selectedDate || isSaving}
-                          className="px-3 py-1.5 bg-primary text-white text-sm font-medium rounded hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          title={!selectedDate ? "Please select a date on the calendar first" : ""}
-                        >
-                          Confirm
-                        </button>
-                      </div>
-                    </div>
+                  filteredDemands.map((demand, i) => (
+                    <DemandCard 
+                      key={`${demand.soNumber}-${demand.itemCode}-${i}`}
+                      demand={demand}
+                      selectedDate={selectedDate}
+                      partName={partName}
+                      isSaving={isSaving}
+                      monthlyPlans={monthlyPlans}
+                      handleUpdateSplitPlan={handleUpdateSplitPlan}
+                      fetchDailyPlans={fetchDailyPlans}
+                      fetchCalendarData={fetchCalendarData}
+                      specs={specs}
+                      rmSizes={rmSizes}
+                    />
                   ))
                 )}
               </div>
@@ -925,9 +1501,9 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
               {/* Tabs */}
               <div className="flex gap-2">
                 {[
-                  { id: 'product', label: 'Product', count: demandData.product?.length || 0 },
-                  { id: 'coproduct', label: 'Co-Product', count: demandData.coproduct?.length || 0 },
-                  { id: 'byproduct', label: 'By-Product', count: demandData.byproduct?.length || 0 }
+                  { id: 'product', label: 'Product', count: demandData.filter(d => d.category === 'product').length },
+                  { id: 'coproduct', label: 'Co-Product', count: demandData.filter(d => d.category === 'coproduct').length },
+                  { id: 'byproduct', label: 'By-Product', count: demandData.filter(d => d.category === 'byproduct').length }
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -955,8 +1531,11 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
               ) : (
                 <div className="flex-1 w-full ag-theme-alpine border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
                   <AgGridReact
+                    ref={demandGridRef}
                     theme="legacy"
-                    rowData={demandData[activeDemandTab] || []}
+                    rowData={demandData}
+                    isExternalFilterPresent={isExternalFilterPresent}
+                    doesExternalFilterPass={doesExternalFilterPass}
                     columnDefs={demandColDefs}
                     defaultColDef={{
                       sortable: true,
@@ -966,8 +1545,10 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                     pagination={true}
                     paginationPageSize={20}
                     rowSelection={{ mode: "multiRow" }}
+                    getRowId={(params) => `${params.data.soNumber}_${params.data.lineNumber}_${params.data.itemCode}`}
                     onRowSelected={onRowSelected}
-                    onFirstDataRendered={onFirstDataRendered}
+                    onFirstDataRendered={onRowDataUpdated}
+                    onRowDataUpdated={onRowDataUpdated}
                     animateRows={true}
                     overlayNoRowsTemplate="<span class='text-slate-500'>No demand data found</span>"
                   />
@@ -984,7 +1565,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
               </button>
               <button 
                 onClick={handleCreateDemand}
-                disabled={isCreatingDemand || (demandData.product.length === 0 && demandData.coproduct.length === 0 && demandData.byproduct.length === 0)}
+                disabled={isCreatingDemand || demandData.length === 0}
                 className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isCreatingDemand ? (
@@ -995,6 +1576,169 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                 Create Demand
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generate Plan Modal */}
+      {isGenerateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/50">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Wand2 className="text-primary" />
+                Generate Plan Readiness
+              </h2>
+              <button 
+                onClick={() => setIsGenerateModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 flex flex-col gap-6 bg-white">
+              <p className="text-sm text-slate-600">
+                Before the system can automatically generate the production plan, please ensure the following requirements are met for <strong>{format(currentMonth, 'MMMM yyyy')}</strong>:
+              </p>
+              
+              <div className="flex flex-col gap-4">
+                {/* Demand Check */}
+                <div className={`flex items-start gap-4 p-4 rounded-xl border ${plannedDemands.length > 0 ? 'bg-emerald-50/50 border-emerald-100' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="mt-0.5">
+                    {plannedDemands.length > 0 ? (
+                      <CheckCircle2 size={24} className="text-emerald-500" />
+                    ) : (
+                      <XCircle size={24} className="text-slate-400" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className={`font-semibold ${plannedDemands.length > 0 ? 'text-emerald-800' : 'text-slate-700'}`}>
+                      Demand Selected
+                    </h3>
+                    <p className={`text-sm mt-1 ${plannedDemands.length > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                      {plannedDemands.length > 0 
+                        ? `${plannedDemands.length} demands selected for this month.` 
+                        : 'No demands selected. Please select demands from the Demand menu.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Supply Check */}
+                <div className={`flex items-start gap-4 p-4 rounded-xl border ${Object.keys(calculatedSupply).length > 0 ? 'bg-emerald-50/50 border-emerald-100' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="mt-0.5">
+                    {Object.keys(calculatedSupply).length > 0 ? (
+                      <CheckCircle2 size={24} className="text-emerald-500" />
+                    ) : (
+                      <XCircle size={24} className="text-slate-400" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className={`font-semibold ${Object.keys(calculatedSupply).length > 0 ? 'text-emerald-800' : 'text-slate-700'}`}>
+                      Supply Data Created
+                    </h3>
+                    <p className={`text-sm mt-1 ${Object.keys(calculatedSupply).length > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                      {Object.keys(calculatedSupply).length > 0 
+                        ? `Supply is available on ${Object.keys(calculatedSupply).length} days this month.` 
+                        : 'No supply data. Please allocate supply birds in the Supply menu.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex justify-end gap-3">
+              <button 
+                onClick={() => setIsGenerateModalOpen(false)}
+                className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={async () => {
+                  if (plannedDemands.length === 0) {
+                    toast.error('Cannot generate: No prioritized demands selected.');
+                    return;
+                  }
+                  if (Object.keys(calculatedSupply).length === 0) {
+                    toast.error('Cannot generate: Supply data is empty. Please generate supply first.');
+                    return;
+                  }
+
+                  setIsGenerateModalOpen(false);
+                  setIsGenerating(true);
+                  const toastId = toast.loading('Generating plan...');
+                  try {
+                    console.log("Starting generation...");
+                    const generatedTransactions = await generateAutoPlan({
+                      partName,
+                      currentMonth,
+                      plannedDemands,
+                      specs,
+                      calculatedSupply,
+                      monthlyPlans
+                    });
+
+                    // Count debugging
+                    let skipNoShipDate = 0;
+                    let skipOutMonth = 0;
+                    let skipNoSupply = 0;
+                    for (const demand of plannedDemands) {
+                        const spec = specs[demand.itemCode];
+                        if (!spec) continue;
+                        if (!demand.shipDate || isNaN(new Date(demand.shipDate).getTime())) { skipNoShipDate++; continue; }
+                        const targetStart = subDays(new Date(demand.shipDate), spec.leadMaxDays || 3);
+                        const targetEnd = subDays(new Date(demand.shipDate), spec.leadMinDays || 1);
+                        let hasInMonth = false;
+                        for(let d=targetStart; d<=targetEnd; d=addDays(d,1)) {
+                            if (isSameMonth(d, currentMonth)) hasInMonth = true;
+                        }
+                        if (!hasInMonth) skipOutMonth++;
+                        else skipNoSupply++; // If it made it here but didn't generate, supply was zero.
+                    }
+
+                    if (generatedTransactions.length === 0) {
+                      toast.dismiss(toastId);
+                      toast.error(`No plan generated. Skipped: ${skipNoShipDate} no shipDate, ${skipOutMonth} out of month, ${skipNoSupply} no supply.`, { duration: 10000 });
+                      return;
+                    }
+
+                    // Save generated plans
+                    await api.post(`/api/v1/demand-planning/${encodeURIComponent(partName)}/daily-plans`, generatedTransactions);
+                    
+                    toast.dismiss(toastId);
+                    toast.success(`Successfully generated ${generatedTransactions.length} plan segments!`, { duration: 5000 });
+                    
+                    // Refresh data
+                    await fetchCalendarData();
+                    await fetchMonthlyPlans(); // THIS IS CRITICAL TO SHOW THE PLANS ON THE UI!
+                    await fetchPlannedDemands(); // Refresh remaining quantities
+                    console.log("Finished generation!");
+                  } catch (err: any) {
+                    console.error("Auto generation failed", err);
+                    toast.dismiss(toastId);
+                    toast.error(`Failed to auto-generate: ${err.message || 'Unknown error'}`, { duration: 10000 });
+                  } finally {
+                    setIsGenerating(false);
+                  }
+                }}
+                className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors flex items-center gap-2"
+              >
+                <Wand2 size={18} />
+                Start Generation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full-screen Loading Overlay */}
+      {isGenerating && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/50 flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-xl shadow-xl flex flex-col items-center gap-4 max-w-sm w-full">
+            <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+            <h3 className="text-xl font-bold text-slate-800">Generating Plan...</h3>
+            <p className="text-slate-500 text-center">This may take a few seconds. Please do not close this window.</p>
           </div>
         </div>
       )}

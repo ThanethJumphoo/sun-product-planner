@@ -27,6 +27,9 @@ let DemandPlanningController = class DemandPlanningController {
     async saveDemandPlans(partName, payload) {
         return this.service.saveDemandPlans(partName, payload);
     }
+    async getSplitsForSalesOrder(partName, soNumber, itemCode) {
+        return this.service.getSplitsForSalesOrder(partName, soNumber, itemCode);
+    }
     async getDailyProductionPlans(partName, startDate, endDate) {
         return this.service.getDailyProductionPlans(partName, startDate, endDate);
     }
@@ -50,6 +53,15 @@ __decorate([
     __metadata("design:paramtypes", [String, Array]),
     __metadata("design:returntype", Promise)
 ], DemandPlanningController.prototype, "saveDemandPlans", null);
+__decorate([
+    (0, common_1.Get)(':partName/sales-orders/:soNumber/items/:itemCode/splits'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Param)('soNumber')),
+    __param(2, (0, common_1.Param)('itemCode')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], DemandPlanningController.prototype, "getSplitsForSalesOrder", null);
 __decorate([
     (0, common_1.Get)(':partName/daily-plans'),
     __param(0, (0, common_1.Param)('partName')),

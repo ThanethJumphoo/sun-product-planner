@@ -193,6 +193,19 @@ export class DemandPlanningService {
     });
   }
 
+  async getSplitsForSalesOrder(partName: string, soNumber: string, itemCode: string) {
+    return prisma.mpsProductionTransaction.findMany({
+      where: {
+        partName,
+        soNumber,
+        itemCode
+      },
+      orderBy: {
+        planDate: 'asc'
+      }
+    });
+  }
+
   async getDailyProductionPlans(partName: string, startDate: string, endDate: string) {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -211,7 +224,7 @@ export class DemandPlanningService {
     return transactions;
   }
 
-  async saveDailyProductionPlan(partName: string, payload: { planDate: string; soNumber: string; lineNumber: string; itemCode: string; plannedQty: number }[]) {
+  async saveDailyProductionPlan(partName: string, payload: { planDate: string; soNumber: string; lineNumber: string; itemCode: string; plannedQty: number; allocatedRmSize?: string | null; splitIndex?: number }[]) {
     // For saving, we process the payload.
     // Usually, the payload contains the plan for a SPECIFIC planDate.
     // If we just upsert, we can do it directly.
@@ -226,19 +239,23 @@ export class DemandPlanningService {
               soNumber: line.soNumber,
               lineNumber: line.lineNumber,
               itemCode: line.itemCode,
+              splitIndex: line.splitIndex || 0,
             }
           },
           update: {
             plannedQty: line.plannedQty,
-          },
+            allocatedRmSize: line.allocatedRmSize || null,
+          } as any,
           create: {
             partName,
             planDate,
             soNumber: line.soNumber,
             lineNumber: line.lineNumber,
             itemCode: line.itemCode,
+            splitIndex: line.splitIndex || 0,
             plannedQty: line.plannedQty,
-          }
+            allocatedRmSize: line.allocatedRmSize || null,
+          } as any
         });
       });
       await Promise.all(upserts);
