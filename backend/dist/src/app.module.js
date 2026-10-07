@@ -30,6 +30,7 @@ const product_spec_module_1 = require("./modules/master-data/product-spec/produc
 const demand_planning_module_1 = require("./modules/demand-planning/demand-planning.module");
 const cache_manager_1 = require("@nestjs/cache-manager");
 const mps_module_1 = require("./modules/mps/mps.module");
+const dps_module_1 = require("./modules/dps/dps.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -59,6 +60,7 @@ exports.AppModule = AppModule = __decorate([
             product_spec_module_1.ProductSpecModule,
             demand_planning_module_1.DemandPlanningModule,
             mps_module_1.MpsModule,
+            dps_module_1.DpsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

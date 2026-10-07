@@ -9,7 +9,6 @@ import { AgGridReact } from 'ag-grid-react';
 import { ColDef } from 'ag-grid-community';
 import SupplySummaryPanel from './components/SupplySummaryPanel';
 import OutputsSummaryPanel from './components/OutputsSummaryPanel';
-import { generateAutoPlan } from './utils/autoGeneratePlan';
 
 const DemandCard = ({ demand, selectedDate, partName, isSaving, monthlyPlans, handleUpdateSplitPlan, fetchDailyPlans, fetchCalendarData, specs, rmSizes }: any) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -382,7 +381,31 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
     }
     return idOrUnsize;
   }, [rmSizes]);
-  
+  const sortedDailyPlans = useMemo(() => {
+    if (!dailyPlans) return [];
+    
+    // Fast lookup for ship dates
+    const shipDateMap = new Map();
+    plannedDemands.forEach((d: any) => {
+      shipDateMap.set(`${d.soNumber}_${d.itemCode}`, d.shipDate ? new Date(d.shipDate).getTime() : 0);
+    });
+
+    return [...dailyPlans].sort((a, b) => {
+      const specA = specs[a.itemCode];
+      const specB = specs[b.itemCode];
+      const catMap: Record<string, number> = { 'product': 1, 'coproduct': 2, 'byproduct': 3 };
+      const orderA = specA ? (catMap[specA.itemCategory] || 99) : 99;
+      const orderB = specB ? (catMap[specB.itemCategory] || 99) : 99;
+      if (orderA !== orderB) return orderA - orderB;
+      
+      const shipA = shipDateMap.get(`${a.soNumber}_${a.itemCode}`) || 0;
+      const shipB = shipDateMap.get(`${b.soNumber}_${b.itemCode}`) || 0;
+      if (shipA !== shipB) return shipA - shipB;
+
+      return a.itemCode.localeCompare(b.itemCode);
+    });
+  }, [dailyPlans, specs, plannedDemands]);
+
   const dailyPlanColDefs = useMemo<ColDef[]>(() => [
     { field: "soNumber", headerName: "SO Number", sortable: true, filter: true, flex: 1 },
     { field: "itemCode", headerName: "Item Code", sortable: true, filter: true, flex: 1 },
@@ -1241,7 +1264,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                 <div className="h-full w-full ag-theme-alpine">
                   <AgGridReact
                     theme="legacy"
-                    rowData={dailyPlans}
+                    rowData={sortedDailyPlans}
                     columnDefs={dailyPlanColDefs}
                     defaultColDef={{
                       sortable: true,
@@ -1647,8 +1670,35 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
               </div>
             </div>
             
-            <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex justify-end gap-3">
+            <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex justify-between gap-3">
               <button 
+                onClick={async () => {
+                  if (confirm(`Are you sure you want to clear all plans for ${format(currentMonth, 'MMMM yyyy')}?`)) {
+                    setIsGenerateModalOpen(false);
+                    const toastId = toast.loading('Clearing plans...');
+                    try {
+                      const startDate = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
+                      const endDate = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+                      await api.delete(`/api/v1/mps/${encodeURIComponent(partName)}/plans`, {
+                        params: { startDate, endDate }
+                      });
+                      toast.dismiss(toastId);
+                      toast.success("Plans cleared successfully.");
+                      await fetchCalendarData();
+                      await fetchPlannedDemands();
+                    } catch (err: any) {
+                      toast.dismiss(toastId);
+                      toast.error(`Failed to clear plans: ${err.message}`);
+                    }
+                  }
+                }}
+                className="px-4 py-2 bg-white text-red-600 border border-red-200 font-medium rounded-lg hover:bg-red-50 shadow-sm transition-colors flex items-center gap-2"
+              >
+                <Trash2 size={16} />
+                Clear Orders
+              </button>
+              <div className="flex gap-3">
+                <button 
                 onClick={() => setIsGenerateModalOpen(false)}
                 className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1"
               >
@@ -1669,49 +1719,26 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                   setIsGenerating(true);
                   const toastId = toast.loading('Generating plan...');
                   try {
-                    console.log("Starting generation...");
-                    const generatedTransactions = await generateAutoPlan({
-                      partName,
-                      currentMonth,
-                      plannedDemands,
-                      specs,
-                      calculatedSupply,
-                      monthlyPlans
+                    console.log("Starting backend generation...");
+                    
+                    const response = await api.post(`/api/v1/mps/${encodeURIComponent(partName)}/auto-generate`, {
+                      currentMonth: format(currentMonth, 'yyyy-MM-dd')
                     });
 
-                    // Count debugging
-                    let skipNoShipDate = 0;
-                    let skipOutMonth = 0;
-                    let skipNoSupply = 0;
-                    for (const demand of plannedDemands) {
-                        const spec = specs[demand.itemCode];
-                        if (!spec) continue;
-                        if (!demand.shipDate || isNaN(new Date(demand.shipDate).getTime())) { skipNoShipDate++; continue; }
-                        const targetStart = subDays(new Date(demand.shipDate), spec.leadMaxDays || 3);
-                        const targetEnd = subDays(new Date(demand.shipDate), spec.leadMinDays || 1);
-                        let hasInMonth = false;
-                        for(let d=targetStart; d<=targetEnd; d=addDays(d,1)) {
-                            if (isSameMonth(d, currentMonth)) hasInMonth = true;
-                        }
-                        if (!hasInMonth) skipOutMonth++;
-                        else skipNoSupply++; // If it made it here but didn't generate, supply was zero.
-                    }
+                    const data = response.data;
+                    const { generatedCount, stats } = data;
 
-                    if (generatedTransactions.length === 0) {
+                    if (generatedCount === 0) {
                       toast.dismiss(toastId);
-                      toast.error(`No plan generated. Skipped: ${skipNoShipDate} no shipDate, ${skipOutMonth} out of month, ${skipNoSupply} no supply.`, { duration: 10000 });
+                      toast.error(`No plan generated. Skipped: ${stats.skipNoShipDate} no shipDate, ${stats.skipOutMonth} out of month, ${stats.skipNoSupply} no supply.`, { duration: 10000 });
                       return;
                     }
 
-                    // Save generated plans
-                    await api.post(`/api/v1/demand-planning/${encodeURIComponent(partName)}/daily-plans`, generatedTransactions);
-                    
                     toast.dismiss(toastId);
-                    toast.success(`Successfully generated ${generatedTransactions.length} plan segments!`, { duration: 5000 });
+                    toast.success(`Successfully generated ${generatedCount} plan segments!`, { duration: 5000 });
                     
                     // Refresh data
                     await fetchCalendarData();
-                    await fetchMonthlyPlans(); // THIS IS CRITICAL TO SHOW THE PLANS ON THE UI!
                     await fetchPlannedDemands(); // Refresh remaining quantities
                     console.log("Finished generation!");
                   } catch (err: any) {
@@ -1727,6 +1754,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                 <Wand2 size={18} />
                 Start Generation
               </button>
+              </div>
             </div>
           </div>
         </div>

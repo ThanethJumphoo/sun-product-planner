@@ -207,7 +207,7 @@ export default function SupplySummaryPanel({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {supplyBreakdown.sizes.map((s: any) => {
-                  const isOver = s.remaining < 0;
+                  const isOver = s.remaining < -0.5;
                   return (
                     <tr key={s.id} className={`hover:bg-slate-50 ${isOver ? 'bg-red-50/50' : ''}`}>
                       <td className="px-4 py-2 font-medium text-slate-700 whitespace-nowrap">{s.name}</td>
@@ -219,7 +219,7 @@ export default function SupplySummaryPanel({
                         {s.used > 0 ? s.used.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0}) : '-'}
                       </td>
                       <td className={`px-2 py-2 text-right font-bold ${isOver ? 'text-red-600' : 'text-green-600'}`}>
-                        {s.remaining.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                        {Math.abs(s.remaining) < 0.5 ? 0 : s.remaining.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
                       </td>
                     </tr>
                   );
@@ -233,7 +233,7 @@ export default function SupplySummaryPanel({
                       {supplyBreakdown.unallocatedUsed.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
                     </td>
                     <td className="px-2 py-2 text-right font-bold text-orange-600">
-                      -{supplyBreakdown.unallocatedUsed.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                      {Math.abs(supplyBreakdown.unallocatedUsed) < 0.5 ? 0 : `-${supplyBreakdown.unallocatedUsed.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`}
                     </td>
                    </tr>
                 )}

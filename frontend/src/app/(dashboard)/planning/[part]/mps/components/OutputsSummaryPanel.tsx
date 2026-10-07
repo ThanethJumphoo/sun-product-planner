@@ -169,11 +169,30 @@ export default function OutputsSummaryPanel({
         const yieldPercent = spec.yieldPercent || 100;
         const requiredWeight = Number(plan.plannedQty) / (yieldPercent / 100);
         if (requiredWeight > 0) {
-          // Find which generatedOutput this item belongs to
+          let remainingRequired = requiredWeight;
+          
+          // Phase 1: Consume from outputs that have remaining capacity
           for (const key in generatedOutputs) {
-            if (generatedOutputs[key].linkedItems?.some((i: any) => i.itemCode === plan.itemCode)) {
-              generatedOutputs[key].usedWeight = (generatedOutputs[key].usedWeight || 0) + requiredWeight;
-              break;
+            if (remainingRequired <= 0) break;
+            const out = generatedOutputs[key];
+            if (out.linkedItems?.some((i: any) => i.itemCode === plan.itemCode)) {
+              const outRemain = out.totalWeight - (out.usedWeight || 0);
+              if (outRemain > 0) {
+                const amountToTake = Math.min(remainingRequired, outRemain);
+                out.usedWeight = (out.usedWeight || 0) + amountToTake;
+                remainingRequired -= amountToTake;
+              }
+            }
+          }
+          
+          // Phase 2: If there's still required weight (over-allocated), just dump it on the first matching output
+          if (remainingRequired > 0) {
+            for (const key in generatedOutputs) {
+              const out = generatedOutputs[key];
+              if (out.linkedItems?.some((i: any) => i.itemCode === plan.itemCode)) {
+                out.usedWeight = (out.usedWeight || 0) + remainingRequired;
+                break;
+              }
             }
           }
         }
@@ -246,8 +265,8 @@ export default function OutputsSummaryPanel({
                         </div>
                         <div className="flex flex-col items-end">
                           <span className="text-slate-400">Remain</span>
-                          <span className={`font-bold ${out.remainingWeight < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                            {out.remainingWeight.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <span className={`font-bold ${out.remainingWeight < -0.05 ? 'text-red-500' : 'text-emerald-600'}`}>
+                            {Math.abs(out.remainingWeight) < 0.05 ? 0 : out.remainingWeight.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         </div>
                       </div>
@@ -291,8 +310,8 @@ export default function OutputsSummaryPanel({
                         </div>
                         <div className="flex flex-col items-end">
                           <span className="text-slate-400">Remain</span>
-                          <span className={`font-bold ${out.remainingWeight < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                            {out.remainingWeight.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <span className={`font-bold ${out.remainingWeight < -0.05 ? 'text-red-500' : 'text-emerald-600'}`}>
+                            {Math.abs(out.remainingWeight) < 0.05 ? 0 : out.remainingWeight.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         </div>
                       </div>

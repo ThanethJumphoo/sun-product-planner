@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import prisma from '../../lib/prisma';
+import { generateAutoPlanOnServer } from './utils/autoGeneratePlan';
 
 @Injectable()
 export class MpsService {
@@ -48,5 +49,74 @@ export class MpsService {
     });
     
     return supplyMap;
+  }
+
+  async autoGeneratePlan(partName: string, currentMonth: string) {
+    const { generatedTransactions, stats } = await generateAutoPlanOnServer(partName, currentMonth);
+
+    if (generatedTransactions.length > 0) {
+      await prisma.$transaction(async (tx) => {
+        const upserts = generatedTransactions.map((line) => {
+          const planDate = new Date(line.planDate);
+          return tx.mpsProductionTransaction.upsert({
+            where: {
+              unique_plan_line: {
+                partName,
+                planDate,
+                soNumber: line.soNumber,
+                lineNumber: line.lineNumber,
+                itemCode: line.itemCode,
+                splitIndex: line.splitIndex || 0,
+              }
+            },
+            update: {
+              plannedQty: line.plannedQty,
+              allocatedRmSize: line.allocatedRmSize || null,
+            } as any,
+            create: {
+              partName,
+              planDate,
+              soNumber: line.soNumber,
+              lineNumber: line.lineNumber,
+              itemCode: line.itemCode,
+              splitIndex: line.splitIndex || 0,
+              plannedQty: line.plannedQty,
+              allocatedRmSize: line.allocatedRmSize || null,
+            } as any
+          });
+        });
+        await Promise.all(upserts);
+
+        // Optional cleanup: delete 0 qty plans
+        await tx.mpsProductionTransaction.deleteMany({
+          where: {
+            partName,
+            planDate: {
+              gte: new Date(currentMonth), // Rough estimation, better would be month bounds
+            },
+            plannedQty: { lte: 0 }
+          }
+        });
+      });
+    }
+
+    return {
+      success: true,
+      generatedCount: generatedTransactions.length,
+      stats
+    };
+  }
+
+  async clearPlans(partName: string, startDate: string, endDate: string) {
+    const result = await prisma.mpsProductionTransaction.deleteMany({
+      where: {
+        partName,
+        planDate: {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        },
+      },
+    });
+    return { success: true, deletedCount: result.count };
   }
 }

@@ -27,6 +27,12 @@ let MpsController = class MpsController {
     async getMpsSupply(partName, startDate, endDate) {
         return this.mpsService.getMpsSupply(partName, startDate, endDate);
     }
+    async autoGeneratePlan(partName, currentMonth) {
+        return this.mpsService.autoGeneratePlan(partName, currentMonth);
+    }
+    async clearPlans(partName, startDate, endDate) {
+        return this.mpsService.clearPlans(partName, startDate, endDate);
+    }
 };
 exports.MpsController = MpsController;
 __decorate([
@@ -46,6 +52,23 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], MpsController.prototype, "getMpsSupply", null);
+__decorate([
+    (0, common_1.Post)(':partName/auto-generate'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Body)('currentMonth')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], MpsController.prototype, "autoGeneratePlan", null);
+__decorate([
+    (0, common_1.Delete)(':partName/plans'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Query)('startDate')),
+    __param(2, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], MpsController.prototype, "clearPlans", null);
 exports.MpsController = MpsController = __decorate([
     (0, common_1.Controller)('api/v1/mps'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

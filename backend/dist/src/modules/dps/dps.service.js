@@ -1,0 +1,257 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DpsService = void 0;
+const common_1 = require("@nestjs/common");
+const prisma_1 = __importDefault(require("../../lib/prisma"));
+let DpsService = class DpsService {
+    async getMpsDemands(partName, dateStr) {
+        const planDate = new Date(dateStr);
+        const orders = await prisma_1.default.mpsProductionTransaction.findMany({
+            where: {
+                partName,
+                planDate,
+                plannedQty: { gt: 0 }
+            },
+        });
+        const grouped = new Map();
+        for (const order of orders) {
+            const key = `${order.soNumber}_${order.itemCode}`;
+            if (!grouped.has(key)) {
+                grouped.set(key, {
+                    id: key,
+                    partName: order.partName,
+                    planDate: order.planDate,
+                    soNumber: order.soNumber,
+                    itemCode: order.itemCode,
+                    plannedQty: 0,
+                    allocatedRmSizes: new Set(),
+                });
+            }
+            const group = grouped.get(key);
+            group.plannedQty += Number(order.plannedQty);
+            if (order.allocatedRmSize && order.allocatedRmSize !== 'Unsize' && order.allocatedRmSize !== 'Auto') {
+                group.allocatedRmSizes.add(order.allocatedRmSize);
+            }
+        }
+        const allIds = Array.from(grouped.values())
+            .flatMap(g => Array.from(g.allocatedRmSizes))
+            .filter(id => !isNaN(Number(id)))
+            .map(id => Number(id));
+        const rmSizes = await prisma_1.default.partRmSize.findMany({
+            where: { id: { in: allIds } },
+        });
+        const rmSizeMap = new Map();
+        for (const rm of rmSizes) {
+            const min = rm.minSize ? Number(rm.minSize) : null;
+            const max = rm.maxSize ? Number(rm.maxSize) : null;
+            let name = 'Unsize';
+            if (min !== null && max !== null)
+                name = `${min}-${max}g`;
+            else if (min !== null)
+                name = `>${min}g`;
+            else if (max !== null)
+                name = `<${max}g`;
+            rmSizeMap.set(rm.id.toString(), name);
+        }
+        const itemCodes = Array.from(grouped.values()).map(g => g.itemCode);
+        const itemMasters = await prisma_1.default.erpItemMaster.findMany({
+            where: { erpItemCode: { in: itemCodes } },
+            select: { erpItemCode: true, erpItemDesc: true }
+        });
+        const productSpecs = await prisma_1.default.productSpec.findMany({
+            where: { erpItemCode: { in: itemCodes } },
+            select: { erpItemCode: true, itemCategory: true }
+        });
+        const itemMap = new Map();
+        for (const item of itemMasters) {
+            itemMap.set(item.erpItemCode, item.erpItemDesc);
+        }
+        const categoryMap = new Map();
+        for (const spec of productSpecs) {
+            categoryMap.set(spec.erpItemCode, spec.itemCategory || 'unknown');
+        }
+        const result = Array.from(grouped.values()).map(g => {
+            const names = Array.from(g.allocatedRmSizes).map(id => rmSizeMap.get(id) || id);
+            return {
+                ...g,
+                itemName: itemMap.get(g.itemCode) || 'Unknown Item',
+                itemCategory: categoryMap.get(g.itemCode) || 'unknown',
+                allocatedRmSize: names.length > 0 ? names.join(', ') : null,
+            };
+        });
+        const categoryOrder = {
+            'product': 1,
+            'coproduct': 2,
+            'byproduct': 3,
+        };
+        result.sort((a, b) => {
+            const catA = categoryOrder[(a.itemCategory || '').toLowerCase()] || 4;
+            const catB = categoryOrder[(b.itemCategory || '').toLowerCase()] || 4;
+            if (catA !== catB)
+                return catA - catB;
+            if (a.soNumber !== b.soNumber)
+                return a.soNumber.localeCompare(b.soNumber);
+            return a.itemCode.localeCompare(b.itemCode);
+        });
+        return result;
+    }
+    async saveDpsDemands(partName, dateStr, demands, sublot = "1") {
+        const planDate = new Date(dateStr);
+        await prisma_1.default.$transaction(async (tx) => {
+            await tx.dpsDemandTransaction.deleteMany({
+                where: { partName, planDate, sublot }
+            });
+            if (demands && demands.length > 0) {
+                const createData = demands.map(d => ({
+                    partName,
+                    planDate,
+                    sublot,
+                    soNumber: d.soNumber,
+                    itemCode: d.itemCode,
+                    itemName: d.itemName,
+                    itemCategory: d.itemCategory,
+                    plannedQty: d.plannedQty,
+                    allocatedRmSize: d.allocatedRmSize,
+                }));
+                await tx.dpsDemandTransaction.createMany({
+                    data: createData
+                });
+            }
+        });
+        return { success: true };
+    }
+    async getSavedDpsDemands(partName, dateStr, sublot) {
+        const planDate = new Date(dateStr);
+        const whereClause = { partName, planDate };
+        if (sublot) {
+            whereClause.sublot = sublot;
+        }
+        const orders = await prisma_1.default.dpsDemandTransaction.findMany({
+            where: whereClause,
+        });
+        const categoryOrder = {
+            'product': 1,
+            'coproduct': 2,
+            'byproduct': 3,
+        };
+        const result = orders.map(o => ({
+            ...o,
+            plannedQty: Number(o.plannedQty),
+        }));
+        result.sort((a, b) => {
+            const catA = categoryOrder[(a.itemCategory || '').toLowerCase()] || 4;
+            const catB = categoryOrder[(b.itemCategory || '').toLowerCase()] || 4;
+            if (catA !== catB)
+                return catA - catB;
+            if (a.soNumber !== b.soNumber)
+                return a.soNumber.localeCompare(b.soNumber);
+            return a.itemCode.localeCompare(b.itemCode);
+        });
+        return result;
+    }
+    async getMpsSupply(partName, dateStr) {
+        const planDate = new Date(dateStr);
+        const supplies = await prisma_1.default.dailyChickenReceiving.findMany({
+            where: {
+                receiveDate: planDate
+            },
+            orderBy: {
+                sublot: 'asc'
+            }
+        });
+        return supplies.map(s => ({
+            id: s.id,
+            date: s.receiveDate.toISOString(),
+            actualReceiveDate: s.actualReceiveDate ? s.actualReceiveDate.toISOString() : null,
+            shift: s.shift,
+            receiveTime: s.receiveTime,
+            farmName: s.farmName,
+            standardFarmName: s.standardFarmName,
+            house: s.house,
+            sex: s.sex,
+            sublot: s.sublot,
+            count: Number(s.totalCount),
+            avgWeight: Number(s.averageWeight || 0),
+            totalWeight: Number(s.totalWeight),
+            supplyWeight: Number(s.totalWeight)
+        }));
+    }
+    async saveDpsSupply(partName, dateStr, supplies) {
+        const planDate = new Date(dateStr);
+        await prisma_1.default.$transaction(async (tx) => {
+            await tx.dpsSupplyTransaction.deleteMany({
+                where: {
+                    partName,
+                    planDate
+                }
+            });
+            if (supplies && supplies.length > 0) {
+                const aggregated = {};
+                for (const s of supplies) {
+                    const sublot = s.sublot || 'Unknown';
+                    const count = Number(s.count || 0);
+                    const weight = Number(s.supplyWeight || s.totalWeight || 0);
+                    if (!aggregated[sublot]) {
+                        aggregated[sublot] = {
+                            sublot,
+                            count: 0,
+                            supplyWeight: 0,
+                        };
+                    }
+                    aggregated[sublot].count += count;
+                    aggregated[sublot].supplyWeight += weight;
+                }
+                const createData = Object.values(aggregated).map(s => {
+                    const count = s.count;
+                    const supplyWeight = s.supplyWeight;
+                    const avgWeight = count > 0 ? supplyWeight / count : 0;
+                    return {
+                        partName,
+                        planDate,
+                        sublot: s.sublot,
+                        count,
+                        avgWeight,
+                        supplyWeight,
+                    };
+                });
+                await tx.dpsSupplyTransaction.createMany({
+                    data: createData
+                });
+            }
+        });
+        return { success: true };
+    }
+    async getSavedDpsSupply(partName, dateStr) {
+        const planDate = new Date(dateStr);
+        const supplies = await prisma_1.default.dpsSupplyTransaction.findMany({
+            where: {
+                partName,
+                planDate: planDate
+            },
+            orderBy: { sublot: 'asc' }
+        });
+        return supplies.map(s => ({
+            id: s.id,
+            date: s.planDate.toISOString(),
+            sublot: s.sublot,
+            count: Number(s.count),
+            avgWeight: Number(s.avgWeight),
+            supplyWeight: Number(s.supplyWeight),
+            totalWeight: Number(s.supplyWeight),
+        }));
+    }
+};
+exports.DpsService = DpsService;
+exports.DpsService = DpsService = __decorate([
+    (0, common_1.Injectable)()
+], DpsService);
+//# sourceMappingURL=dps.service.js.map

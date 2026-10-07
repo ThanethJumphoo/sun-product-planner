@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, Delete } from '@nestjs/common';
 import { MpsService } from './mps.service';
 import { JwtAuthGuard } from '../../core/guards/jwt-auth.guard';
 
@@ -22,5 +22,22 @@ export class MpsController {
     @Query('endDate') endDate: string,
   ) {
     return this.mpsService.getMpsSupply(partName, startDate, endDate);
+  }
+
+  @Post(':partName/auto-generate')
+  async autoGeneratePlan(
+    @Param('partName') partName: string,
+    @Body('currentMonth') currentMonth: string,
+  ) {
+    return this.mpsService.autoGeneratePlan(partName, currentMonth);
+  }
+
+  @Delete(':partName/plans')
+  async clearPlans(
+    @Param('partName') partName: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.mpsService.clearPlans(partName, startDate, endDate);
   }
 }

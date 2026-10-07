@@ -29,7 +29,7 @@ const staticMenuSections = [
     items: [
       { name: "Monthly", href: "/chicken-receiving/monthly", icon: Calendar },
       { name: "Weekly", href: "/chicken-receiving/weekly", icon: Calendar },
-      { name: "Daily", href: "/chicken-receiving/daily", icon: Calendar, disabled: true },
+      { name: "Daily", href: "/chicken-receiving/daily", icon: Calendar },
     ],
   },
   {
@@ -93,7 +93,7 @@ export function Sidebar() {
                 icon: Activity,
                 subItems: [
                   { name: "MPS", href: `/planning/${encodeURIComponent(part.name)}/mps`, icon: ClipboardList },
-                  { name: "DPS", href: `/planning/${encodeURIComponent(part.name)}/dps`, icon: Calendar, disabled: true },
+                  { name: "DPS", href: `/planning/${encodeURIComponent(part.name)}/dps`, icon: Calendar },
                 ],
               })),
             };

@@ -65,4 +65,36 @@ export class ChickenReceivingController {
   async deleteWeeklyRecord(@Param('id') id: string) {
     return this.service.deleteWeeklyRecord(id);
   }
+
+  // --- Daily Routes ---
+
+  @Get('daily')
+  async getDailyRecords(@Query() query: any) {
+    return this.service.getDailyRecords(query);
+  }
+
+  @Post('daily')
+  async createDailyRecord(@Body() data: any) {
+    return this.service.createDailyRecord(data);
+  }
+
+  @Post('daily/bulk')
+  async bulkCreateDailyRecords(@Body() data: any[]) {
+    return this.service.bulkCreateDailyRecords(data);
+  }
+
+  @Put('daily/:id')
+  async updateDailyRecord(@Param('id') id: string, @Body() data: any) {
+    return this.service.updateDailyRecord(id, data);
+  }
+
+  @Delete('daily/clear')
+  async clearDailyRecords(@Query() query: any) {
+    return this.service.clearDailyRecords(query);
+  }
+
+  @Delete('daily/:id')
+  async deleteDailyRecord(@Param('id') id: string) {
+    return this.service.deleteDailyRecord(id);
+  }
 }

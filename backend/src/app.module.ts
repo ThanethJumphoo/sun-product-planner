@@ -21,6 +21,7 @@ import { ProductSpecModule } from './modules/master-data/product-spec/product-sp
 import { DemandPlanningModule } from './modules/demand-planning/demand-planning.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { MpsModule } from './modules/mps/mps.module';
+import { DpsModule } from './modules/dps/dps.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { MpsModule } from './modules/mps/mps.module';
     ProductSpecModule,
     DemandPlanningModule,
     MpsModule,
+    DpsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -227,4 +227,175 @@ export class ChickenReceivingService {
       where: { id },
     });
   }
+
+  // --- Daily Methods ---
+  
+  async getDailyRecords(query: any) {
+    const { page = 1, limit = 1000, dateFrom, dateTo } = query;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+
+    if (dateFrom || dateTo) {
+      where.receiveDate = {};
+      if (dateFrom) where.receiveDate.gte = new Date(dateFrom);
+      if (dateTo) where.receiveDate.lte = new Date(dateTo);
+    }
+
+    const [data, total] = await Promise.all([
+      prisma.dailyChickenReceiving.findMany({
+        where,
+        skip: Number(skip),
+        take: Number(limit),
+        orderBy: [
+          { receiveDate: 'asc' },
+          { actualReceiveDate: 'asc' },
+          { receiveTime: 'asc' }
+        ],
+      }),
+      prisma.dailyChickenReceiving.count({ where }),
+    ]);
+
+    return { data, total, page: Number(page), limit: Number(limit) };
+  }
+
+  async createDailyRecord(data: any) {
+    let actualReceiveDate = new Date(data.receiveDate);
+    let receiveDate = new Date(data.receiveDate);
+    // If no time is provided, default to a safe time like 12:00 so it doesn't shift to the previous day
+    const time = data.receiveTime && data.receiveTime.trim() !== '' ? data.receiveTime : '12:00';
+    
+    // Shift date by -1 if time is between 00:00 and 03:49
+    const [hours, minutes] = time.split(':').map(Number);
+    if (hours < 3 || (hours === 3 && minutes <= 49)) {
+      receiveDate.setDate(receiveDate.getDate() - 1);
+    }
+
+    const totalCount = Number(data.totalCount);
+    const totalWeight = Number(data.totalWeight);
+    const averageWeight = totalCount > 0 ? Number((totalWeight / totalCount).toFixed(2)) : 0;
+
+    return prisma.dailyChickenReceiving.create({
+      data: {
+        receiveDate,
+        actualReceiveDate,
+        shift: data.shift || '',
+        receiveTime: time,
+        totalCount,
+        totalWeight,
+        averageWeight,
+        farmName: data.farmName || '',
+        standardFarmName: data.standardFarmName || '',
+        house: data.house || '',
+        sex: data.sex || 'ผู้',
+        sublot: data.sublot || '',
+      },
+    });
+  }
+
+  async bulkCreateDailyRecords(records: any[]) {
+    const formattedRecords = records.map((data) => {
+      let actualReceiveDate = new Date(data.receiveDate);
+      let receiveDate = new Date(data.receiveDate);
+      const time = data.receiveTime && data.receiveTime.trim() !== '' ? data.receiveTime : '12:00';
+      
+      const [hours, minutes] = time.split(':').map(Number);
+      if (hours < 3 || (hours === 3 && minutes <= 49)) {
+        receiveDate.setDate(receiveDate.getDate() - 1);
+      }
+
+      const totalCount = Number(data.totalCount);
+      const totalWeight = Number(data.totalWeight);
+      const averageWeight = totalCount > 0 ? Number((totalWeight / totalCount).toFixed(2)) : 0;
+      
+      return {
+        receiveDate,
+        actualReceiveDate,
+        shift: data.shift || '',
+        receiveTime: time,
+        totalCount,
+        totalWeight,
+        averageWeight,
+        farmName: data.farmName || '',
+        standardFarmName: data.standardFarmName || '',
+        house: data.house || '',
+        sex: data.sex || 'ผู้',
+        sublot: data.sublot || '',
+      };
+    });
+
+    return prisma.dailyChickenReceiving.createMany({
+      data: formattedRecords,
+    });
+  }
+
+  async updateDailyRecord(id: string, data: any) {
+    const record = await prisma.dailyChickenReceiving.findUnique({
+      where: { id },
+    });
+    if (!record) throw new NotFoundException('Record not found');
+
+    const updateData: any = { ...data };
+    
+    if (data.receiveDate || data.receiveTime) {
+      const time = (data.receiveTime && data.receiveTime.trim() !== '') ? data.receiveTime : (record.receiveTime || '12:00');
+      const baseDate = data.receiveDate ? new Date(data.receiveDate) : new Date(record.actualReceiveDate || record.receiveDate);
+      
+      let actualReceiveDate = new Date(baseDate);
+      let receiveDate = new Date(baseDate);
+      
+      const [hours, minutes] = time.split(':').map(Number);
+      if (hours < 3 || (hours === 3 && minutes <= 49)) {
+        receiveDate.setDate(receiveDate.getDate() - 1);
+      }
+
+      updateData.receiveDate = receiveDate;
+      updateData.actualReceiveDate = actualReceiveDate;
+      updateData.receiveTime = time;
+    }
+
+    const totalCount = data.totalCount !== undefined ? Number(data.totalCount) : Number(record.totalCount);
+    const totalWeight = data.totalWeight !== undefined ? Number(data.totalWeight) : Number(record.totalWeight);
+
+    if (data.totalCount !== undefined) updateData.totalCount = totalCount;
+    if (data.totalWeight !== undefined) updateData.totalWeight = totalWeight;
+
+    if (data.totalCount !== undefined || data.totalWeight !== undefined) {
+      updateData.averageWeight = totalCount > 0 ? Number((totalWeight / totalCount).toFixed(2)) : 0;
+    }
+
+    delete updateData.id;
+    delete updateData.createdAt;
+    delete updateData.updatedAt;
+
+    return prisma.dailyChickenReceiving.update({
+      where: { id },
+      data: updateData,
+    });
+  }
+
+  async deleteDailyRecord(id: string) {
+    return prisma.dailyChickenReceiving.delete({
+      where: { id },
+    });
+  }
+
+  async clearDailyRecords(query: any) {
+    const { dateFrom, dateTo } = query;
+    const where: any = {};
+    if (dateFrom || dateTo) {
+      where.receiveDate = {};
+      if (dateFrom) where.receiveDate.gte = new Date(dateFrom);
+      if (dateTo) where.receiveDate.lte = new Date(dateTo);
+    }
+    
+    // Safety check: require at least one date boundary to avoid accidental full wipes
+    if (!where.receiveDate) {
+       throw new Error('Please specify dateFrom or dateTo to clear data.');
+    }
+
+    return prisma.dailyChickenReceiving.deleteMany({
+      where,
+    });
+  }
 }
