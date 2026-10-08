@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Database, Search, Filter, X } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
-import { ColDef, ICellRendererParams } from "ag-grid-community";
+import { ColDef, ICellRendererParams, themeAlpine } from 'ag-grid-community';
 import api from "@/lib/api";
 import { toast } from "react-hot-toast";
 import { format } from "date-fns";
@@ -228,9 +228,9 @@ export default function BusinessSaleOrderPage() {
         </div>
 
         {/* AG Grid */}
-        <div className="flex-1 w-full h-full ag-theme-alpine">
+        <div className="flex-1 w-full h-full ">
           <AgGridReact
-            theme="legacy"
+            theme={themeAlpine}
             rowData={rowData}
             columnDefs={colDefs}
             defaultColDef={{

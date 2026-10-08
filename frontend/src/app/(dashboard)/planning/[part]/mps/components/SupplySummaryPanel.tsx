@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { Package, Scale, Calculator, AlertCircle } from 'lucide-react';
 import api from '@/lib/api';
-import OutputsSummaryPanel from './OutputsSummaryPanel';
+import OutputsSummaryPanel from '@/features/planning/components/shared/OutputsSummaryPanel';
 
 export default function SupplySummaryPanel({ 
   selectedDate, 

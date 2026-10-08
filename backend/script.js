@@ -1,0 +1,1 @@
+const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); prisma.productSpec.findMany({ where: { erpItemCode: { in: ['111141201', '111141204'] } } }).then(console.log).finally(() => prisma.$disconnect());

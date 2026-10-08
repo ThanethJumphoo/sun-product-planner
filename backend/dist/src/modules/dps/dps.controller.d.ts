@@ -2,22 +2,7 @@ import { DpsService } from './dps.service';
 export declare class DpsController {
     private readonly dpsService;
     constructor(dpsService: DpsService);
-    getMpsSupply(partName: string, date: string): Promise<{
-        id: string;
-        date: string;
-        actualReceiveDate: string | null;
-        shift: string | null;
-        receiveTime: string | null;
-        farmName: string | null;
-        standardFarmName: string | null;
-        house: string | null;
-        sex: string | null;
-        sublot: string | null;
-        count: number;
-        avgWeight: number;
-        totalWeight: number;
-        supplyWeight: number;
-    }[]>;
+    getMpsSupply(partName: string, date: string): Promise<any[]>;
     saveDpsSupply(partName: string, date: string, supplies: any[]): Promise<{
         success: boolean;
     }>;
@@ -47,5 +32,17 @@ export declare class DpsController {
         sublot: string;
         createdAt: Date;
         updatedAt: Date;
+    }[]>;
+    saveTransfers(partName: string, date: string, sublot: string, transfers: any[]): Promise<{
+        success: boolean;
+    }>;
+    getTransfers(partName: string, date: string): Promise<{
+        id: string;
+        sublot: string;
+        type: string;
+        rmSize: string;
+        qty: number;
+        sourceDest: string;
+        isAuto: boolean;
     }[]>;
 }

@@ -52,6 +52,16 @@ let DpsController = class DpsController {
         }
         return this.dpsService.getSavedDpsDemands(partName, date, sublot);
     }
+    async saveTransfers(partName, date, sublot, transfers) {
+        if (!date || !sublot)
+            throw new Error('Date and sublot are required');
+        return this.dpsService.saveTransfers(partName, date, sublot, transfers);
+    }
+    async getTransfers(partName, date) {
+        if (!date)
+            throw new Error('Date is required');
+        return this.dpsService.getTransfers(partName, date);
+    }
 };
 exports.DpsController = DpsController;
 __decorate([
@@ -106,6 +116,24 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], DpsController.prototype, "getDailyOrders", null);
+__decorate([
+    (0, common_1.Post)(':partName/transfers'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Query)('date')),
+    __param(2, (0, common_1.Query)('sublot')),
+    __param(3, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, Array]),
+    __metadata("design:returntype", Promise)
+], DpsController.prototype, "saveTransfers", null);
+__decorate([
+    (0, common_1.Get)(':partName/transfers'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Query)('date')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], DpsController.prototype, "getTransfers", null);
 exports.DpsController = DpsController = __decorate([
     (0, common_1.Controller)('api/v1/dps'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

@@ -66,4 +66,24 @@ export class DpsController {
     }
     return this.dpsService.getSavedDpsDemands(partName, date, sublot);
   }
+
+  @Post(':partName/transfers')
+  async saveTransfers(
+    @Param('partName') partName: string,
+    @Query('date') date: string,
+    @Query('sublot') sublot: string,
+    @Body() transfers: any[]
+  ) {
+    if (!date || !sublot) throw new Error('Date and sublot are required');
+    return this.dpsService.saveTransfers(partName, date, sublot, transfers);
+  }
+
+  @Get(':partName/transfers')
+  async getTransfers(
+    @Param('partName') partName: string,
+    @Query('date') date: string,
+  ) {
+    if (!date) throw new Error('Date is required');
+    return this.dpsService.getTransfers(partName, date);
+  }
 }

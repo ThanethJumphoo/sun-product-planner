@@ -238,6 +238,21 @@ model DpsSupplyTransaction {
   @@map("dps_supplies")
 }
 
+model DpsRmTransfer {
+  id         String   @id @default(uuid())
+  partName   String   @map("part_name") @db.NVarChar(100)
+  planDate   DateTime @map("plan_date") @db.Date
+  sublot     String   @db.NVarChar(100)
+  type       String   @db.NVarChar(10) // 'IN' or 'OUT'
+  rmSize     String   @map("rm_size") @db.NVarChar(100)
+  qty        Decimal  @db.Decimal(15, 2)
+  sourceDest String   @map("source_dest") @db.NVarChar(100)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("dps_rm_transfers")
+}
+
 model Demand {
   id         Int      @id @default(autoincrement())
   productId  Int

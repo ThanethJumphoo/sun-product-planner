@@ -17,22 +17,7 @@ export declare class DpsService {
         createdAt: Date;
         updatedAt: Date;
     }[]>;
-    getMpsSupply(partName: string, dateStr: string): Promise<{
-        id: string;
-        date: string;
-        actualReceiveDate: string | null;
-        shift: string | null;
-        receiveTime: string | null;
-        farmName: string | null;
-        standardFarmName: string | null;
-        house: string | null;
-        sex: string | null;
-        sublot: string | null;
-        count: number;
-        avgWeight: number;
-        totalWeight: number;
-        supplyWeight: number;
-    }[]>;
+    getMpsSupply(partName: string, dateStr: string): Promise<any[]>;
     saveDpsSupply(partName: string, dateStr: string, supplies: any[]): Promise<{
         success: boolean;
     }>;
@@ -44,5 +29,17 @@ export declare class DpsService {
         avgWeight: number;
         supplyWeight: number;
         totalWeight: number;
+    }[]>;
+    saveTransfers(partName: string, dateStr: string, sublot: string, transfers: any[]): Promise<{
+        success: boolean;
+    }>;
+    getTransfers(partName: string, dateStr: string): Promise<{
+        id: string;
+        sublot: string;
+        type: string;
+        rmSize: string;
+        qty: number;
+        sourceDest: string;
+        isAuto: boolean;
     }[]>;
 }

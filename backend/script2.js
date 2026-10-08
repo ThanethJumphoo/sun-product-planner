@@ -1,0 +1,1 @@
+const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); prisma.partRmSize.findMany({ where: { partName: 'Fillet' } }).then(console.log).finally(() => prisma.$disconnect());

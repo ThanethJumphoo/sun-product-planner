@@ -2,7 +2,7 @@
 
 import React, { useCallback, useMemo, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { ColDef, GridReadyEvent, ColumnState } from 'ag-grid-community';
+import { ColDef, GridReadyEvent, ColumnState, themeAlpine } from 'ag-grid-community';
 import { useUsers } from '../../api/queries';
 import { useUsersUrlState } from '../../hooks/useUsersUrlState';
 import { useUsersPreferenceStore } from '../../stores/preference.store';
@@ -131,9 +131,9 @@ export function UsersTable() {
         </div>
       )}
       
-      <div className="ag-theme-alpine h-full w-full">
+      <div className="h-full w-full">
         <AgGridReact
-          theme="legacy"
+          theme={themeAlpine}
           ref={gridRef}
           rowData={rowData}
           columnDefs={columns}

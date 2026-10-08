@@ -4,6 +4,7 @@ import { useRoles } from '../../api/queries';
 import { useRolesUrlState } from '../../hooks/useRolesUrlState';
 import { useRolesPreferenceStore } from '../../stores/preference.store';
 import { roleColumns } from './RoleColumns';
+import { themeAlpine } from 'ag-grid-community';
 
 
 export function RolesTable() {
@@ -63,9 +64,9 @@ export function RolesTable() {
       )}
 
 
-      <div className="ag-theme-alpine w-full h-full">
+      <div className="w-full h-full">
         <AgGridReact
-          theme="legacy"
+          theme={themeAlpine}
           ref={gridRef}
           rowData={data?.data || []}
           columnDefs={roleColumns}

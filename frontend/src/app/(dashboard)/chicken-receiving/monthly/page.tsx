@@ -7,13 +7,7 @@ import api from '@/lib/api';
 import { toast } from 'react-hot-toast';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, subMonths, addMonths, isSameMonth, isSameDay } from 'date-fns';
 
-interface MonthlyRecord {
-  id: string;
-  receiveDate: string;
-  numberOfChickens: number;
-  totalWeight: number;
-  averageWeight: number;
-}
+import { MonthlyReceivingModal, MonthlyRecord } from '@/features/master-data/chicken-receiving/components/MonthlyReceivingModal';
 
 export default function MonthlyChickenReceivingPage() {
   const [records, setRecords] = useState<MonthlyRecord[]>([]);
@@ -357,102 +351,20 @@ export default function MonthlyChickenReceivingPage() {
         {renderCells()}
       </div>
 
-      {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/50">
-              <h2 className="text-lg font-semibold text-slate-800">
-                {isEditing ? 'Edit Record' : 'Add New Record'}
-              </h2>
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors p-1"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleSave} className="p-5 overflow-y-auto">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Receive Date</label>
-                  <input 
-                    type="date" 
-                    required
-                    value={receiveDate}
-                    onChange={(e) => setReceiveDate(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Number of Chickens (Heads)</label>
-                  <input 
-                    type="number" 
-                    required
-                    min="1"
-                    value={numberOfChickens}
-                    onChange={(e) => setNumberOfChickens(e.target.value)}
-                    placeholder="e.g. 50000"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Total Weight (Kg)</label>
-                  <input 
-                    type="number" 
-                    required
-                    min="0"
-                    step="0.01"
-                    value={totalWeight}
-                    onChange={(e) => setTotalWeight(e.target.value)}
-                    placeholder="e.g. 125000.50"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
-                  />
-                </div>
-
-                <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4 mt-2">
-                  <label className="block text-xs font-semibold text-blue-800 uppercase tracking-wider mb-1">Calculated Average Weight</label>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold text-blue-900">{averageWeight}</span>
-                    <span className="text-sm font-medium text-blue-700">Kg/Head</span>
-                  </div>
-                  <p className="text-[10px] text-blue-600 mt-1">Auto-calculated based on inputs (2 decimal places)</p>
-                </div>
-              </div>
-
-              <div className="mt-8 flex gap-3">
-                {isEditing && (
-                  <button 
-                    type="button"
-                    onClick={(e) => handleDelete(currentId, e as any)}
-                    className="px-4 py-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-medium transition-colors flex items-center justify-center"
-                    title="Delete Record"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-                <button 
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  className="flex-[2] bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm flex items-center justify-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  {isEditing ? 'Save Changes' : 'Create Record'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <MonthlyReceivingModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        isEditing={isEditing}
+        receiveDate={receiveDate}
+        setReceiveDate={setReceiveDate}
+        numberOfChickens={numberOfChickens}
+        setNumberOfChickens={setNumberOfChickens}
+        totalWeight={totalWeight}
+        setTotalWeight={setTotalWeight}
+        averageWeight={averageWeight}
+        handleSave={handleSave}
+        handleDelete={(e) => handleDelete(currentId, e as any)}
+      />
     </div>
   );
 }

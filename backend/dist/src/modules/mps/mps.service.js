@@ -15,22 +15,49 @@ const prisma_1 = __importDefault(require("../../lib/prisma"));
 const autoGeneratePlan_1 = require("./utils/autoGeneratePlan");
 let MpsService = class MpsService {
     async saveMpsSupply(partName, payload) {
-        const result = await prisma_1.default.$transaction(payload.map((item) => prisma_1.default.mpsSupply.upsert({
-            where: {
-                partName_planDate: {
+        if (payload.length === 0)
+            return { success: true, count: 0 };
+        const dates = payload.map(p => new Date(p.date));
+        const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+        const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+        const payloadDateStrings = payload.map(p => new Date(p.date).toISOString().split('T')[0]);
+        const result = await prisma_1.default.$transaction(async (tx) => {
+            const existing = await tx.mpsSupply.findMany({
+                where: {
+                    partName,
+                    planDate: {
+                        gte: minDate,
+                        lte: maxDate,
+                    }
+                }
+            });
+            const toDelete = existing.filter(e => {
+                const dStr = e.planDate.toISOString().split('T')[0];
+                return !payloadDateStrings.includes(dStr);
+            });
+            if (toDelete.length > 0) {
+                await tx.mpsSupply.deleteMany({
+                    where: { id: { in: toDelete.map(d => d.id) } }
+                });
+            }
+            const upserts = payload.map((item) => tx.mpsSupply.upsert({
+                where: {
+                    partName_planDate: {
+                        partName: partName,
+                        planDate: new Date(item.date),
+                    },
+                },
+                update: {
+                    supplyWeight: item.weight,
+                },
+                create: {
                     partName: partName,
                     planDate: new Date(item.date),
+                    supplyWeight: item.weight,
                 },
-            },
-            update: {
-                supplyWeight: item.weight,
-            },
-            create: {
-                partName: partName,
-                planDate: new Date(item.date),
-                supplyWeight: item.weight,
-            },
-        })));
+            }));
+            return Promise.all(upserts);
+        });
         return { success: true, count: result.length };
     }
     async getMpsSupply(partName, startDate, endDate) {

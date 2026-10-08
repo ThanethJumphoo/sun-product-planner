@@ -4,6 +4,7 @@ import { useChickenYields } from '../../api/queries';
 import { useChickenYieldsUrlState } from '../../hooks/useChickenYieldsUrlState';
 import { useChickenYieldsPreferenceStore } from '../../stores/preference.store';
 import { chickenYieldColumns } from './ChickenYieldColumns';
+import { themeAlpine } from 'ag-grid-community';
 
 
 export function ChickenYieldsTable() {
@@ -62,9 +63,9 @@ export function ChickenYieldsTable() {
 
 
 
-      <div className="ag-theme-alpine w-full h-full">
+      <div className="w-full h-full">
         <AgGridReact
-          theme="legacy"
+          theme={themeAlpine}
           ref={gridRef}
           rowData={data?.data || []}
           columnDefs={chickenYieldColumns}
