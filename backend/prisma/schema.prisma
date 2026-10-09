@@ -179,12 +179,13 @@ model DemandPlanLine {
   soNumber     String   @map("so_number") @db.NVarChar(100)
   lineNumber   String   @map("line_number") @db.NVarChar(50)
   itemCode     String   @map("item_code") @db.NVarChar(50)
+  shipDate     DateTime @map("ship_date") @db.Date
   priority     Int      @map("priority")
   planQty      Decimal? @map("plan_qty") @db.Decimal(15, 2)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  @@unique([partName, soNumber, lineNumber, itemCode])
+  @@unique([partName, soNumber, lineNumber, itemCode, shipDate])
   @@map("demand_plan_lines")
 }
 
@@ -216,10 +217,11 @@ model DpsDemandTransaction {
   plannedQty      Decimal  @map("planned_qty") @db.Decimal(15, 2)
   allocatedRmSize String?  @map("allocated_rm_size") @db.NVarChar(100)
   sublot          String   @default("1") @db.NVarChar(100)
+  splitIndex      Int      @default(0) @map("split_index")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  @@unique([partName, planDate, soNumber, itemCode, sublot], name: "unique_dps_demand")
+  @@unique([partName, planDate, soNumber, itemCode, sublot, splitIndex], name: "unique_dps_demand")
   @@map("dps_demand_transactions")
 }
 

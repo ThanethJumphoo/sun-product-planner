@@ -94,6 +94,7 @@ export function Sidebar() {
                 subItems: [
                   { name: "MPS", href: `/planning/${encodeURIComponent(part.name)}/mps`, icon: ClipboardList },
                   { name: "DPS", href: `/planning/${encodeURIComponent(part.name)}/dps`, icon: Calendar },
+                  { name: "Resources", href: `/planning/${encodeURIComponent(part.name)}/resources`, icon: Users },
                 ],
               })),
             };

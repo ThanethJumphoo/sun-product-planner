@@ -12,12 +12,14 @@ export const DpsGlobalOrders: React.FC<DpsGlobalOrdersProps> = ({ globalOrders, 
     <div className="p-4 border-b border-slate-200 shrink-0">
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-800">Production Demands</h3>
-          {globalOrders.length > 0 && (
-            <span className="text-sm text-slate-500 font-medium bg-slate-100 px-3 py-1 rounded-full">
-              {globalOrders.length} items
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            <h3 className="text-base font-bold text-slate-800">Production Demands</h3>
+            {globalOrders.length > 0 && (
+              <span className="text-sm text-slate-500 font-medium bg-slate-100 px-3 py-1 rounded-full">
+                {globalOrders.length} items
+              </span>
+            )}
+          </div>
         </div>
         
         {globalOrders.length === 0 ? (

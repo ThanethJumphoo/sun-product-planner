@@ -6,16 +6,17 @@ export declare class DpsService {
     getSavedDpsDemands(partName: string, dateStr: string, sublot?: string): Promise<{
         plannedQty: number;
         id: string;
-        partName: string;
-        planDate: Date;
-        soNumber: string;
-        itemCode: string;
-        itemName: string | null;
-        itemCategory: string | null;
-        allocatedRmSize: string | null;
-        sublot: string;
         createdAt: Date;
         updatedAt: Date;
+        partName: string;
+        itemCode: string;
+        sublot: string;
+        itemCategory: string | null;
+        soNumber: string;
+        planDate: Date;
+        allocatedRmSize: string | null;
+        splitIndex: number;
+        itemName: string | null;
     }[]>;
     getMpsSupply(partName: string, dateStr: string): Promise<any[]>;
     saveDpsSupply(partName: string, dateStr: string, supplies: any[]): Promise<{

@@ -123,8 +123,27 @@ let ErpSaleOrderService = ErpSaleOrderService_1 = class ErpSaleOrderService {
                ODL.LINE_NUMBER         AS LINE_NUMBER,
                ITM.INVENTORY_ITEM_ID   AS ERP_ITEM_ID,
                ITM.SEGMENT1            AS ERP_ITEM_CODE,
-               ODL.ORDERED_QUANTITY    AS ORDERED_QUANTITY,
-               ODL.ORDER_QUANTITY_UOM  AS ORDER_QUANTITY_UOM,
+               NVL(
+                 NULLIF(
+                   INV_CONVERT.inv_um_convert(
+                     ODL.INVENTORY_ITEM_ID,
+                     5,
+                     ODL.ORDERED_QUANTITY,
+                     ODL.ORDER_QUANTITY_UOM,
+                     'KG',
+                     NULL,
+                     NULL
+                   ), 
+                   -99999
+                 ),
+                 ODL.ORDERED_QUANTITY
+               )                       AS ORDERED_QUANTITY,
+               CASE
+                 WHEN ODL.ORDER_QUANTITY_UOM != 'KG' 
+                      AND NVL(INV_CONVERT.inv_um_convert(ODL.INVENTORY_ITEM_ID, 5, 1, ODL.ORDER_QUANTITY_UOM, 'KG', NULL, NULL), -99999) != -99999
+                   THEN 'KG'
+                 ELSE ODL.ORDER_QUANTITY_UOM
+               END                     AS ORDER_QUANTITY_UOM,
                ODL.UNIT_SELLING_PRICE  AS UNIT_SELLING_PRICE,
                ODL.SCHEDULE_SHIP_DATE  AS SCHEDULE_SHIP_DATE,
                ODL.CREATION_DATE       AS ERP_CREATION_DATE,
@@ -258,8 +277,27 @@ let ErpSaleOrderService = ErpSaleOrderService_1 = class ErpSaleOrderService {
                ODL.LINE_NUMBER         AS LINE_NUMBER,
                ITM.INVENTORY_ITEM_ID   AS ERP_ITEM_ID,
                ITM.SEGMENT1            AS ERP_ITEM_CODE,
-               ODL.ORDERED_QUANTITY    AS ORDERED_QUANTITY,
-               ODL.ORDER_QUANTITY_UOM  AS ORDER_QUANTITY_UOM,
+               NVL(
+                 NULLIF(
+                   INV_CONVERT.inv_um_convert(
+                     ODL.INVENTORY_ITEM_ID,
+                     5,
+                     ODL.ORDERED_QUANTITY,
+                     ODL.ORDER_QUANTITY_UOM,
+                     'KG',
+                     NULL,
+                     NULL
+                   ), 
+                   -99999
+                 ),
+                 ODL.ORDERED_QUANTITY
+               )                       AS ORDERED_QUANTITY,
+               CASE
+                 WHEN ODL.ORDER_QUANTITY_UOM != 'KG' 
+                      AND NVL(INV_CONVERT.inv_um_convert(ODL.INVENTORY_ITEM_ID, 5, 1, ODL.ORDER_QUANTITY_UOM, 'KG', NULL, NULL), -99999) != -99999
+                   THEN 'KG'
+                 ELSE ODL.ORDER_QUANTITY_UOM
+               END                     AS ORDER_QUANTITY_UOM,
                ODL.UNIT_SELLING_PRICE  AS UNIT_SELLING_PRICE,
                ODL.SCHEDULE_SHIP_DATE  AS SCHEDULE_SHIP_DATE,
                ODL.CREATION_DATE       AS ERP_CREATION_DATE,
@@ -285,6 +323,7 @@ let ErpSaleOrderService = ErpSaleOrderService_1 = class ErpSaleOrderService {
                         await prisma_1.default.$transaction(lineChunk.map((r) => prisma_1.default.erpSaleOrderLine.upsert({
                             where: { erpOrderLineId: String(r.ERP_ORDER_LINE_ID) },
                             update: {
+                                erpLineNumber: String(r.LINE_NUMBER || ''),
                                 orderedQuantity: r.ORDERED_QUANTITY,
                                 orderQuantityUom: r.ORDER_QUANTITY_UOM || '',
                                 unitSellingPrice: r.UNIT_SELLING_PRICE || 0,
@@ -299,6 +338,7 @@ let ErpSaleOrderService = ErpSaleOrderService_1 = class ErpSaleOrderService {
                                 header: {
                                     connect: { erpOrderHeaderId: String(r.HEADER_ID) },
                                 },
+                                erpLineNumber: String(r.LINE_NUMBER || ''),
                                 erpItemId: String(r.ERP_ITEM_ID),
                                 erpItemCode: String(r.ERP_ITEM_CODE),
                                 orderedQuantity: r.ORDERED_QUANTITY,

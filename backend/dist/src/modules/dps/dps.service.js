@@ -110,56 +110,34 @@ let DpsService = class DpsService {
     async saveDpsDemands(partName, dateStr, demands, sublot = "1") {
         const planDate = new Date(dateStr);
         await prisma_1.default.$transaction(async (tx) => {
-            const existing = await tx.dpsDemandTransaction.findMany({
+            await tx.dpsDemandTransaction.deleteMany({
                 where: { partName, planDate, sublot }
             });
-            const incomingKeys = new Set(demands?.map(d => `${d.soNumber}_${d.itemCode}`) || []);
-            const toDeleteIds = existing
-                .filter(e => !incomingKeys.has(`${e.soNumber}_${e.itemCode}`))
-                .map(e => e.id);
-            if (toDeleteIds.length > 0) {
-                await tx.dpsDemandTransaction.deleteMany({
-                    where: { id: { in: toDeleteIds } }
-                });
-            }
             if (demands && demands.length > 0) {
-                for (const d of demands) {
+                const createData = demands.map((d, index) => {
                     let rmSizeId = null;
                     if (Array.isArray(d.allocatedRmSize) && d.allocatedRmSize.length > 0) {
-                        rmSizeId = d.allocatedRmSize[0].id;
+                        rmSizeId = d.allocatedRmSize[0].id || d.allocatedRmSize[0].name || d.allocatedRmSize[0];
                     }
                     else if (typeof d.allocatedRmSize === 'string') {
                         rmSizeId = d.allocatedRmSize;
                     }
-                    await tx.dpsDemandTransaction.upsert({
-                        where: {
-                            unique_dps_demand: {
-                                partName,
-                                planDate,
-                                sublot,
-                                soNumber: d.soNumber,
-                                itemCode: d.itemCode
-                            }
-                        },
-                        update: {
-                            itemName: d.itemName,
-                            itemCategory: d.itemCategory,
-                            plannedQty: d.plannedQty,
-                            allocatedRmSize: rmSizeId,
-                        },
-                        create: {
-                            partName,
-                            planDate,
-                            sublot,
-                            soNumber: d.soNumber,
-                            itemCode: d.itemCode,
-                            itemName: d.itemName,
-                            itemCategory: d.itemCategory,
-                            plannedQty: d.plannedQty,
-                            allocatedRmSize: rmSizeId,
-                        }
-                    });
-                }
+                    return {
+                        partName,
+                        planDate,
+                        sublot,
+                        soNumber: d.soNumber,
+                        itemCode: d.itemCode,
+                        itemName: d.itemName,
+                        itemCategory: d.itemCategory,
+                        plannedQty: d.plannedQty,
+                        allocatedRmSize: rmSizeId,
+                        splitIndex: index,
+                    };
+                });
+                await tx.dpsDemandTransaction.createMany({
+                    data: createData,
+                });
             }
         });
         return { success: true };

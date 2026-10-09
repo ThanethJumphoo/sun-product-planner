@@ -32,6 +32,10 @@ export default function SublotProductionAllocation({
     rowDataRef.current = rowData;
   }, [rowData]);
 
+  useEffect(() => {
+    setRowData(allocations || []);
+  }, [allocations]);
+
   const [colDefs] = useState<ColDef[]>([
     { field: 'soNumber', headerName: 'SO Number', sortable: true, filter: true, width: 150 },
     { field: 'itemCode', headerName: 'Item Code', sortable: true, filter: true, width: 130 },

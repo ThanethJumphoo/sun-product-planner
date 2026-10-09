@@ -69,7 +69,7 @@ let DemandPlanningService = class DemandPlanningService {
         });
         const savedPlansMap = new Map();
         savedPlans.forEach(p => {
-            savedPlansMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}`, {
+            savedPlansMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}_${new Date(p.shipDate).toISOString()}`, {
                 priority: p.priority,
                 planQty: p.planQty ? Number(p.planQty) : null
             });
@@ -113,7 +113,7 @@ let DemandPlanningService = class DemandPlanningService {
                 const soNumber = line.header.erpOrderNumber;
                 const lineNumber = line.erpLineNumber || '-';
                 const itemCode = line.erpItemCode;
-                const key = `${soNumber}_${lineNumber}_${itemCode}`;
+                const key = `${soNumber}_${lineNumber}_${itemCode}_${line.scheduleShipDate ? new Date(line.scheduleShipDate).toISOString() : ''}`;
                 const saved = savedPlansMap.get(key);
                 return {
                     priority: saved?.priority ?? (index + 1),
@@ -142,20 +142,51 @@ let DemandPlanningService = class DemandPlanningService {
     async saveDemandPlans(partName, payload) {
         return prisma_1.default.$transaction(async (tx) => {
             const existing = await tx.demandPlanLine.findMany({ where: { partName } });
-            const payloadKeys = new Set(payload.map(p => `${p.soNumber}_${p.lineNumber}_${p.itemCode}`));
-            const toDelete = existing.filter(e => !payloadKeys.has(`${e.soNumber}_${e.lineNumber}_${e.itemCode}`));
+            const payloadKeys = new Set(payload.map(p => {
+                try {
+                    return `${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate ? new Date(p.shipDate).toISOString() : 'no-date'}`;
+                }
+                catch (e) {
+                    return `${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate}`;
+                }
+            }));
+            const toDelete = existing.filter(e => {
+                try {
+                    const eDate = e.shipDate ? new Date(e.shipDate).toISOString() : 'no-date';
+                    return !payloadKeys.has(`${e.soNumber}_${e.lineNumber}_${e.itemCode}_${eDate}`);
+                }
+                catch (err) {
+                    return !payloadKeys.has(`${e.soNumber}_${e.lineNumber}_${e.itemCode}_${e.shipDate}`);
+                }
+            });
             for (const item of toDelete) {
                 await tx.demandPlanLine.delete({
                     where: { id: item.id }
                 });
             }
-            const upserts = payload.map(line => tx.demandPlanLine.upsert({
+            const uniquePayloadMap = new Map();
+            for (const p of payload) {
+                try {
+                    uniquePayloadMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate ? new Date(p.shipDate).toISOString() : 'no-date'}`, p);
+                }
+                catch (e) {
+                    uniquePayloadMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate}`, p);
+                }
+            }
+            const uniquePayload = Array.from(uniquePayloadMap.values());
+            const startOfDayUTC = (d) => {
+                const date = new Date(d);
+                date.setUTCHours(0, 0, 0, 0);
+                return date;
+            };
+            const upserts = uniquePayload.map((line) => tx.demandPlanLine.upsert({
                 where: {
-                    partName_soNumber_lineNumber_itemCode: {
+                    partName_soNumber_lineNumber_itemCode_shipDate: {
                         partName,
                         soNumber: line.soNumber,
                         lineNumber: line.lineNumber,
                         itemCode: line.itemCode,
+                        shipDate: line.shipDate ? startOfDayUTC(line.shipDate) : startOfDayUTC(new Date()),
                     }
                 },
                 update: {
@@ -167,6 +198,7 @@ let DemandPlanningService = class DemandPlanningService {
                     soNumber: line.soNumber,
                     lineNumber: line.lineNumber,
                     itemCode: line.itemCode,
+                    shipDate: line.shipDate ? startOfDayUTC(line.shipDate) : startOfDayUTC(new Date()),
                     priority: line.priority,
                     planQty: line.planQty,
                 }

@@ -50,6 +50,7 @@ export declare class DemandPlanningService {
         soNumber: string;
         lineNumber: string;
         itemCode: string;
+        shipDate: string;
         priority: number;
         planQty: number | null;
     }[]): Promise<{
@@ -60,10 +61,10 @@ export declare class DemandPlanningService {
         createdAt: Date;
         updatedAt: Date;
         partName: string;
-        itemCode: string;
+        planDate: Date;
         soNumber: string;
         lineNumber: string;
-        planDate: Date;
+        itemCode: string;
         plannedQty: import("@prisma/client/runtime/library").Decimal;
         allocatedRmSize: string | null;
         splitIndex: number;
@@ -73,10 +74,10 @@ export declare class DemandPlanningService {
         createdAt: Date;
         updatedAt: Date;
         partName: string;
-        itemCode: string;
+        planDate: Date;
         soNumber: string;
         lineNumber: string;
-        planDate: Date;
+        itemCode: string;
         plannedQty: import("@prisma/client/runtime/library").Decimal;
         allocatedRmSize: string | null;
         splitIndex: number;

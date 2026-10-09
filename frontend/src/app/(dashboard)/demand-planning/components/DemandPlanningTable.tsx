@@ -74,6 +74,7 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
         soNumber: line.soNumber,
         lineNumber: line.lineNumber,
         itemCode: line.itemCode,
+        shipDate: line.shipDate,
         priority: line.priority,
         planQty: line.planQty !== null && line.planQty !== '' && line.planQty !== undefined ? Number(line.planQty) : null
       }));

@@ -72,6 +72,11 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   const [demandSearchQuery, setDemandSearchQuery] = useState("");
   const [demandTab, setDemandTab] = useState<'product' | 'coproduct' | 'byproduct'>('product');
   const [isLoadingPlannedDemands, setIsLoadingPlannedDemands] = useState(false);
+  const [visibleCards, setVisibleCards] = useState(20);
+
+  useEffect(() => {
+    setVisibleCards(20);
+  }, [demandTab, demandSearchQuery]);
 
   const filteredDemands = useMemo(() => {
     let list = plannedDemands.filter(d => d.category === demandTab);
@@ -398,6 +403,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         soNumber: item.soNumber,
         lineNumber: item.lineNumber,
         itemCode: item.itemCode,
+        shipDate: item.shipDate,
         priority: item.priority,
         planQty: item.planQty,
       }));
@@ -1101,21 +1107,33 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                     <p className="text-xs mt-1 text-center">Try changing the category or search keyword</p>
                   </div>
                 ) : (
-                  filteredDemands.map((demand, i) => (
-                    <MpsDemandCard 
-                      key={`${demand.soNumber}-${demand.itemCode}-${i}`}
-                      demand={demand}
-                      selectedDate={selectedDate}
-                      partName={partName}
-                      isSaving={isSaving}
-                      monthlyPlans={monthlyPlans}
-                      handleUpdateSplitPlan={handleUpdateSplitPlan}
-                      fetchDailyPlans={fetchDailyPlans}
-                      fetchCalendarData={fetchCalendarData}
-                      specs={specs}
-                      rmSizes={rmSizes}
-                    />
-                  ))
+                  <>
+                    {filteredDemands.slice(0, visibleCards).map((demand, i) => (
+                      <MpsDemandCard 
+                        key={`${demand.soNumber}-${demand.itemCode}-${i}`}
+                        demand={demand}
+                        selectedDate={selectedDate}
+                        partName={partName}
+                        isSaving={isSaving}
+                        monthlyPlans={monthlyPlans}
+                        handleUpdateSplitPlan={handleUpdateSplitPlan}
+                        fetchDailyPlans={fetchDailyPlans}
+                        fetchCalendarData={fetchCalendarData}
+                        specs={specs}
+                        rmSizes={rmSizes}
+                      />
+                    ))}
+                    {filteredDemands.length > visibleCards && (
+                      <div className="flex justify-center p-4">
+                        <button 
+                          onClick={() => setVisibleCards(v => v + 20)}
+                          className="px-4 py-2 bg-white border border-slate-200 text-primary font-medium rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+                        >
+                          Load More ({filteredDemands.length - visibleCards} remaining)
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -1139,6 +1157,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         isOpen={isDemandModalOpen}
         onClose={() => setIsDemandModalOpen(false)}
         partName={partName}
+        currentMonth={currentMonth}
         demandData={demandData}
         activeDemandTab={activeDemandTab}
         setActiveDemandTab={setActiveDemandTab}

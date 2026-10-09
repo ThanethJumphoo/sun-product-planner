@@ -1,5 +1,5 @@
 import React from "react";
-import { ShoppingCart, X } from "lucide-react";
+import { ShoppingCart, X, Calendar } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import { themeAlpine } from 'ag-grid-community';
 
@@ -7,6 +7,7 @@ interface MpsDemandModalProps {
   isOpen: boolean;
   onClose: () => void;
   partName: string;
+  currentMonth: Date;
   demandData: any[];
   activeDemandTab: 'product' | 'coproduct' | 'byproduct';
   setActiveDemandTab: (tab: 'product' | 'coproduct' | 'byproduct') => void;
@@ -25,6 +26,7 @@ export function MpsDemandModal({
   isOpen,
   onClose,
   partName,
+  currentMonth,
   demandData,
   activeDemandTab,
   setActiveDemandTab,
@@ -65,28 +67,52 @@ export function MpsDemandModal({
         {/* Modal Content */}
         <div className="flex-1 flex flex-col overflow-hidden p-4 bg-slate-50/50 gap-4">
           {/* Tabs */}
-          <div className="flex gap-2">
-            {[
-              { id: 'product', label: 'Product', count: demandData.filter(d => d.category === 'product').length },
-              { id: 'coproduct', label: 'Co-Product', count: demandData.filter(d => d.category === 'coproduct').length },
-              { id: 'byproduct', label: 'By-Product', count: demandData.filter(d => d.category === 'byproduct').length }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveDemandTab(tab.id as any)}
-                className={`
-                  px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 border
-                  ${activeDemandTab === tab.id 
-                    ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20' 
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'}
-                `}
-              >
-                {tab.label}
-                <span className={`px-2 py-0.5 rounded-full text-xs ${activeDemandTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                  {tab.count}
-                </span>
-              </button>
-            ))}
+          <div className="flex justify-between items-center">
+            <div className="flex gap-2">
+              {[
+                { id: 'product', label: 'Product', count: demandData.filter(d => d.category === 'product').length },
+                { id: 'coproduct', label: 'Co-Product', count: demandData.filter(d => d.category === 'coproduct').length },
+                { id: 'byproduct', label: 'By-Product', count: demandData.filter(d => d.category === 'byproduct').length }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveDemandTab(tab.id as any)}
+                  className={`
+                    px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 border
+                    ${activeDemandTab === tab.id 
+                      ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20' 
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'}
+                  `}
+                >
+                  {tab.label}
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${activeDemandTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <button 
+              onClick={() => {
+                if (demandGridRef.current?.api) {
+                  const api = demandGridRef.current.api;
+                  const nodesToSelect: any[] = [];
+                  api.forEachNodeAfterFilterAndSort((node: any) => {
+                    if (node.data && node.data.shipDate) {
+                      const d = new Date(node.data.shipDate);
+                      if (d.getMonth() === currentMonth.getMonth() && d.getFullYear() === currentMonth.getFullYear()) {
+                        nodesToSelect.push(node);
+                      }
+                    }
+                  });
+                  nodesToSelect.forEach(node => node.setSelected(true));
+                }
+              }}
+              className="px-3 py-1.5 text-sm bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors font-medium hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <Calendar size={16} className="text-primary" />
+              Ship This Month
+            </button>
           </div>
 
           {isLoadingDemand ? (
@@ -111,7 +137,7 @@ export function MpsDemandModal({
                 pagination={true}
                 paginationPageSize={20}
                 rowSelection={{ mode: "multiRow" }}
-                getRowId={(params) => `${params.data.soNumber}_${params.data.lineNumber}_${params.data.itemCode}`}
+                getRowId={(params) => params.data.id || `${params.data.soNumber}_${params.data.lineNumber}_${params.data.itemCode}_${params.data.shipDate}_${Math.random().toString(36).substring(7)}`}
                 onRowSelected={onRowSelected}
                 onFirstDataRendered={onRowDataUpdated}
                 onRowDataUpdated={onRowDataUpdated}

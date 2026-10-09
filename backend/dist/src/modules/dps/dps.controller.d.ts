@@ -22,16 +22,17 @@ export declare class DpsController {
     getDailyOrders(partName: string, date: string, sublot: string): Promise<{
         plannedQty: number;
         id: string;
-        partName: string;
-        planDate: Date;
-        soNumber: string;
-        itemCode: string;
-        itemName: string | null;
-        itemCategory: string | null;
-        allocatedRmSize: string | null;
-        sublot: string;
         createdAt: Date;
         updatedAt: Date;
+        partName: string;
+        itemCode: string;
+        sublot: string;
+        itemCategory: string | null;
+        soNumber: string;
+        planDate: Date;
+        allocatedRmSize: string | null;
+        splitIndex: number;
+        itemName: string | null;
     }[]>;
     saveTransfers(partName: string, date: string, sublot: string, transfers: any[]): Promise<{
         success: boolean;

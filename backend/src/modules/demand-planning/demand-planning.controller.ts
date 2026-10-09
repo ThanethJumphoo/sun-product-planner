@@ -15,7 +15,7 @@ export class DemandPlanningController {
   @Post(':partName/sales-orders')
   async saveDemandPlans(
     @Param('partName') partName: string,
-    @Body() payload: { soNumber: string; lineNumber: string; itemCode: string; priority: number; planQty: number | null }[]
+    @Body() payload: { soNumber: string; lineNumber: string; itemCode: string; shipDate: string; priority: number; planQty: number | null }[]
   ) {
     return this.service.saveDemandPlans(partName, payload);
   }

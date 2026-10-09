@@ -69,9 +69,11 @@ export default function DPSPage() {
 
   // Initialize Zustand state when Server Data changes
   useEffect(() => {
-    if (!isLoading && allDemands.length > 0) {
+    if (!isLoading) {
       // 1. Initialize Allocations
       const allocationsBySublot: Record<string, any[]> = {};
+      savedSupplies.forEach(s => allocationsBySublot[s.sublot] = []);
+
       allDemands.forEach((d: any) => {
         if (d.sublot !== 'GLOBAL') {
           if (!allocationsBySublot[d.sublot]) allocationsBySublot[d.sublot] = [];
@@ -90,23 +92,21 @@ export default function DPSPage() {
           
           let availableSizes = [];
           if (!isMainProduct) {
-            availableSizes = [{ id: '-', name: '-' }];
+            availableSizes = ['-'];
           } else if (allowedIds.length === 0 || allowedIds.includes('Unsize') || allowedIds.includes('All')) {
-            availableSizes = allSizes.map((s: any) => ({
-              id: s.id.toString(),
-              name: s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}g` : s.minSize ? `>${s.minSize}g` : s.maxSize ? `<${s.maxSize}g` : 'Unsize'
-            }));
+            availableSizes = allSizes.map((s: any) => 
+              s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}g` : s.minSize ? `>${s.minSize}g` : s.maxSize ? `<${s.maxSize}g` : 'Unsize'
+            );
           } else {
             availableSizes = allSizes
               .filter((s: any) => allowedIds.includes(s.id.toString()))
-              .map((s: any) => ({
-                id: s.id.toString(),
-                name: s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}g` : s.minSize ? `>${s.minSize}g` : s.maxSize ? `<${s.maxSize}g` : 'Unsize'
-              }));
+              .map((s: any) => 
+                s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}g` : s.minSize ? `>${s.minSize}g` : s.maxSize ? `<${s.maxSize}g` : 'Unsize'
+              );
           }
 
           if (availableSizes.length === 0) {
-            availableSizes = [{ id: '-', name: '-' }];
+            availableSizes = ['-'];
           }
 
           allocationsBySublot[d.sublot].push({
@@ -118,12 +118,17 @@ export default function DPSPage() {
             shipDate: d.planDate,
             requiredQty: 0,
             plannedQty: d.plannedQty,
-            rmSize: d.allocatedRmSize || availableSizes[0].id,
+            rmSize: d.allocatedRmSize || availableSizes[0],
             availableRmSizes: availableSizes,
           });
         }
       });
-      setAllSublotAllocations(allocationsBySublot);
+      
+      const prevAlloc = useDpsStore.getState().sublotAllocations;
+      // Simple deep compare to prevent infinite loop
+      if (JSON.stringify(prevAlloc) !== JSON.stringify(allocationsBySublot)) {
+        setAllSublotAllocations(allocationsBySublot);
+      }
       
       // 2. Initialize Transfers
       const transfersBySublot: Record<string, any[]> = {};
@@ -133,14 +138,22 @@ export default function DPSPage() {
           transfersBySublot[t.sublot].push(t);
         });
       }
-      setAllSublotRmTransfers(transfersBySublot);
+      
+      const prevTransfers = useDpsStore.getState().sublotRmTransfers;
+      if (JSON.stringify(prevTransfers) !== JSON.stringify(transfersBySublot)) {
+        setAllSublotRmTransfers(transfersBySublot);
+      }
       
       // 3. Setup active sublot
-      let currentSublot = activeSublot;
+      const currentStateActiveSublot = useDpsStore.getState().activeSublot;
+      let currentSublot = currentStateActiveSublot;
+      
       if (savedSupplies.length > 0 && !savedSupplies.find((s: any) => s.sublot === currentSublot)) {
         currentSublot = savedSupplies[0].sublot;
-        setActiveSublot(currentSublot);
-      } else if (savedSupplies.length === 0) {
+        if (currentSublot !== currentStateActiveSublot) {
+          setActiveSublot(currentSublot);
+        }
+      } else if (savedSupplies.length === 0 && currentStateActiveSublot !== '') {
         setActiveSublot('');
       }
     }
@@ -274,6 +287,195 @@ export default function DPSPage() {
     }
   };
 
+  const handleAutoAllocate = async () => {
+    if (savedSupplies.length === 0) {
+      toast.error('No sublots available for allocation');
+      return;
+    }
+    
+    setIsCalculating(true);
+    try {
+      const numSublots = savedSupplies.length;
+      const dateString = format(currentDay, 'yyyy-MM-dd');
+      
+      // 1. Prepare sublot payloads and calculate Available RM by Sublot and Size
+      const sublotPayloads: Record<string, any[]> = {};
+      const availableRM: Record<string, any[]> = {};
+      let totalDailyWeight = 0;
+      
+      let allRmSizesGlobal: any[] = [];
+      if (Array.isArray(wdMatrix) && wdMatrix.length > 0) {
+        allRmSizesGlobal = wdMatrix[0].rmSizes.map((rm: any) => rm.rmSize);
+      }
+
+      savedSupplies.forEach((s: any) => {
+        sublotPayloads[s.sublot] = [];
+        availableRM[s.sublot] = [];
+        totalDailyWeight += Number(s.totalWeight || 0);
+        
+        const roundedAvgWeight = Number(Number(s.avgWeight).toFixed(2));
+        const row = wdMatrix?.find((r: any) => roundedAvgWeight >= Number(r.chickenWeight.minWeight) && roundedAvgWeight <= Number(r.chickenWeight.maxWeight));
+        
+        if (row) {
+          row.rmSizes.forEach((rmDist: any) => {
+            const percent = Number(rmDist.percent) || 0;
+            if (percent > 0) {
+              const rm = rmDist.rmSize;
+              const sizeName = rm.minSize && rm.maxSize ? `${rm.minSize}-${rm.maxSize}g` : rm.minSize ? `>${rm.minSize}g` : rm.maxSize ? `<${rm.maxSize}g` : 'Unsize';
+              availableRM[s.sublot].push({
+                name: sizeName,
+                weight: (percent / 100) * Number(s.totalWeight)
+              });
+            }
+          });
+        }
+      });
+
+      if (totalDailyWeight === 0) {
+        toast.error('Total RM weight for the day is zero. Cannot distribute.');
+        setIsCalculating(false);
+        return;
+      }
+
+      // 2. Greedy Allocation for Products
+      globalOrders.forEach((order: any) => {
+        const producedQty = getOrderProducedQty(order.soNumber, order.itemCode);
+        let remainingQty = Math.max(0, Number(order.plannedQty) - producedQty);
+        
+        if (remainingQty <= 0) return;
+
+        const spec = specMap[order.itemCode];
+        const isMainProduct = (order.itemCategory || spec?.itemCategory || '').toLowerCase() === 'product';
+        const yieldPercent = spec?.yieldPercent || 100;
+        
+        if (!isMainProduct) {
+          // Non-products (Co-product, By-product): Proportional split without consuming RM
+          let runningTotal = 0;
+          savedSupplies.forEach((s: any, idx: number) => {
+            let allocatedQty = 0;
+            if (idx === savedSupplies.length - 1) {
+              allocatedQty = Number((remainingQty - runningTotal).toFixed(2));
+            } else {
+              const weightRatio = Number(s.totalWeight || 0) / totalDailyWeight;
+              allocatedQty = Number((remainingQty * weightRatio).toFixed(2));
+              runningTotal += allocatedQty;
+            }
+            if (allocatedQty > 0) {
+              sublotPayloads[s.sublot].push({ ...order, plannedQty: allocatedQty, allocatedRmSize: '-' });
+            }
+          });
+        } else {
+          // Main Product: Smart RM Size Matching
+          let requiredRM = remainingQty / (yieldPercent / 100);
+          
+          let allowedSizeNames: string[] = [];
+          let isAnySize = false;
+          let fallbackSizeName = '-';
+
+          let allowedIds: string[] = [];
+          if (spec && spec.rmSizesJson) {
+            try { allowedIds = JSON.parse(spec.rmSizesJson).map(String); } catch(e){}
+          }
+          
+          if (allowedIds.length === 0 || allowedIds.includes('Unsize') || allowedIds.includes('All')) {
+            isAnySize = true;
+          } else {
+            const matchedSizes = allRmSizesGlobal.filter(s => allowedIds.includes(s.id.toString()));
+            allowedSizeNames = matchedSizes.map(s => s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}g` : s.minSize ? `>${s.minSize}g` : s.maxSize ? `<${s.maxSize}g` : 'Unsize');
+            if (allowedSizeNames.length > 0) fallbackSizeName = allowedSizeNames[0];
+          }
+
+          // Pass 1: Try to consume available RM that matches the allowed sizes
+          savedSupplies.forEach((s: any) => {
+            if (requiredRM <= 0) return;
+            
+            const rmList = availableRM[s.sublot];
+            for (const rm of rmList) {
+              if (requiredRM <= 0) break;
+              
+              if ((isAnySize || allowedSizeNames.includes(rm.name)) && rm.weight > 0) {
+                const takeRM = Math.min(requiredRM, rm.weight);
+                const produceQty = Number((takeRM * (yieldPercent / 100)).toFixed(2));
+                
+                if (produceQty > 0) {
+                  sublotPayloads[s.sublot].push({ ...order, plannedQty: produceQty, allocatedRmSize: rm.name });
+                  rm.weight -= takeRM;
+                  requiredRM -= takeRM;
+                  remainingQty = Math.max(0, remainingQty - produceQty);
+                }
+              }
+            }
+          });
+
+          // Pass 2: If there's STILL remainingQty (not enough matching RM), force proportional split over sublots to show shortage
+          if (remainingQty > 0.01) {
+            let runningTotal = 0;
+            const originalRemaining = remainingQty;
+            savedSupplies.forEach((s: any, idx: number) => {
+              let allocatedQty = 0;
+              if (idx === savedSupplies.length - 1) {
+                allocatedQty = Number((originalRemaining - runningTotal).toFixed(2));
+              } else {
+                const weightRatio = Number(s.totalWeight || 0) / totalDailyWeight;
+                allocatedQty = Number((originalRemaining * weightRatio).toFixed(2));
+                runningTotal += allocatedQty;
+              }
+              if (allocatedQty > 0) {
+                sublotPayloads[s.sublot].push({ ...order, plannedQty: allocatedQty, allocatedRmSize: fallbackSizeName });
+              }
+            });
+          }
+        }
+      });
+
+      const promises = savedSupplies.map((s: any) => 
+        api.post(`/api/v1/dps/${partName}/demands`, sublotPayloads[s.sublot], {
+          params: { date: dateString, sublot: s.sublot }
+        })
+      );
+      
+      await Promise.all(promises);
+      toast.success('Auto allocation completed successfully!');
+      refetchAll();
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to auto allocate demands');
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
+  const handleClearAllocate = async () => {
+    if (savedSupplies.length === 0) {
+      toast.error('No sublots to clear');
+      return;
+    }
+    
+    if (!window.confirm('Are you sure you want to clear all allocations for today? This cannot be undone.')) {
+      return;
+    }
+    
+    setIsCalculating(true);
+    try {
+      const dateString = format(currentDay, 'yyyy-MM-dd');
+      
+      const promises = savedSupplies.map((s: any) => 
+        api.post(`/api/v1/dps/${partName}/demands`, [], {
+          params: { date: dateString, sublot: s.sublot }
+        })
+      );
+      
+      await Promise.all(promises);
+      toast.success('All sublot allocations cleared successfully!');
+      refetchAll();
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to clear allocations');
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
   const prevDay = () => setCurrentDay(subDays(currentDay, 1));
   const nextDay = () => setCurrentDay(addDays(currentDay, 1));
   const goToToday = () => setCurrentDay(new Date());
@@ -292,6 +494,8 @@ export default function DPSPage() {
         prevDay={prevDay}
         nextDay={nextDay}
         goToToday={goToToday}
+        onAutoAllocate={handleAutoAllocate}
+        onClearAllocate={handleClearAllocate}
       />
 
       {/* Content */}

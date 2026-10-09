@@ -64,7 +64,7 @@ export class DemandPlanningService {
     });
     const savedPlansMap = new Map();
     savedPlans.forEach(p => {
-      savedPlansMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}`, {
+      savedPlansMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}_${new Date(p.shipDate).toISOString()}`, {
         priority: p.priority,
         planQty: p.planQty ? Number(p.planQty) : null
       });
@@ -115,7 +115,7 @@ export class DemandPlanningService {
         const soNumber = line.header.erpOrderNumber;
         const lineNumber = line.erpLineNumber || '-';
         const itemCode = line.erpItemCode;
-        const key = `${soNumber}_${lineNumber}_${itemCode}`;
+        const key = `${soNumber}_${lineNumber}_${itemCode}_${line.scheduleShipDate ? new Date(line.scheduleShipDate).toISOString() : ''}`;
         const saved = savedPlansMap.get(key);
         
         return {
@@ -147,14 +147,27 @@ export class DemandPlanningService {
     };
   }
 
-  async saveDemandPlans(partName: string, payload: { soNumber: string; lineNumber: string; itemCode: string; priority: number; planQty: number | null }[]) {
+  async saveDemandPlans(partName: string, payload: { soNumber: string; lineNumber: string; itemCode: string; shipDate: string; priority: number; planQty: number | null }[]) {
     return prisma.$transaction(async (tx) => {
       // 1. Fetch existing plans for this part
       const existing = await tx.demandPlanLine.findMany({ where: { partName } });
-      const payloadKeys = new Set(payload.map(p => `${p.soNumber}_${p.lineNumber}_${p.itemCode}`));
+      const payloadKeys = new Set(payload.map(p => {
+        try {
+          return `${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate ? new Date(p.shipDate).toISOString() : 'no-date'}`;
+        } catch(e) {
+          return `${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate}`;
+        }
+      }));
       
       // 2. Delete lines that are not in the payload anymore
-      const toDelete = existing.filter(e => !payloadKeys.has(`${e.soNumber}_${e.lineNumber}_${e.itemCode}`));
+      const toDelete = existing.filter(e => {
+        try {
+          const eDate = e.shipDate ? new Date(e.shipDate).toISOString() : 'no-date';
+          return !payloadKeys.has(`${e.soNumber}_${e.lineNumber}_${e.itemCode}_${eDate}`);
+        } catch (err) {
+          return !payloadKeys.has(`${e.soNumber}_${e.lineNumber}_${e.itemCode}_${e.shipDate}`);
+        }
+      });
       
       for (const item of toDelete) {
         await tx.demandPlanLine.delete({
@@ -162,15 +175,33 @@ export class DemandPlanningService {
         });
       }
 
-      // 3. Upsert the payload lines
-      const upserts = payload.map(line => 
+      // Deduplicate payload to prevent concurrent upsert unique constraint errors
+      const uniquePayloadMap = new Map();
+      for (const p of payload) {
+        try {
+          uniquePayloadMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate ? new Date(p.shipDate).toISOString() : 'no-date'}`, p);
+        } catch(e) {
+          uniquePayloadMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate}`, p);
+        }
+      }
+      const uniquePayload = Array.from(uniquePayloadMap.values());
+
+      const startOfDayUTC = (d: any) => {
+        const date = new Date(d);
+        date.setUTCHours(0, 0, 0, 0);
+        return date;
+      };
+
+      // 3. Upsert the unique payload lines
+      const upserts = uniquePayload.map((line: any) => 
         tx.demandPlanLine.upsert({
           where: {
-            partName_soNumber_lineNumber_itemCode: {
+            partName_soNumber_lineNumber_itemCode_shipDate: {
               partName,
               soNumber: line.soNumber,
               lineNumber: line.lineNumber,
               itemCode: line.itemCode,
+              shipDate: line.shipDate ? startOfDayUTC(line.shipDate) : startOfDayUTC(new Date()),
             }
           },
           update: {
@@ -182,6 +213,7 @@ export class DemandPlanningService {
             soNumber: line.soNumber,
             lineNumber: line.lineNumber,
             itemCode: line.itemCode,
+            shipDate: line.shipDate ? startOfDayUTC(line.shipDate) : startOfDayUTC(new Date()),
             priority: line.priority,
             planQty: line.planQty,
           }
