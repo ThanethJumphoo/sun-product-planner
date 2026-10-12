@@ -1,10 +1,15 @@
 export declare class DpsService {
     getMpsDemands(partName: string, dateStr: string): Promise<any[]>;
+    getItemLocationsMap(partName: string): Promise<{
+        itemLocationMap: Record<string, string>;
+        locations: string[];
+    }>;
     saveDpsDemands(partName: string, dateStr: string, demands: any[], sublot?: string): Promise<{
         success: boolean;
     }>;
     getSavedDpsDemands(partName: string, dateStr: string, sublot?: string): Promise<{
         plannedQty: number;
+        location: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;

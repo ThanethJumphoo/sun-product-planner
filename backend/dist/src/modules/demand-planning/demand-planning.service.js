@@ -69,7 +69,7 @@ let DemandPlanningService = class DemandPlanningService {
         });
         const savedPlansMap = new Map();
         savedPlans.forEach(p => {
-            savedPlansMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}_${new Date(p.shipDate).toISOString()}`, {
+            savedPlansMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}_${this.toDateKey(p.shipDate)}`, {
                 priority: p.priority,
                 planQty: p.planQty ? Number(p.planQty) : null
             });
@@ -113,7 +113,7 @@ let DemandPlanningService = class DemandPlanningService {
                 const soNumber = line.header.erpOrderNumber;
                 const lineNumber = line.erpLineNumber || '-';
                 const itemCode = line.erpItemCode;
-                const key = `${soNumber}_${lineNumber}_${itemCode}_${line.scheduleShipDate ? new Date(line.scheduleShipDate).toISOString() : ''}`;
+                const key = `${soNumber}_${lineNumber}_${itemCode}_${this.toDateKey(line.scheduleShipDate)}`;
                 const saved = savedPlansMap.get(key);
                 return {
                     priority: saved?.priority ?? (index + 1),
@@ -139,25 +139,28 @@ let DemandPlanningService = class DemandPlanningService {
             byproduct: processGroup(groupedLines.byproduct),
         };
     }
+    toDateKey(d) {
+        if (!d)
+            return 'no-date';
+        try {
+            const date = new Date(d);
+            if (isNaN(date.getTime()))
+                return 'no-date';
+            date.setUTCHours(0, 0, 0, 0);
+            return date.toISOString();
+        }
+        catch {
+            return 'no-date';
+        }
+    }
     async saveDemandPlans(partName, payload) {
         return prisma_1.default.$transaction(async (tx) => {
             const existing = await tx.demandPlanLine.findMany({ where: { partName } });
             const payloadKeys = new Set(payload.map(p => {
-                try {
-                    return `${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate ? new Date(p.shipDate).toISOString() : 'no-date'}`;
-                }
-                catch (e) {
-                    return `${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate}`;
-                }
+                return `${p.soNumber}_${p.lineNumber}_${p.itemCode}_${this.toDateKey(p.shipDate)}`;
             }));
             const toDelete = existing.filter(e => {
-                try {
-                    const eDate = e.shipDate ? new Date(e.shipDate).toISOString() : 'no-date';
-                    return !payloadKeys.has(`${e.soNumber}_${e.lineNumber}_${e.itemCode}_${eDate}`);
-                }
-                catch (err) {
-                    return !payloadKeys.has(`${e.soNumber}_${e.lineNumber}_${e.itemCode}_${e.shipDate}`);
-                }
+                return !payloadKeys.has(`${e.soNumber}_${e.lineNumber}_${e.itemCode}_${this.toDateKey(e.shipDate)}`);
             });
             for (const item of toDelete) {
                 await tx.demandPlanLine.delete({
@@ -166,43 +169,36 @@ let DemandPlanningService = class DemandPlanningService {
             }
             const uniquePayloadMap = new Map();
             for (const p of payload) {
-                try {
-                    uniquePayloadMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate ? new Date(p.shipDate).toISOString() : 'no-date'}`, p);
-                }
-                catch (e) {
-                    uniquePayloadMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate}`, p);
-                }
+                uniquePayloadMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}_${this.toDateKey(p.shipDate)}`, p);
             }
             const uniquePayload = Array.from(uniquePayloadMap.values());
-            const startOfDayUTC = (d) => {
-                const date = new Date(d);
-                date.setUTCHours(0, 0, 0, 0);
-                return date;
-            };
-            const upserts = uniquePayload.map((line) => tx.demandPlanLine.upsert({
-                where: {
-                    partName_soNumber_lineNumber_itemCode_shipDate: {
+            const upserts = uniquePayload.map((line) => {
+                const normalizedShipDate = new Date(this.toDateKey(line.shipDate || new Date()));
+                return tx.demandPlanLine.upsert({
+                    where: {
+                        partName_soNumber_lineNumber_itemCode_shipDate: {
+                            partName,
+                            soNumber: line.soNumber,
+                            lineNumber: line.lineNumber,
+                            itemCode: line.itemCode,
+                            shipDate: normalizedShipDate,
+                        }
+                    },
+                    update: {
+                        priority: line.priority,
+                        planQty: line.planQty !== null && line.planQty !== undefined ? Number(line.planQty) : null,
+                    },
+                    create: {
                         partName,
                         soNumber: line.soNumber,
                         lineNumber: line.lineNumber,
                         itemCode: line.itemCode,
-                        shipDate: line.shipDate ? startOfDayUTC(line.shipDate) : startOfDayUTC(new Date()),
+                        shipDate: normalizedShipDate,
+                        priority: line.priority,
+                        planQty: line.planQty !== null && line.planQty !== undefined ? Number(line.planQty) : null,
                     }
-                },
-                update: {
-                    priority: line.priority,
-                    planQty: line.planQty,
-                },
-                create: {
-                    partName,
-                    soNumber: line.soNumber,
-                    lineNumber: line.lineNumber,
-                    itemCode: line.itemCode,
-                    shipDate: line.shipDate ? startOfDayUTC(line.shipDate) : startOfDayUTC(new Date()),
-                    priority: line.priority,
-                    planQty: line.planQty,
-                }
-            }));
+                });
+            });
             await Promise.all(upserts);
             return { success: true };
         });

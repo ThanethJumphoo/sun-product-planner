@@ -49,6 +49,8 @@ export default function DPSPage() {
     wdMatrix, 
     transfers: savedTransfers, 
     specs: specMap, 
+    locations,
+    itemLocationMap,
     isLoading,
     refetchAll
   } = useDpsData(partName, currentDay);
@@ -72,7 +74,7 @@ export default function DPSPage() {
     if (!isLoading) {
       // 1. Initialize Allocations
       const allocationsBySublot: Record<string, any[]> = {};
-      savedSupplies.forEach(s => allocationsBySublot[s.sublot] = []);
+      savedSupplies.forEach((s: any) => allocationsBySublot[s.sublot] = []);
 
       allDemands.forEach((d: any) => {
         if (d.sublot !== 'GLOBAL') {
@@ -120,6 +122,7 @@ export default function DPSPage() {
             plannedQty: d.plannedQty,
             rmSize: d.allocatedRmSize || availableSizes[0],
             availableRmSizes: availableSizes,
+            location: d.location || itemLocationMap?.[d.itemCode] || '-',
           });
         }
       });
@@ -157,7 +160,7 @@ export default function DPSPage() {
         setActiveSublot('');
       }
     }
-  }, [allDemands, savedTransfers, savedSupplies, wdMatrix, specMap, isLoading]);
+  }, [allDemands, savedTransfers, savedSupplies, wdMatrix, specMap, itemLocationMap, isLoading]);
 
   const getOrderProducedQty = (soNumber: string, itemCode: string) => {
     let total = 0;
@@ -636,11 +639,13 @@ export default function DPSPage() {
                     orders={globalOrders.map((o: any) => {
                       const producedQty = getOrderProducedQty(o.soNumber, o.itemCode);
                       const remainingQty = Math.max(0, Number(o.plannedQty) - producedQty);
-                      return { ...o, remainingQty };
+                      return { ...o, remainingQty, location: o.location || itemLocationMap?.[o.itemCode] || '-' };
                     })}
                     allocations={sublotAllocations[activeSublot] || []}
                     onAllocationsChange={(newAllocations) => handleAllocationsChange(activeSublot, newAllocations)}
                     specs={specMap}
+                    locations={locations}
+                    itemLocationMap={itemLocationMap}
                   />
                 </div>
               )}

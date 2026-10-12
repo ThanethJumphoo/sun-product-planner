@@ -84,6 +84,8 @@ export class DpsService {
       categoryMap.set(spec.erpItemCode, spec.itemCategory || 'unknown');
     }
 
+    const { itemLocationMap } = await this.getItemLocationsMap(partName);
+
     // Convert map to array, sort, and format sizes
     const result = Array.from(grouped.values()).map(g => {
       const rmSizesData = Array.from(g.allocatedRmSizes).map(id => ({
@@ -95,6 +97,7 @@ export class DpsService {
         itemName: itemMap.get(g.itemCode) || 'Unknown Item',
         itemCategory: categoryMap.get(g.itemCode) || 'unknown',
         allocatedRmSize: rmSizesData, // Pass array of {id, name}
+        location: itemLocationMap[g.itemCode] || '-',
       };
     });
 
@@ -113,6 +116,109 @@ export class DpsService {
     });
 
     return result;
+  }
+
+  // Helper: Find FlowBoard for part and map item codes to Process Locations
+  async getItemLocationsMap(partName: string): Promise<{ itemLocationMap: Record<string, string>; locations: string[] }> {
+    const boards = await prisma.flowBoard.findMany({
+      where: {
+        OR: [
+          { name: `Master Production Flow - ${partName}` },
+          { name: { contains: partName } },
+          { name: 'Master Production Flow' },
+        ],
+      },
+      include: {
+        nodes: {
+          include: { nodeType: true },
+        },
+        edges: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const itemLocationMap: Record<string, string> = {};
+    const locationsSet = new Set<string>();
+
+    for (const board of boards) {
+      const nodes = board.nodes || [];
+      const edges = board.edges || [];
+
+      const findIncomingEdges = (targetId: string) => edges.filter((e: any) => e.target === targetId);
+
+      // 1. Collect all locations directly from PROCESS nodes
+      const processNodes = nodes.filter((n: any) => n.nodeType?.typeCode === 'PROCESS');
+      for (const pNode of processNodes) {
+        let pData: any = {};
+        try {
+          pData = JSON.parse(pNode.data || '{}');
+        } catch (e) {}
+        const loc = pData.Location || pData.location || null;
+        if (loc && typeof loc === 'string' && loc.trim() !== '') {
+          locationsSet.add(loc.trim());
+        }
+      }
+
+      // 2. Trace backward from ITEM nodes to find parent PROCESS node
+      const itemNodes = nodes.filter((n: any) => n.nodeType?.typeCode === 'ITEM');
+
+      for (const itemNode of itemNodes) {
+        const queue = [itemNode.id];
+        const visited = new Set<string>();
+        let foundProcessNode: any = null;
+
+        while (queue.length > 0) {
+          const curr = queue.shift()!;
+          if (visited.has(curr)) continue;
+          visited.add(curr);
+
+          const inEdges = findIncomingEdges(curr);
+          for (const e of inEdges) {
+            const srcNode = nodes.find((n: any) => n.id === e.source);
+            if (srcNode) {
+              if (srcNode.nodeType?.typeCode === 'PROCESS') {
+                foundProcessNode = srcNode;
+                break;
+              } else {
+                queue.push(srcNode.id);
+              }
+            }
+          }
+          if (foundProcessNode) break;
+        }
+
+        if (foundProcessNode) {
+          let pData: any = {};
+          try {
+            pData = JSON.parse(foundProcessNode.data || '{}');
+          } catch (e) {}
+
+          const loc = pData.Location || pData.location || null;
+          if (loc && typeof loc === 'string' && loc.trim() !== '') {
+            const trimmedLoc = loc.trim();
+            locationsSet.add(trimmedLoc);
+
+            let iData: any = {};
+            try {
+              iData = JSON.parse(itemNode.data || '{}');
+            } catch (e) {}
+
+            if (Array.isArray(iData.Items)) {
+              for (const it of iData.Items) {
+                if (it.erpItemCode && !itemLocationMap[it.erpItemCode]) {
+                  itemLocationMap[it.erpItemCode] = trimmedLoc;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      itemLocationMap,
+      locations: Array.from(locationsSet),
+    };
   }
 
   // 2. Save Selected Demands to DPS Table
@@ -167,9 +273,12 @@ export class DpsService {
       whereClause.sublot = sublot;
     }
 
-    const orders = await prisma.dpsDemandTransaction.findMany({
-      where: whereClause,
-    });
+    const [orders, { itemLocationMap }] = await Promise.all([
+      prisma.dpsDemandTransaction.findMany({
+        where: whereClause,
+      }),
+      this.getItemLocationsMap(partName),
+    ]);
 
     const categoryOrder: Record<string, number> = {
       'product': 1,
@@ -180,6 +289,7 @@ export class DpsService {
     const result = orders.map(o => ({
       ...o,
       plannedQty: Number(o.plannedQty),
+      location: itemLocationMap[o.itemCode] || '-',
     }));
 
     result.sort((a, b) => {

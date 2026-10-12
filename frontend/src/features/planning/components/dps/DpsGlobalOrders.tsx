@@ -39,6 +39,7 @@ export const DpsGlobalOrders: React.FC<DpsGlobalOrdersProps> = ({ globalOrders, 
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 sticky top-0 z-10">
                 <tr>
                   <th className="py-2 px-4 font-semibold">Type</th>
+                  <th className="py-2 px-4 font-semibold">Location</th>
                   <th className="py-2 px-4 font-semibold">SO Number</th>
                   <th className="py-2 px-4 font-semibold">Item Code</th>
                   <th className="py-2 px-4 font-semibold">Item Name</th>
@@ -56,6 +57,16 @@ export const DpsGlobalOrders: React.FC<DpsGlobalOrdersProps> = ({ globalOrders, 
                   return (
                     <tr key={order.id} className={`hover:bg-slate-50 transition-colors ${isComplete ? 'bg-green-50/30' : 'bg-white'}`}>
                       <td className="py-2 px-4 text-slate-500 capitalize">{order.itemCategory || 'Unknown'}</td>
+                      <td className="py-2 px-4">
+                        {order.location && order.location !== '-' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            {order.location}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-xs">-</span>
+                        )}
+                      </td>
                       <td className="py-2 px-4 font-medium text-slate-900">{order.soNumber}</td>
                       <td className="py-2 px-4 text-slate-600">{order.itemCode}</td>
                       <td className="py-2 px-4 text-slate-600 truncate max-w-xs">{order.itemName}</td>

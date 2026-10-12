@@ -61,10 +61,10 @@ export declare class DemandPlanningController {
         createdAt: Date;
         updatedAt: Date;
         partName: string;
-        planDate: Date;
+        itemCode: string;
         soNumber: string;
         lineNumber: string;
-        itemCode: string;
+        planDate: Date;
         plannedQty: import("@prisma/client/runtime/library").Decimal;
         allocatedRmSize: string | null;
         splitIndex: number;
@@ -74,10 +74,10 @@ export declare class DemandPlanningController {
         createdAt: Date;
         updatedAt: Date;
         partName: string;
-        planDate: Date;
+        itemCode: string;
         soNumber: string;
         lineNumber: string;
-        itemCode: string;
+        planDate: Date;
         plannedQty: import("@prisma/client/runtime/library").Decimal;
         allocatedRmSize: string | null;
         splitIndex: number;

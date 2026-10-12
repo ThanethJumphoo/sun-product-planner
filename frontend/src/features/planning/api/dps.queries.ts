@@ -73,6 +73,15 @@ export function useDpsData(partName: string, currentDay: Date) {
     enabled: uniqueItemCodes.length > 0
   });
 
+  // Fetch Process Locations for this part
+  const { data: locationsData = { locations: [], itemLocationMap: {} } } = useQuery({
+    queryKey: ['dps', partName, 'locations'],
+    queryFn: async () => {
+      const res = await api.get(`/api/v1/dps/${partName}/locations`);
+      return res.data || { locations: [], itemLocationMap: {} };
+    }
+  });
+
   const isLoading = isLoadingSupplies || isLoadingOrders || isLoadingWd || isLoadingTransfers || isLoadingSpecs;
 
   const refetchAll = () => {
@@ -87,6 +96,8 @@ export function useDpsData(partName: string, currentDay: Date) {
     wdMatrix,
     transfers,
     specs,
+    locations: (locationsData.locations || []) as string[],
+    itemLocationMap: (locationsData.itemLocationMap || {}) as Record<string, string>,
     isLoading,
     refetchAll
   };

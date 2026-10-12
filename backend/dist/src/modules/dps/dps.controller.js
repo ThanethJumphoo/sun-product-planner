@@ -52,6 +52,9 @@ let DpsController = class DpsController {
         }
         return this.dpsService.getSavedDpsDemands(partName, date, sublot);
     }
+    async getLocations(partName) {
+        return this.dpsService.getItemLocationsMap(partName);
+    }
     async saveTransfers(partName, date, sublot, transfers) {
         if (!date || !sublot)
             throw new Error('Date and sublot are required');
@@ -116,6 +119,13 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], DpsController.prototype, "getDailyOrders", null);
+__decorate([
+    (0, common_1.Get)(':partName/locations'),
+    __param(0, (0, common_1.Param)('partName')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], DpsController.prototype, "getLocations", null);
 __decorate([
     (0, common_1.Post)(':partName/transfers'),
     __param(0, (0, common_1.Param)('partName')),

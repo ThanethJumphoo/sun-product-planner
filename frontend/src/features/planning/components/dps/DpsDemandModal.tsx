@@ -33,9 +33,26 @@ export const DpsDemandModal: React.FC<DpsDemandModalProps> = ({
   const [selectedCount, setSelectedCount] = useState(0);
 
   const [colDefs] = useState<ColDef[]>([
-    { field: "soNumber", headerName: "SO Number", sortable: true, filter: true, width: 150 },
-    { field: "itemCode", headerName: "Item Code", sortable: true, filter: true, width: 130 },
+    { field: "soNumber", headerName: "SO Number", sortable: true, filter: true, width: 140 },
+    { field: "itemCode", headerName: "Item Code", sortable: true, filter: true, width: 120 },
     { field: "itemName", headerName: "Item Name", sortable: true, filter: true, flex: 1 },
+    { 
+      field: "location", 
+      headerName: "Location", 
+      sortable: true, 
+      filter: true, 
+      width: 130,
+      cellRenderer: (p: any) => {
+        const val = p.value;
+        if (!val || val === '-') return <span className="text-slate-400 text-xs italic">-</span>;
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            {val}
+          </span>
+        );
+      }
+    },
     { field: "plannedQty", headerName: "Plan Qty", sortable: true, type: 'numericColumn', valueFormatter: p => p.value?.toLocaleString() },
     { field: "allocatedRmSize", headerName: "Allocated RM Size", sortable: true, filter: true, width: 180, valueFormatter: p => Array.isArray(p.value) ? p.value.map((v: any) => v.name).join(', ') : p.value || '-' }
   ]);

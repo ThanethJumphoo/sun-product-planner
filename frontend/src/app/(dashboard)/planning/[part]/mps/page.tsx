@@ -395,10 +395,14 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   };
 
   const handleCreateDemand = async () => {
+    const selectedItems = demandData.filter(p => p.isSelected);
+    if (selectedItems.length === 0) {
+      toast.error("กรุณาเลือกรายการ Demand อย่างน้อย 1 รายการ");
+      return;
+    }
+
     setIsCreatingDemand(true);
     try {
-      const selectedItems = demandData.filter(p => p.isSelected);
-      
       const payload = selectedItems.map(item => ({
         soNumber: item.soNumber,
         lineNumber: item.lineNumber,
@@ -459,7 +463,14 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   }, [activeDemandTab]);
 
   const [demandColDefs] = useState<ColDef[]>([
-    { field: "priority", headerName: "Priority", sortable: true, width: 120 },
+    { 
+      field: "priority", 
+      headerName: "Priority", 
+      sortable: true, 
+      width: 140,
+      checkboxSelection: true,
+      headerCheckboxSelection: true
+    },
     { field: "shipDate", headerName: "Ship Date", sortable: true, filter: true, valueFormatter: (p) => p.value ? format(new Date(p.value), 'dd/MM/yyyy') : '-' },
     { field: "productType", headerName: "Product Type", sortable: true, filter: true, width: 130 },
     { field: "itemCode", headerName: "Item Code", sortable: true, filter: true, width: 130 },
@@ -725,20 +736,30 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
     }
   };
 
-  // Resizing logic
+  // Resizing logic with requestAnimationFrame for smooth 60fps interaction
   const startResizingBottom = (mouseDownEvent: React.MouseEvent) => {
     mouseDownEvent.preventDefault();
+    setIsDraggingBottom(true);
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
     const startY = mouseDownEvent.clientY;
     const startHeight = bottomHeight;
+    let rafId: number | null = null;
     
     const onMouseMove = (mouseMoveEvent: MouseEvent) => {
-      setIsDraggingBottom(true);
-      const delta = startY - mouseMoveEvent.clientY;
-      setBottomHeight(Math.max(100, Math.min(800, startHeight + delta)));
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        const delta = startY - mouseMoveEvent.clientY;
+        setBottomHeight(Math.max(100, Math.min(800, startHeight + delta)));
+        rafId = null;
+      });
     };
     
     const onMouseUp = () => {
+      if (rafId) cancelAnimationFrame(rafId);
       setIsDraggingBottom(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
     };
@@ -749,17 +770,27 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
 
   const startResizingRight = (mouseDownEvent: React.MouseEvent) => {
     mouseDownEvent.preventDefault();
+    setIsDraggingRight(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
     const startX = mouseDownEvent.clientX;
     const startWidth = rightWidth;
+    let rafId: number | null = null;
     
     const onMouseMove = (mouseMoveEvent: MouseEvent) => {
-      setIsDraggingRight(true);
-      const delta = startX - mouseMoveEvent.clientX;
-      setRightWidth(Math.max(200, Math.min(800, startWidth + delta)));
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        const delta = startX - mouseMoveEvent.clientX;
+        setRightWidth(Math.max(200, Math.min(800, startWidth + delta)));
+        rafId = null;
+      });
     };
     
     const onMouseUp = () => {
+      if (rafId) cancelAnimationFrame(rafId);
       setIsDraggingRight(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
     };
@@ -768,11 +799,36 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
     document.addEventListener("mouseup", onMouseUp);
   };
 
-  // Calendar rendering logic
-  const renderDays = () => {
+  // Pre-index plans by date key for O(1) fast lookup
+  const plansByDateMap = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const p of monthlyPlans) {
+      if (!p.planDate) continue;
+      const key = format(new Date(p.planDate), 'yyyy-MM-dd');
+      let list = map.get(key);
+      if (!list) {
+        list = [];
+        map.set(key, list);
+      }
+      list.push(p);
+    }
+    return map;
+  }, [monthlyPlans]);
+
+  // Pre-index planned demands for O(1) search lookup
+  const plannedDemandsMap = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const d of plannedDemands) {
+      map.set(`${d.soNumber}_${d.itemCode}`, d);
+    }
+    return map;
+  }, [plannedDemands]);
+
+  // Calendar days header
+  const calendarDaysHeader = useMemo(() => {
     const dateFormat = "EEEE";
     const days = [];
-    let startDate = startOfWeek(currentMonth);
+    const startDate = startOfWeek(currentMonth);
     for (let i = 0; i < 7; i++) {
       days.push(
         <div key={i} className="text-center font-semibold text-sm text-slate-500 py-2">
@@ -781,9 +837,10 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
       );
     }
     return <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">{days}</div>;
-  };
+  }, [currentMonth]);
 
-  const renderCells = () => {
+  // Memoized Calendar rendering logic (independent of panel resize state)
+  const calendarCells = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(monthStart);
     const startDate = startOfWeek(monthStart);
@@ -795,8 +852,8 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
     let day = startDate;
     let formattedDate = "";
 
-    // Check if we have any supply data at all (i.e. Create Supply has been used)
     const hasSupplyData = Object.keys(calculatedSupply).length > 0;
+    const lowerQuery = demandSearchQuery ? demandSearchQuery.toLowerCase() : "";
 
     while (day <= endDate) {
       for (let i = 0; i < 7; i++) {
@@ -808,21 +865,18 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         const dateKey = format(day, 'yyyy-MM-dd');
         const supplyValue = calculatedSupply[dateKey];
         const hasSupply = supplyValue !== undefined && supplyValue > 0;
-        // If supply data exists but this day has none → disabled
         const isDisabledBySupply = hasSupplyData && isCurrentMonth && !hasSupply;
         
-        // Group plans for this date by itemCode
-        const rawDayPlans = monthlyPlans.filter((p: any) => format(new Date(p.planDate), 'yyyy-MM-dd') === dateKey);
+        const rawDayPlans = plansByDateMap.get(dateKey) || [];
         
         let filteredRawPlans = rawDayPlans;
-        if (demandSearchQuery) {
-           const lower = demandSearchQuery.toLowerCase();
+        if (lowerQuery) {
            filteredRawPlans = rawDayPlans.filter((p: any) => {
-             const demandInfo = plannedDemands.find(d => d.soNumber === p.soNumber && d.itemCode === p.itemCode);
-             const soMatch = p.soNumber?.toLowerCase().includes(lower);
-             const codeMatch = p.itemCode?.toLowerCase().includes(lower);
-             const descMatch = demandInfo?.itemDesc?.toLowerCase().includes(lower);
-             const dateMatch = demandInfo?.shipDate ? format(new Date(demandInfo.shipDate), 'dd/MM/yyyy').includes(lower) : false;
+             const demandInfo = plannedDemandsMap.get(`${p.soNumber}_${p.itemCode}`);
+             const soMatch = p.soNumber?.toLowerCase().includes(lowerQuery);
+             const codeMatch = p.itemCode?.toLowerCase().includes(lowerQuery);
+             const descMatch = demandInfo?.itemDesc?.toLowerCase().includes(lowerQuery);
+             const dateMatch = demandInfo?.shipDate ? format(new Date(demandInfo.shipDate), 'dd/MM/yyyy').includes(lowerQuery) : false;
              return soMatch || codeMatch || descMatch || dateMatch;
            });
         }
@@ -837,7 +891,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
           plannedQty
         }));
         
-        const hasSearchResults = demandSearchQuery && dayPlans.length > 0;
+        const hasSearchResults = lowerQuery && dayPlans.length > 0;
         
         days.push(
           <div
@@ -880,7 +934,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
               <div className="mt-1 space-y-1">
                 {dayPlans.map(plan => (
                   <div key={plan.itemCode} className={`text-[10px] px-1.5 py-0.5 rounded flex justify-between font-medium border 
-                    ${demandSearchQuery ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                    ${lowerQuery ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
                     <span className="truncate font-bold mr-1">{plan.itemCode}</span>
                     <span>{plan.plannedQty.toLocaleString()}</span>
                   </div>
@@ -899,10 +953,10 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
       days = [];
     }
     return <div className="flex-1 overflow-auto bg-white">{rows}</div>;
-  };
+  }, [currentMonth, calculatedSupply, plansByDateMap, selectedDate, demandSearchQuery, plannedDemandsMap]);
 
   return (
-    <div className="h-full flex flex-col p-4 gap-4 bg-slate-50/50">
+    <div className={`h-full flex flex-col p-4 gap-4 bg-slate-50/50 ${(isDraggingBottom || isDraggingRight) ? 'select-none pointer-events-auto' : ''}`}>
       {/* Header */}
       <MpsHeader 
         partName={partName}
@@ -929,8 +983,8 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                 <p className="text-sm text-slate-600 font-medium">Loading calendar...</p>
               </div>
             )}
-            {renderDays()}
-            {renderCells()}
+            {calendarDaysHeader}
+            {calendarCells}
           </div>
           
           {/* Bottom Panel */}

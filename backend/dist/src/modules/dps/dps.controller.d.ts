@@ -21,6 +21,7 @@ export declare class DpsController {
     }>;
     getDailyOrders(partName: string, date: string, sublot: string): Promise<{
         plannedQty: number;
+        location: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
@@ -34,6 +35,10 @@ export declare class DpsController {
         splitIndex: number;
         itemName: string | null;
     }[]>;
+    getLocations(partName: string): Promise<{
+        itemLocationMap: Record<string, string>;
+        locations: string[];
+    }>;
     saveTransfers(partName: string, date: string, sublot: string, transfers: any[]): Promise<{
         success: boolean;
     }>;

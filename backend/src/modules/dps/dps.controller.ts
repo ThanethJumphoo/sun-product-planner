@@ -67,6 +67,11 @@ export class DpsController {
     return this.dpsService.getSavedDpsDemands(partName, date, sublot);
   }
 
+  @Get(':partName/locations')
+  async getLocations(@Param('partName') partName: string) {
+    return this.dpsService.getItemLocationsMap(partName);
+  }
+
   @Post(':partName/transfers')
   async saveTransfers(
     @Param('partName') partName: string,

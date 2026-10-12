@@ -137,7 +137,7 @@ export function MpsDemandModal({
                 pagination={true}
                 paginationPageSize={20}
                 rowSelection={{ mode: "multiRow" }}
-                getRowId={(params) => params.data.id || `${params.data.soNumber}_${params.data.lineNumber}_${params.data.itemCode}_${params.data.shipDate}_${Math.random().toString(36).substring(7)}`}
+                getRowId={(params) => params.data.id || `${params.data.soNumber}_${params.data.lineNumber}_${params.data.itemCode}_${params.data.shipDate}`}
                 onRowSelected={onRowSelected}
                 onFirstDataRendered={onRowDataUpdated}
                 onRowDataUpdated={onRowDataUpdated}

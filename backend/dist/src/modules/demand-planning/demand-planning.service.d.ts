@@ -46,6 +46,7 @@ export declare class DemandPlanningService {
             isSelected: boolean;
         }[];
     }>;
+    private toDateKey;
     saveDemandPlans(partName: string, payload: {
         soNumber: string;
         lineNumber: string;
@@ -61,10 +62,10 @@ export declare class DemandPlanningService {
         createdAt: Date;
         updatedAt: Date;
         partName: string;
-        planDate: Date;
+        itemCode: string;
         soNumber: string;
         lineNumber: string;
-        itemCode: string;
+        planDate: Date;
         plannedQty: import("@prisma/client/runtime/library").Decimal;
         allocatedRmSize: string | null;
         splitIndex: number;
@@ -74,10 +75,10 @@ export declare class DemandPlanningService {
         createdAt: Date;
         updatedAt: Date;
         partName: string;
-        planDate: Date;
+        itemCode: string;
         soNumber: string;
         lineNumber: string;
-        itemCode: string;
+        planDate: Date;
         plannedQty: import("@prisma/client/runtime/library").Decimal;
         allocatedRmSize: string | null;
         splitIndex: number;
