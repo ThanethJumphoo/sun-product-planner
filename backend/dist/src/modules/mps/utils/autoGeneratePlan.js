@@ -37,6 +37,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
             where: {
                 OR: [
                     { name: `Master Production Flow - ${partName}` },
+                    { name: { contains: partName } },
                     { name: 'Master Production Flow' }
                 ]
             },
@@ -72,6 +73,30 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
         catch (e) {
             specs[s.erpItemCode].parsedRmSizes = [];
         }
+    });
+    flowBoards.forEach((b) => {
+        (b.nodes || []).forEach((n) => {
+            try {
+                const d = JSON.parse(n.data || '{}');
+                if (d.Items && Array.isArray(d.Items)) {
+                    const itemCat = d.itemCategory || 'product';
+                    d.Items.forEach((item) => {
+                        if (!specs[item.erpItemCode]) {
+                            specs[item.erpItemCode] = {
+                                id: 0,
+                                erpItemCode: item.erpItemCode,
+                                itemCategory: itemCat,
+                                yieldPercent: 100,
+                                leadMinDays: 1,
+                                leadMaxDays: 3,
+                                parsedRmSizes: []
+                            };
+                        }
+                    });
+                }
+            }
+            catch (e) { }
+        });
     });
     const soNumbers = Array.from(new Set(plannedDemandsDb.map((d) => d.soNumber)));
     const itemCodes = Array.from(new Set(plannedDemandsDb.map((d) => d.itemCode)));
@@ -140,11 +165,10 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
     }
     const mainToCoProductMap = {};
     if (flowBoards.length > 0) {
-        let board = flowBoards.find(b => b.name === `Master Production Flow - ${partName}`);
-        if (!board)
-            board = flowBoards.find(b => b.name === 'Master Production Flow');
-        if (!board)
-            board = flowBoards[0];
+        let board = flowBoards.find(b => b.name === `Master Production Flow - ${partName}`) ||
+            flowBoards.find(b => b.name?.includes(partName)) ||
+            flowBoards.find(b => b.name === 'Master Production Flow') ||
+            flowBoards[0];
         const nodes = board.nodes || [];
         const edges = board.edges || [];
         const findIncomingEdges = (nodeId) => edges.filter((e) => e.target === nodeId);
@@ -234,7 +258,55 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
             }
         }
     }
+    const machineByProducts = [];
+    if (flowBoards.length > 0) {
+        let board = flowBoards.find(b => b.name === `Master Production Flow - ${partName}`) ||
+            flowBoards.find(b => b.name?.includes(partName)) ||
+            flowBoards.find(b => b.name === 'Master Production Flow') ||
+            flowBoards[0];
+        const nodes = board.nodes || [];
+        const edges = board.edges || [];
+        const machineNodes = nodes.filter((n) => n.nodeTypeId === 1003 || n.name?.toLowerCase().includes('machine'));
+        for (const mNode of machineNodes) {
+            const outEdges = edges.filter((e) => e.source === mNode.id && (e.sourceHandle === 'byproduct' || e.sourceHandle === 'coproduct'));
+            for (const oe of outEdges) {
+                const rmNode = nodes.find((n) => n.id === oe.target);
+                let rmYield = 0;
+                try {
+                    rmYield = Number(JSON.parse(rmNode?.data || '{}')['Yield Percent']) || 0;
+                }
+                catch (e) { }
+                if (rmYield > 0) {
+                    const rmOut = edges.filter((e) => e.source === rmNode?.id);
+                    for (const ro of rmOut) {
+                        const itemNode = nodes.find((n) => n.id === ro.target);
+                        let itemData = {};
+                        try {
+                            itemData = JSON.parse(itemNode?.data || '{}');
+                        }
+                        catch (e) { }
+                        if (itemData.Items && Array.isArray(itemData.Items)) {
+                            for (const item of itemData.Items) {
+                                machineByProducts.push({
+                                    itemCode: item.erpItemCode,
+                                    yieldPercent: rmYield
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     const dailyCoProductSupply = {};
+    for (const [dateStr, totalDayWeight] of Object.entries(calculatedSupply)) {
+        if (!dailyCoProductSupply[dateStr])
+            dailyCoProductSupply[dateStr] = {};
+        for (const mb of machineByProducts) {
+            const bpQty = totalDayWeight * (mb.yieldPercent / 100);
+            dailyCoProductSupply[dateStr][mb.itemCode] = (dailyCoProductSupply[dateStr][mb.itemCode] || 0) + bpQty;
+        }
+    }
     for (const plan of monthlyPlans) {
         const spec = specs[plan.itemCode];
         if (!spec)

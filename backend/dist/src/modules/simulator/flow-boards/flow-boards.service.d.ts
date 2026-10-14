@@ -34,6 +34,8 @@ export declare class FlowBoardsService {
         name: string;
         isLocked: boolean;
     }>;
+    private simulateBoardOutputs;
+    private syncSubBoardWithParent;
     create(data: {
         name: string;
         isLocked?: boolean;

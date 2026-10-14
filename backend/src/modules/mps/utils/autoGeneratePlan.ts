@@ -56,6 +56,7 @@ export async function generateAutoPlanOnServer(
       where: {
         OR: [
           { name: `Master Production Flow - ${partName}` },
+          { name: { contains: partName } },
           { name: 'Master Production Flow' }
         ]
       },
@@ -98,6 +99,31 @@ export async function generateAutoPlanOnServer(
     } catch(e) {
       specs[s.erpItemCode].parsedRmSizes = [];
     }
+  });
+
+  // Populate fallback specs from flowBoards for any demand items without explicit productSpec
+  flowBoards.forEach((b: any) => {
+    (b.nodes || []).forEach((n: any) => {
+      try {
+        const d = JSON.parse(n.data || '{}');
+        if (d.Items && Array.isArray(d.Items)) {
+          const itemCat = d.itemCategory || 'product';
+          d.Items.forEach((item: any) => {
+            if (!specs[item.erpItemCode]) {
+              specs[item.erpItemCode] = {
+                id: 0,
+                erpItemCode: item.erpItemCode,
+                itemCategory: itemCat,
+                yieldPercent: 100,
+                leadMinDays: 1,
+                leadMaxDays: 3,
+                parsedRmSizes: []
+              };
+            }
+          });
+        }
+      } catch(e){}
+    });
   });
 
   const soNumbers = Array.from(new Set(plannedDemandsDb.map((d: any) => d.soNumber)));
@@ -180,9 +206,10 @@ export async function generateAutoPlanOnServer(
   // 1.5 Build Co-Product Map from FlowBoard
   const mainToCoProductMap: Record<string, { itemCode: string, yieldPercent: number }[]> = {};
   if (flowBoards.length > 0) {
-    let board = flowBoards.find(b => b.name === `Master Production Flow - ${partName}`);
-    if (!board) board = flowBoards.find(b => b.name === 'Master Production Flow');
-    if (!board) board = flowBoards[0];
+    let board = flowBoards.find(b => b.name === `Master Production Flow - ${partName}`) ||
+                flowBoards.find(b => b.name?.includes(partName)) ||
+                flowBoards.find(b => b.name === 'Master Production Flow') ||
+                flowBoards[0];
     const nodes = board.nodes || [];
     const edges = board.edges || [];
 
@@ -264,8 +291,54 @@ export async function generateAutoPlanOnServer(
     }
   }
 
+  // 1.6 Discover byproducts generated directly from Machine nodes (e.g. Toridas Machine TRD-01)
+  const machineByProducts: { itemCode: string; yieldPercent: number }[] = [];
+  if (flowBoards.length > 0) {
+    let board = flowBoards.find(b => b.name === `Master Production Flow - ${partName}`) ||
+                flowBoards.find(b => b.name?.includes(partName)) ||
+                flowBoards.find(b => b.name === 'Master Production Flow') ||
+                flowBoards[0];
+    const nodes = board.nodes || [];
+    const edges = board.edges || [];
+
+    const machineNodes = nodes.filter((n: any) => n.nodeTypeId === 1003 || n.name?.toLowerCase().includes('machine'));
+    for (const mNode of machineNodes) {
+      const outEdges = edges.filter((e: any) => e.source === mNode.id && (e.sourceHandle === 'byproduct' || e.sourceHandle === 'coproduct'));
+      for (const oe of outEdges) {
+        const rmNode = nodes.find((n: any) => n.id === oe.target);
+        let rmYield = 0;
+        try { rmYield = Number(JSON.parse(rmNode?.data || '{}')['Yield Percent']) || 0; } catch(e){}
+        if (rmYield > 0) {
+          const rmOut = edges.filter((e: any) => e.source === rmNode?.id);
+          for (const ro of rmOut) {
+            const itemNode = nodes.find((n: any) => n.id === ro.target);
+            let itemData: any = {};
+            try { itemData = JSON.parse(itemNode?.data || '{}'); } catch(e){}
+            if (itemData.Items && Array.isArray(itemData.Items)) {
+              for (const item of itemData.Items) {
+                machineByProducts.push({
+                  itemCode: item.erpItemCode,
+                  yieldPercent: rmYield
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   // dailyCoProductSupply[dateStr][itemCode] = available qty
   const dailyCoProductSupply: Record<string, Record<string, number>> = {};
+
+  // Initialize CoProduct supply from machine byproducts (e.g. Toridas meat deboning)
+  for (const [dateStr, totalDayWeight] of Object.entries(calculatedSupply)) {
+    if (!dailyCoProductSupply[dateStr]) dailyCoProductSupply[dateStr] = {};
+    for (const mb of machineByProducts) {
+      const bpQty = totalDayWeight * (mb.yieldPercent / 100);
+      dailyCoProductSupply[dateStr][mb.itemCode] = (dailyCoProductSupply[dateStr][mb.itemCode] || 0) + bpQty;
+    }
+  }
 
   // Deduct already existing monthlyPlans from dailySupplyState
   for (const plan of monthlyPlans) {

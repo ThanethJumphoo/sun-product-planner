@@ -3,6 +3,7 @@ import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { Package, Scale, Calculator, AlertCircle } from 'lucide-react';
 import api from '@/lib/api';
 import OutputsSummaryPanel from '@/features/planning/components/shared/OutputsSummaryPanel';
+import { ToridasStatusCard } from '@/features/planning/components/mps/ToridasStatusCard';
 
 export default function SupplySummaryPanel({ 
   selectedDate, 
@@ -15,6 +16,7 @@ export default function SupplySummaryPanel({
   const [isLoading, setIsLoading] = useState(false);
   const [chickenData, setChickenData] = useState<any>(null);
   const [wdMatrix, setWdMatrix] = useState<any>(null);
+  const [toridasMetrics, setToridasMetrics] = useState<any>(null);
   
   useEffect(() => {
     if (!selectedDate || !partName) return;
@@ -52,6 +54,18 @@ export default function SupplySummaryPanel({
         // 2. Fetch Weight Distribution
         const wdRes = await api.get(`/api/v1/weight-distribution`, { params: { partName } });
         setWdMatrix(wdRes.data);
+
+        // 3. Fetch Toridas Metrics for BL & BIL
+        if (partName.toUpperCase() === 'BL' || partName.toUpperCase() === 'BIL') {
+          try {
+            const toridasRes = await api.get(`/api/v1/mps/${encodeURIComponent(partName)}/toridas-metrics`, {
+              params: { currentMonth: dateStr }
+            });
+            setToridasMetrics(toridasRes.data);
+          } catch(e) {
+            console.error("Failed to fetch toridas metrics:", e);
+          }
+        }
 
       } catch (error) {
         console.error("Failed to fetch supply summary data:", error);
@@ -174,6 +188,14 @@ export default function SupplySummaryPanel({
           </div>
         </div>
       </div>
+
+      {/* Toridas Machine Status Card (for BL & BIL) */}
+      {(partName.toUpperCase() === 'BL' || partName.toUpperCase() === 'BIL') && (
+        <ToridasStatusCard 
+          metrics={toridasMetrics?.daily?.[format(selectedDate, 'yyyy-MM-dd')]} 
+          isLoading={isLoading} 
+        />
+      )}
 
       {/* Box 2: RM Size Distribution */}
       {supplyBreakdown ? (

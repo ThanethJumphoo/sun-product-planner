@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import prisma from '../../lib/prisma';
 import { generateAutoPlanOnServer } from './utils/autoGeneratePlan';
+import { calculateToridasCapacity, ToridasDailyResult } from './utils/toridasCapacity';
+import { format, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
 
 @Injectable()
 export class MpsService {
@@ -134,11 +136,164 @@ export class MpsService {
       });
     }
 
+    // Trigger synchronization to child parts (e.g. BIL -> Toridas -> BL)
+    let childSyncResults: any[] = [];
+    try {
+      childSyncResults = await this.syncChildPartsSupply(partName, currentMonth);
+    } catch (syncErr) {
+      console.error('Error during child part supply sync:', syncErr);
+    }
+
     return {
       success: true,
       generatedCount: generatedTransactions.length,
-      stats
+      stats,
+      childSyncResults,
     };
+  }
+
+  async syncChildPartsSupply(parentPartName: string, currentMonth: string): Promise<any[]> {
+    const monthStart = startOfMonth(new Date(currentMonth));
+    const monthEnd = endOfMonth(new Date(currentMonth));
+
+    // 1. Find FlowBoard for parentPartName
+    const parentBoard = await prisma.flowBoard.findFirst({
+      where: {
+        OR: [
+          { name: `Master Production Flow - ${parentPartName}` },
+          { name: { contains: parentPartName } },
+        ],
+      },
+      include: {
+        nodes: { include: { nodeType: true } },
+        edges: true,
+      },
+    });
+
+    if (!parentBoard) return [];
+
+    // 2. Find child sub-board nodes (e.g. BL with subBoardId)
+    const childNodes: any[] = [];
+    parentBoard.nodes.forEach((n) => {
+      try {
+        const d = JSON.parse(n.data || '{}');
+        if (d.subBoardId) {
+          childNodes.push({
+            nodeId: n.id,
+            name: n.name,
+            subBoardId: d.subBoardId,
+            data: d,
+          });
+        }
+      } catch (e) {}
+    });
+
+    if (childNodes.length === 0) return [];
+
+    // 3. Find Toridas Machine nodes in parent board
+    const machineNodes = parentBoard.nodes.filter(
+      (n) =>
+        n.nodeTypeId === 1003 ||
+        n.name?.toLowerCase().includes('machine') ||
+        n.name?.toLowerCase().includes('toridas'),
+    );
+
+    let toridasCfg = {};
+    if (machineNodes.length > 0) {
+      try {
+        const mData = JSON.parse(machineNodes[0].data || '{}');
+        toridasCfg = {
+          speedPerMachineHr: Number(mData['Speed (PCS/HR)']) || 1500,
+          machinesPerLine: Number(mData['Machines Per Line']) || 4,
+          totalLines: Number(mData['Lines']) || 3,
+          workersPerLine: Number(mData['Employee']) || 5,
+        };
+      } catch (e) {}
+    }
+
+    // 4. Fetch daily parent supplies & receiving
+    const [parentSupplies, monthlyRecs, weeklyRecs] = await Promise.all([
+      prisma.mpsSupply.findMany({
+        where: { partName: parentPartName, planDate: { gte: monthStart, lte: monthEnd } },
+        orderBy: { planDate: 'asc' },
+      }),
+      prisma.monthlyChickenReceiving.findMany({
+        where: { receiveDate: { gte: monthStart, lte: monthEnd } },
+      }),
+      prisma.weeklyChickenReceiving.findMany({
+        where: { receiveDate: { gte: monthStart, lte: monthEnd } },
+      }),
+    ]);
+
+    if (parentSupplies.length === 0) return [];
+
+    const syncResults: any[] = [];
+
+    // 5. Calculate & upsert for each child part
+    for (const child of childNodes) {
+      const childPartName = child.name; // e.g. 'BL'
+      const childSuppliesToUpsert: any[] = [];
+      const dailyMetrics: ToridasDailyResult[] = [];
+
+      for (const sup of parentSupplies) {
+        const dateStr = format(sup.planDate, 'yyyy-MM-dd');
+        const mRec = monthlyRecs.find((r) => isSameDay(new Date(r.receiveDate), sup.planDate));
+        const wRecs = weeklyRecs.filter((r) => isSameDay(new Date(r.receiveDate), sup.planDate));
+
+        let avgWeight = 2.8;
+        const wCount = wRecs.reduce((sum, r) => sum + Number(r.totalCount), 0);
+        const wWeight = wRecs.reduce((sum, r) => sum + Number(r.totalWeight), 0);
+
+        if (wCount > 0) {
+          avgWeight = wWeight / wCount;
+        } else if (mRec) {
+          avgWeight = Number(mRec.averageWeight) || 2.8;
+        }
+
+        const offeredWeightKg = Number(sup.supplyWeight);
+        const toridasRes = calculateToridasCapacity(offeredWeightKg, avgWeight, toridasCfg, dateStr);
+        dailyMetrics.push(toridasRes);
+
+        childSuppliesToUpsert.push({
+          partName: childPartName,
+          planDate: sup.planDate,
+          supplyWeight: toridasRes.bonelessOutputKg,
+        });
+      }
+
+      // Upsert into mpsSupply for childPartName
+      if (childSuppliesToUpsert.length > 0) {
+        await prisma.$transaction(async (tx) => {
+          const upserts = childSuppliesToUpsert.map((item) =>
+            tx.mpsSupply.upsert({
+              where: {
+                partName_planDate: {
+                  partName: item.partName,
+                  planDate: item.planDate,
+                },
+              },
+              update: {
+                supplyWeight: item.supplyWeight,
+              },
+              create: {
+                partName: item.partName,
+                planDate: item.planDate,
+                supplyWeight: item.supplyWeight,
+              },
+            }),
+          );
+          await Promise.all(upserts);
+        });
+      }
+
+      syncResults.push({
+        childPartName,
+        daysSynced: childSuppliesToUpsert.length,
+        dailyMetrics,
+      });
+    }
+
+    return syncResults;
   }
 
   async clearPlans(partName: string, startDate: string, endDate: string) {
@@ -152,5 +307,107 @@ export class MpsService {
       },
     });
     return { success: true, deletedCount: result.count };
+  }
+
+  async getToridasMetrics(partName: string, currentMonth: string) {
+    const parentPartName = partName.toUpperCase() === 'BL' ? 'BIL' : partName;
+    const monthStart = startOfMonth(new Date(currentMonth));
+    const monthEnd = endOfMonth(new Date(currentMonth));
+
+    const parentBoard = await prisma.flowBoard.findFirst({
+      where: {
+        OR: [
+          { name: `Master Production Flow - ${parentPartName}` },
+          { name: { contains: parentPartName } },
+        ],
+      },
+      include: {
+        nodes: { include: { nodeType: true } },
+      },
+    });
+
+    const machineNodes = parentBoard?.nodes.filter(
+      (n) =>
+        n.nodeTypeId === 1003 ||
+        n.name?.toLowerCase().includes('machine') ||
+        n.name?.toLowerCase().includes('toridas'),
+    ) || [];
+
+    let toridasCfg = {
+      speedPerMachineHr: 1500,
+      machinesPerLine: 4,
+      totalLines: 3,
+      workersPerLine: 5,
+    };
+
+    if (machineNodes.length > 0) {
+      try {
+        const mData = JSON.parse(machineNodes[0].data || '{}');
+        toridasCfg = {
+          speedPerMachineHr: Number(mData['Speed (PCS/HR)']) || 1500,
+          machinesPerLine: Number(mData['Machines Per Line']) || 4,
+          totalLines: Number(mData['Lines']) || 3,
+          workersPerLine: Number(mData['Employee']) || 5,
+        };
+      } catch (e) {}
+    }
+
+    const [parentSupplies, monthlyRecs, weeklyRecs] = await Promise.all([
+      prisma.mpsSupply.findMany({
+        where: { partName: parentPartName, planDate: { gte: monthStart, lte: monthEnd } },
+        orderBy: { planDate: 'asc' },
+      }),
+      prisma.monthlyChickenReceiving.findMany({
+        where: { receiveDate: { gte: monthStart, lte: monthEnd } },
+      }),
+      prisma.weeklyChickenReceiving.findMany({
+        where: { receiveDate: { gte: monthStart, lte: monthEnd } },
+      }),
+    ]);
+
+    const dailyMetrics: Record<string, ToridasDailyResult> = {};
+    let totalPieces = 0;
+    let totalBoneless = 0;
+    let totalOverflow = 0;
+    let sumUtil = 0;
+
+    for (const sup of parentSupplies) {
+      const dateStr = format(sup.planDate, 'yyyy-MM-dd');
+      const mRec = monthlyRecs.find((r) => isSameDay(new Date(r.receiveDate), sup.planDate));
+      const wRecs = weeklyRecs.filter((r) => isSameDay(new Date(r.receiveDate), sup.planDate));
+
+      let avgWeight = 2.8;
+      const wCount = wRecs.reduce((sum, r) => sum + Number(r.totalCount), 0);
+      const wWeight = wRecs.reduce((sum, r) => sum + Number(r.totalWeight), 0);
+
+      if (wCount > 0) {
+        avgWeight = wWeight / wCount;
+      } else if (mRec) {
+        avgWeight = Number(mRec.averageWeight) || 2.8;
+      }
+
+      const offeredWeightKg = Number(sup.supplyWeight);
+      const res = calculateToridasCapacity(offeredWeightKg, avgWeight, toridasCfg, dateStr);
+      dailyMetrics[dateStr] = res;
+
+      totalPieces += res.acceptedPieces;
+      totalBoneless += res.bonelessOutputKg;
+      totalOverflow += res.overflowBoneInKg;
+      sumUtil += res.capacityUtilizationPct;
+    }
+
+    const count = Object.keys(dailyMetrics).length;
+    return {
+      machineCode: 'TRD-01',
+      config: toridasCfg,
+      summary: {
+        totalDays: count,
+        totalPieces,
+        totalBonelessKg: Number(totalBoneless.toFixed(2)),
+        totalOverflowKg: Number(totalOverflow.toFixed(2)),
+        avgUtilizationPct: count > 0 ? Number((sumUtil / count).toFixed(1)) : 0,
+      },
+      daily: dailyMetrics,
+    };
   }
 }

@@ -32,6 +32,14 @@ export class MpsController {
     return this.mpsService.autoGeneratePlan(partName, currentMonth);
   }
 
+  @Get(':partName/toridas-metrics')
+  async getToridasMetrics(
+    @Param('partName') partName: string,
+    @Query('currentMonth') currentMonth: string,
+  ) {
+    return this.mpsService.getToridasMetrics(partName, currentMonth);
+  }
+
   @Delete(':partName/plans')
   async clearPlans(
     @Param('partName') partName: string,
