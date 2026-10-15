@@ -4,6 +4,7 @@ import { Package, Scale, Calculator, AlertCircle } from 'lucide-react';
 import api from '@/lib/api';
 import OutputsSummaryPanel from '@/features/planning/components/shared/OutputsSummaryPanel';
 import { ToridasStatusCard } from '@/features/planning/components/mps/ToridasStatusCard';
+import { ICutStatusCard } from '@/features/planning/components/mps/ICutStatusCard';
 
 export default function SupplySummaryPanel({ 
   selectedDate, 
@@ -55,10 +56,10 @@ export default function SupplySummaryPanel({
         const wdRes = await api.get(`/api/v1/weight-distribution`, { params: { partName } });
         setWdMatrix(wdRes.data);
 
-        // 3. Fetch Toridas Metrics for BL & BIL
-        if (partName.toUpperCase() === 'BL' || partName.toUpperCase() === 'BIL') {
+        // 3. Fetch Toridas Metrics for BIL only
+        if (partName.toUpperCase() === 'BIL') {
           try {
-            const toridasRes = await api.get(`/api/v1/mps/${encodeURIComponent(partName)}/toridas-metrics`, {
+            const toridasRes = await api.get(`/api/v1/mps/BIL/toridas-metrics`, {
               params: { currentMonth: dateStr }
             });
             setToridasMetrics(toridasRes.data);
@@ -189,11 +190,21 @@ export default function SupplySummaryPanel({
         </div>
       </div>
 
-      {/* Toridas Machine Status Card (for BL & BIL) */}
-      {(partName.toUpperCase() === 'BL' || partName.toUpperCase() === 'BIL') && (
+      {/* Toridas Machine Status Card (for BIL only) */}
+      {partName.toUpperCase() === 'BIL' && (
         <ToridasStatusCard 
           metrics={toridasMetrics?.daily?.[format(selectedDate, 'yyyy-MM-dd')]} 
           isLoading={isLoading} 
+        />
+      )}
+
+      {/* I-CUT Machine Status Card (for BL only) */}
+      {partName.toUpperCase() === 'BL' && (
+        <ICutStatusCard 
+          selectedDate={selectedDate}
+          dailyPlans={dailyPlans}
+          specs={specs}
+          isLoading={isLoading}
         />
       )}
 
@@ -276,6 +287,7 @@ export default function SupplySummaryPanel({
         partName={partName}
         dailyPlans={dailyPlans}
         specs={specs}
+        toridasMetrics={toridasMetrics?.daily?.[format(selectedDate, 'yyyy-MM-dd')]}
       />
 
     </div>

@@ -140,24 +140,6 @@ export function ToridasStatusCard({ metrics, isLoading }: ToridasStatusCardProps
           </div>
         </div>
 
-        {/* By-Products / Co-Products Generated */}
-        {metrics.byProducts && metrics.byProducts.length > 0 && (
-          <div className="pt-2 border-t border-slate-100">
-            <p className="text-[10px] text-slate-400 font-semibold uppercase mb-1.5 flex items-center justify-between">
-              <span>Co-Products & By-Products</span>
-              <span className="text-slate-500 font-normal">Yield: 24.6%</span>
-            </p>
-            <div className="space-y-1 text-xs">
-              {metrics.byProducts.map((bp) => (
-                <div key={bp.name} className="flex justify-between items-center text-slate-600 bg-slate-50/70 px-2 py-1 rounded border border-slate-100">
-                  <span className="truncate pr-2 font-medium">{bp.name} <span className="text-slate-400 font-normal">({bp.yieldPercent}%)</span></span>
-                  <span className="font-semibold text-slate-700 shrink-0">{bp.weightKg.toLocaleString()} kg</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Overflow Alert Banner if needed */}
         {hasOverflow ? (
           <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] flex items-start gap-1.5">

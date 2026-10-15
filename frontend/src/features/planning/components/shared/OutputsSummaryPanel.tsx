@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Layers, Box, Workflow } from 'lucide-react';
+import { format } from 'date-fns';
 import api from '@/lib/api';
 
 export default function OutputsSummaryPanel({ 
   selectedDate, 
   partName, 
-  dailyPlans,
-  specs
+  dailyPlans = [],
+  specs = {},
+  toridasMetrics
 }: any) {
   const [isLoading, setIsLoading] = useState(false);
   const [boardData, setBoardData] = useState<any>(null);
+  const [internalToridasMetrics, setInternalToridasMetrics] = useState<any>(null);
 
   useEffect(() => {
     if (!selectedDate || !partName) return;
@@ -43,11 +46,34 @@ export default function OutputsSummaryPanel({
     fetchBoard();
   }, [selectedDate, partName]);
 
-  const outputSummary = useMemo(() => {
-    if (!boardData || !dailyPlans || dailyPlans.length === 0) return [];
+  // Fetch Toridas metrics for BIL if not passed as prop
+  useEffect(() => {
+    if (!selectedDate || !partName) return;
+    if (partName.toUpperCase() !== 'BIL') return;
+    if (toridasMetrics) return;
 
-    const nodes = boardData.nodes || [];
-    const edges = boardData.edges || [];
+    const fetchToridas = async () => {
+      try {
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        const res = await api.get(`/api/v1/mps/BIL/toridas-metrics`, {
+          params: { currentMonth: dateStr }
+        });
+        setInternalToridasMetrics(res.data?.daily?.[dateStr]);
+      } catch (e) {
+        console.error("Failed to fetch toridas metrics:", e);
+      }
+    };
+
+    fetchToridas();
+  }, [selectedDate, partName, toridasMetrics]);
+
+  const effectiveToridasMetrics = toridasMetrics || internalToridasMetrics;
+
+  const outputSummary = useMemo(() => {
+    if (!selectedDate) return [];
+
+    const nodes = boardData?.nodes || [];
+    const edges = boardData?.edges || [];
 
     // Helper functions to trace paths
     const findIncomingEdges = (targetId: string) => edges.filter((e: any) => e.target === targetId);
@@ -55,143 +81,262 @@ export default function OutputsSummaryPanel({
 
     const generatedOutputs: { [key: string]: { name: string; type: string; totalWeight: number; usedWeight?: number; linkedItems?: any[] } } = {};
 
-    for (const plan of dailyPlans) {
-      const itemCode = plan.itemCode;
-      
-      // Calculate Required RM for this plan
-      const spec = specs[itemCode];
-      const yieldPercent = spec?.yieldPercent || 100;
-      const requiredRM = Number((Number(plan.plannedQty) / (yieldPercent / 100)).toFixed(2));
+    // 1. Trace through flow board from product daily plans (e.g. for Fillet, BIL Processes)
+    if (boardData && dailyPlans && dailyPlans.length > 0) {
+      for (const plan of dailyPlans) {
+        const itemCode = plan.itemCode;
+        
+        // Calculate Required RM for this plan
+        const spec = specs?.[itemCode];
+        const yieldPercent = spec?.yieldPercent || 100;
+        const requiredRM = Number((Number(plan.plannedQty) / (yieldPercent / 100)).toFixed(2));
 
-      if (requiredRM <= 0) continue;
+        if (requiredRM <= 0) continue;
 
-      // 1. Find ITEM node that contains this itemCode as "product"
-      const itemNodes = nodes.filter((n: any) => {
-        if (n.nodeTypeId !== 3002 && n.nodeTypeId !== 3001) return false; // assuming ITEM node type
-        try {
-          const data = JSON.parse(n.data || '{}');
-          if (data.itemCategory !== 'product') return false;
-          return data.Items?.some((i: any) => i.erpItemCode === itemCode);
-        } catch (e) {
-          return false;
-        }
-      });
+        // 1. Find ITEM node that contains this itemCode as "product"
+        const itemNodes = nodes.filter((n: any) => {
+          if (n.nodeTypeId !== 3002 && n.nodeTypeId !== 3001) return false;
+          try {
+            const data = JSON.parse(n.data || '{}');
+            if (data.itemCategory !== 'product') return false;
+            return data.Items?.some((i: any) => i.erpItemCode === itemCode);
+          } catch (e) {
+            return false;
+          }
+        });
 
-      let chosenProcessNode: any = null;
-      let minProcessNumber = 999999;
+        let chosenProcessNode: any = null;
+        let minProcessNumber = 999999;
 
-      // 2. Trace back to find Process node(s)
-      for (const itemNode of itemNodes) {
-        const itemIncoming = findIncomingEdges(itemNode.id);
-        for (const edge1 of itemIncoming) {
-          const rmNode = nodes.find((n: any) => n.id === edge1.source);
-          if (rmNode && (rmNode.nodeTypeId === 2002 || rmNode.nodeTypeId === 2001)) { // RM node
-            const rmIncoming = findIncomingEdges(rmNode.id);
-            for (const edge2 of rmIncoming) {
-              const processNode = nodes.find((n: any) => n.id === edge2.source);
-              if (processNode && (processNode.nodeTypeId === 1004 || processNode.nodeTypeId === 1001)) { // PROCESS node
-                try {
-                  const pData = JSON.parse(processNode.data || '{}');
-                  const pNum = Number(pData.Process) || 999;
-                  if (pNum < minProcessNumber) {
-                    minProcessNumber = pNum;
-                    chosenProcessNode = processNode;
-                  }
-                } catch (e) {}
+        // 2. Trace back to find Process node(s)
+        for (const itemNode of itemNodes) {
+          const itemIncoming = findIncomingEdges(itemNode.id);
+          for (const edge1 of itemIncoming) {
+            const rmNode = nodes.find((n: any) => n.id === edge1.source);
+            if (rmNode && (rmNode.nodeTypeId === 2002 || rmNode.nodeTypeId === 2001)) { // RM node
+              const rmIncoming = findIncomingEdges(rmNode.id);
+              for (const edge2 of rmIncoming) {
+                const processNode = nodes.find((n: any) => n.id === edge2.source);
+                const isProcessOrMachine = processNode && (
+                  processNode.nodeTypeId === 1004 || 
+                  processNode.nodeTypeId === 1001 ||
+                  processNode.nodeTypeId === 2004 ||
+                  processNode.nodeTypeId === 1003 ||
+                  processNode.name?.toLowerCase().includes('machine') ||
+                  processNode.name?.toLowerCase().includes('icut')
+                );
+                if (isProcessOrMachine) {
+                  try {
+                    const pData = JSON.parse(processNode.data || '{}');
+                    const pNum = Number(pData.Process) || 999;
+                    if (pNum < minProcessNumber) {
+                      minProcessNumber = pNum;
+                      chosenProcessNode = processNode;
+                    }
+                  } catch (e) {}
+                }
               }
             }
           }
         }
-      }
 
-      if (!chosenProcessNode) continue;
+        if (!chosenProcessNode) continue;
 
-      // 3. Find Co-products and By-products generated from chosenProcessNode
-      const processOutgoing = findOutgoingEdges(chosenProcessNode.id);
-      
-      for (const outEdge of processOutgoing) {
-        if (outEdge.sourceHandle === 'coproduct' || outEdge.sourceHandle === 'byproduct') {
-          const targetRmNode = nodes.find((n: any) => n.id === outEdge.target);
-          if (targetRmNode) {
-            let rmYieldPercent = 0;
-            try {
-              const rmData = JSON.parse(targetRmNode.data || '{}');
-              rmYieldPercent = Number(rmData['Yield Percent']) || 0;
-            } catch (e) {}
+        // 3. Find Co-products and By-products generated from chosenProcessNode
+        const processOutgoing = findOutgoingEdges(chosenProcessNode.id);
+        
+        for (const outEdge of processOutgoing) {
+          if (outEdge.sourceHandle === 'coproduct' || outEdge.sourceHandle === 'byproduct') {
+            const targetRmNode = nodes.find((n: any) => n.id === outEdge.target);
+            if (targetRmNode) {
+              let rmYieldPercent = 0;
+              try {
+                const rmData = JSON.parse(targetRmNode.data || '{}');
+                rmYieldPercent = Number(rmData['Yield Percent']) || 0;
+              } catch (e) {}
 
-            if (rmYieldPercent > 0) {
-              const generatedWeight = requiredRM * (rmYieldPercent / 100);
-              const rmName = targetRmNode.name;
-              
-              if (!generatedOutputs[rmName]) {
-                generatedOutputs[rmName] = {
-                  name: rmName,
-                  type: outEdge.sourceHandle === 'coproduct' ? 'Co-Product' : 'By-Product',
-                  totalWeight: 0,
-                  linkedItems: []
-                };
-
-                // Find linked items by tracing outgoing edges from the RM node
-                const rmOutgoing = findOutgoingEdges(targetRmNode.id);
-                const linkedItemNodes = rmOutgoing
-                  .map((e: any) => nodes.find((n: any) => n.id === e.target))
-                  .filter((n: any) => n && (n.nodeTypeId === 3002 || n.nodeTypeId === 3001));
+              if (rmYieldPercent > 0) {
+                const generatedWeight = requiredRM * (rmYieldPercent / 100);
+                const rmName = targetRmNode.name;
                 
-                const itemsMap = new Map();
-                for (const iNode of linkedItemNodes) {
-                  try {
-                    const iData = JSON.parse(iNode.data || '{}');
-                    if (iData.Items && Array.isArray(iData.Items)) {
-                      for (const item of iData.Items) {
-                        if (!itemsMap.has(item.erpItemCode)) {
-                          itemsMap.set(item.erpItemCode, {
-                            itemCode: item.erpItemCode,
-                            itemDesc: item.erpItemDesc
-                          });
+                if (!generatedOutputs[rmName]) {
+                  generatedOutputs[rmName] = {
+                    name: rmName,
+                    type: outEdge.sourceHandle === 'coproduct' ? 'Co-Product' : 'By-Product',
+                    totalWeight: 0,
+                    linkedItems: []
+                  };
+
+                  // Find linked items by tracing outgoing edges from the RM node
+                  const rmOutgoing = findOutgoingEdges(targetRmNode.id);
+                  const linkedItemNodes = rmOutgoing
+                    .map((e: any) => nodes.find((n: any) => n.id === e.target))
+                    .filter((n: any) => n && (n.nodeTypeId === 3002 || n.nodeTypeId === 3001));
+                  
+                  const itemsMap = new Map();
+                  for (const iNode of linkedItemNodes) {
+                    try {
+                      const iData = JSON.parse(iNode.data || '{}');
+                      if (iData.Items && Array.isArray(iData.Items)) {
+                        for (const item of iData.Items) {
+                          if (!itemsMap.has(item.erpItemCode)) {
+                            itemsMap.set(item.erpItemCode, {
+                              itemCode: item.erpItemCode,
+                              itemDesc: item.erpItemDesc
+                            });
+                          }
                         }
                       }
-                    }
-                  } catch (e) {}
+                    } catch (e) {}
+                  }
+                  generatedOutputs[rmName].linkedItems = Array.from(itemsMap.values());
                 }
-                generatedOutputs[rmName].linkedItems = Array.from(itemsMap.values());
+                generatedOutputs[rmName].totalWeight += generatedWeight;
               }
-              generatedOutputs[rmName].totalWeight += generatedWeight;
             }
           }
         }
       }
     }
 
-    // Now calculate used weight from Co-Product / By-Product plans
-    for (const plan of dailyPlans) {
-      const spec = specs[plan.itemCode];
-      if (spec && (spec.itemCategory === 'coproduct' || spec.itemCategory === 'byproduct')) {
-        const yieldPercent = spec.yieldPercent || 100;
-        const requiredWeight = Number(plan.plannedQty) / (yieldPercent / 100);
-        if (requiredWeight > 0) {
-          let remainingRequired = requiredWeight;
-          
-          // Phase 1: Consume from outputs that have remaining capacity
-          for (const key in generatedOutputs) {
-            if (remainingRequired <= 0) break;
-            const out = generatedOutputs[key];
-            if (out.linkedItems?.some((i: any) => i.itemCode === plan.itemCode)) {
-              const outRemain = out.totalWeight - (out.usedWeight || 0);
-              if (outRemain > 0) {
-                const amountToTake = Math.min(remainingRequired, outRemain);
-                out.usedWeight = (out.usedWeight || 0) + amountToTake;
-                remainingRequired -= amountToTake;
+    // 2. Toridas By-Products ONLY for BIL (since Toridas machine deboning is part of BIL process)
+    if (partName?.toUpperCase() === 'BIL' && effectiveToridasMetrics?.byProducts) {
+      for (const bp of effectiveToridasMetrics.byProducts) {
+        if (!bp.weightKg || bp.weightKg <= 0) continue;
+
+        let linkedItems: any[] = [];
+        if (nodes.length > 0 && edges.length > 0) {
+          // Find RM node matching bp.name or itemCode
+          const rmNode = nodes.find((n: any) => 
+            (n.nodeTypeId === 2002 || n.nodeTypeId === 2001) && (
+              n.name?.trim().toLowerCase() === bp.name?.trim().toLowerCase() ||
+              (bp.name.includes('เอ็น') && (n.name?.toLowerCase().includes('tendon') || n.name?.toLowerCase().includes('เอ็น'))) ||
+              (bp.name.includes('ข้อเต็ม') && n.name?.includes('ข้อเต็ม')) ||
+              (bp.name.includes('เศษ BL') && n.name?.includes('เศษ BL'))
+            )
+          );
+
+          if (rmNode) {
+            const rmOutgoing = findOutgoingEdges(rmNode.id);
+            const linkedItemNodes = rmOutgoing
+              .map((e: any) => nodes.find((n: any) => n.id === e.target))
+              .filter((n: any) => n && (n.nodeTypeId === 3002 || n.nodeTypeId === 3001));
+
+            const itemsMap = new Map();
+            for (const iNode of linkedItemNodes) {
+              try {
+                const iData = JSON.parse(iNode.data || '{}');
+                if (iData.Items && Array.isArray(iData.Items)) {
+                  for (const item of iData.Items) {
+                    if (!itemsMap.has(item.erpItemCode)) {
+                      itemsMap.set(item.erpItemCode, {
+                        itemCode: item.erpItemCode,
+                        itemDesc: item.erpItemDesc
+                      });
+                    }
+                  }
+                }
+              } catch (e) {}
+            }
+            linkedItems = Array.from(itemsMap.values());
+          }
+        }
+
+        if (bp.itemCode && !linkedItems.some((i: any) => i.itemCode === bp.itemCode)) {
+          const spec = specs?.[bp.itemCode];
+          linkedItems.push({
+            itemCode: bp.itemCode,
+            itemDesc: spec?.itemDesc || bp.name
+          });
+        }
+
+        const isCoProduct = bp.itemCode && specs?.[bp.itemCode]?.itemCategory === 'coproduct';
+        const typeStr = isCoProduct ? 'Co-Product' : 'By-Product';
+
+        const normalizeName = (name: string) => {
+          const n = (name || '').trim().toLowerCase();
+          if (n.includes('กระดูกน่องสะโพก') || n.includes('ข้อเต็ม')) return 'กระดูกน่องสะโพกติดข้อเต็ม';
+          if (n.includes('หนัง')) return 'หนังติดมันเกรด A';
+          if (n.includes('เศษ bl')) return 'เศษ BL No.2';
+          if (n.includes('เอ็น') || n.includes('knee') || n.includes('tendon')) return 'เอ็นข้อไก่ (Knee Tendon)';
+          if (n.includes('ข้อสั้น')) return 'ข้อสั้น';
+          return name.trim();
+        };
+
+        const targetNorm = normalizeName(bp.name);
+
+        // Check if an existing entry in generatedOutputs matches this bp by normalized name
+        let existingKey = Object.keys(generatedOutputs).find(k => 
+          normalizeName(k) === targetNorm
+        );
+
+        if (!existingKey) {
+          generatedOutputs[bp.name] = {
+            name: bp.name,
+            type: typeStr,
+            totalWeight: bp.weightKg,
+            linkedItems
+          };
+        } else {
+          generatedOutputs[existingKey].totalWeight += bp.weightKg;
+          if (linkedItems.length > 0) {
+            const currentLinked = generatedOutputs[existingKey].linkedItems || [];
+            for (const item of linkedItems) {
+              if (!currentLinked.some((c: any) => c.itemCode === item.itemCode)) {
+                currentLinked.push(item);
               }
             }
+            generatedOutputs[existingKey].linkedItems = currentLinked;
           }
-          
-          // Phase 2: If there's still required weight (over-allocated), just dump it on the first matching output
-          if (remainingRequired > 0) {
+        }
+      }
+
+      // Remove specific by-product item codes (e.g. 111119187 for กระดูกน่องสะโพกติดข้อเต็ม) from generic catch-alls like ข้อสั้น
+      const specificCodes = new Set<string>();
+      for (const k in generatedOutputs) {
+        if (k !== 'ข้อสั้น') {
+          generatedOutputs[k].linkedItems?.forEach((item: any) => specificCodes.add(item.itemCode));
+        }
+      }
+      if (generatedOutputs['ข้อสั้น']) {
+        generatedOutputs['ข้อสั้น'].linkedItems = generatedOutputs['ข้อสั้น'].linkedItems?.filter(
+          (item: any) => !specificCodes.has(item.itemCode)
+        );
+      }
+    }
+
+    // 3. Now calculate used weight from Co-Product / By-Product plans
+    if (dailyPlans && dailyPlans.length > 0) {
+      for (const plan of dailyPlans) {
+        const spec = specs?.[plan.itemCode];
+        if (spec && (spec.itemCategory === 'coproduct' || spec.itemCategory === 'byproduct')) {
+          const yieldPercent = spec.yieldPercent || 100;
+          const requiredWeight = Number(plan.plannedQty) / (yieldPercent / 100);
+          if (requiredWeight > 0) {
+            let remainingRequired = requiredWeight;
+            
+            // Phase 1: Consume from outputs that have remaining capacity
             for (const key in generatedOutputs) {
+              if (remainingRequired <= 0) break;
               const out = generatedOutputs[key];
               if (out.linkedItems?.some((i: any) => i.itemCode === plan.itemCode)) {
-                out.usedWeight = (out.usedWeight || 0) + remainingRequired;
-                break;
+                const outRemain = out.totalWeight - (out.usedWeight || 0);
+                if (outRemain > 0) {
+                  const amountToTake = Math.min(remainingRequired, outRemain);
+                  out.usedWeight = (out.usedWeight || 0) + amountToTake;
+                  remainingRequired -= amountToTake;
+                }
+              }
+            }
+            
+            // Phase 2: If there's still required weight (over-allocated), just dump it on the first matching output
+            if (remainingRequired > 0) {
+              for (const key in generatedOutputs) {
+                const out = generatedOutputs[key];
+                if (out.linkedItems?.some((i: any) => i.itemCode === plan.itemCode)) {
+                  out.usedWeight = (out.usedWeight || 0) + remainingRequired;
+                  break;
+                }
               }
             }
           }
@@ -204,7 +349,7 @@ export default function OutputsSummaryPanel({
       usedWeight: out.usedWeight || 0,
       remainingWeight: out.totalWeight - (out.usedWeight || 0)
     })).sort((a: any, b: any) => b.totalWeight - a.totalWeight);
-  }, [boardData, dailyPlans, specs]);
+  }, [boardData, dailyPlans, specs, partName, effectiveToridasMetrics, selectedDate]);
 
   if (!selectedDate) {
     return null;
@@ -218,7 +363,7 @@ export default function OutputsSummaryPanel({
     );
   }
 
-  if (!boardData) {
+  if (!boardData && outputSummary.length === 0) {
     return null;
   }
 

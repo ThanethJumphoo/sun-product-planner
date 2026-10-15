@@ -31,6 +31,7 @@ const demand_planning_module_1 = require("./modules/demand-planning/demand-plann
 const cache_manager_1 = require("@nestjs/cache-manager");
 const mps_module_1 = require("./modules/mps/mps.module");
 const dps_module_1 = require("./modules/dps/dps.module");
+const machine_sizing_module_1 = require("./modules/master-data/machine-sizing/machine-sizing.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -61,6 +62,7 @@ exports.AppModule = AppModule = __decorate([
             demand_planning_module_1.DemandPlanningModule,
             mps_module_1.MpsModule,
             dps_module_1.DpsModule,
+            machine_sizing_module_1.MachineSizingModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

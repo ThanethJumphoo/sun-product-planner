@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import prisma from '../../lib/prisma';
 import { generateAutoPlanOnServer } from './utils/autoGeneratePlan';
 import { calculateToridasCapacity, ToridasDailyResult } from './utils/toridasCapacity';
+import { calculateICutCapacity, ICutDailyResult } from './utils/icutCapacity';
 import { format, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
 
 @Injectable()
@@ -406,6 +407,136 @@ export class MpsService {
         totalBonelessKg: Number(totalBoneless.toFixed(2)),
         totalOverflowKg: Number(totalOverflow.toFixed(2)),
         avgUtilizationPct: count > 0 ? Number((sumUtil / count).toFixed(1)) : 0,
+      },
+      daily: dailyMetrics,
+    };
+  }
+
+  async getICutMetrics(partName: string, currentMonth: string) {
+    const targetPart = partName.toUpperCase() === 'BIL' ? 'BL' : partName;
+    const monthStart = startOfMonth(new Date(currentMonth));
+    const monthEnd = endOfMonth(new Date(currentMonth));
+
+    // 1. Fetch BL Flow Board to discover items linked to I-CUT Machine
+    const blBoard = await prisma.flowBoard.findFirst({
+      where: {
+        OR: [
+          { name: `Master Production Flow - ${targetPart}` },
+          { name: { contains: targetPart } },
+        ],
+      },
+      include: {
+        nodes: true,
+        edges: true,
+      },
+    });
+
+    const icutItemSet = new Set<string>();
+    let icutNodeConfig = {};
+
+    if (blBoard) {
+      const icutNode = blBoard.nodes.find(
+        (n) => n.name?.toLowerCase().includes('icut') || n.name?.toLowerCase().includes('i-cut'),
+      );
+      if (icutNode) {
+        try {
+          const mData = JSON.parse(icutNode.data || '{}');
+          icutNodeConfig = {
+            effectiveHoursPerShift: Number(mData['Effective Hours']) || 8,
+            maxShifts: Number(mData['Lines']) ? 2 : 2,
+          };
+        } catch (e) {}
+
+        // Trace downstream: icutNode -> RM BLK -> Item Product
+        const outEdges = blBoard.edges.filter((e) => e.source === icutNode.id);
+        for (const edge of outEdges) {
+          const rmNode = blBoard.nodes.find((n) => n.id === edge.target);
+          if (rmNode) {
+            const rmEdges = blBoard.edges.filter((e) => e.source === rmNode.id);
+            for (const rme of rmEdges) {
+              const itemNode = blBoard.nodes.find((n) => n.id === rme.target);
+              try {
+                const iData = JSON.parse(itemNode?.data || '{}');
+                if (Array.isArray(iData.Items)) {
+                  for (const itm of iData.Items) {
+                    if (itm.erpItemCode) icutItemSet.add(itm.erpItemCode);
+                  }
+                }
+              } catch (e) {}
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Fetch plans, specs, and item masters
+    const [plans, specsArr, itemsArr] = await Promise.all([
+      prisma.mpsProductionTransaction.findMany({
+        where: { partName: targetPart, planDate: { gte: monthStart, lte: monthEnd } },
+        orderBy: { planDate: 'asc' },
+      }),
+      prisma.productSpec.findMany(),
+      prisma.erpItemMaster.findMany({
+        select: { erpItemCode: true, erpItemDesc: true },
+      }),
+    ]);
+
+    const itemDescMap = new Map<string, string>();
+    itemsArr.forEach((i) => itemDescMap.set(i.erpItemCode, i.erpItemDesc));
+
+    const specsMap: Record<string, any> = {};
+    specsArr.forEach((s) => {
+      specsMap[s.erpItemCode] = {
+        ...s,
+        itemDesc: itemDescMap.get(s.erpItemCode) || '',
+      };
+    });
+
+    // 3. Group plans by dateStr
+    const plansByDate: Record<string, Array<{ itemCode: string; plannedQty: number; itemName?: string }>> = {};
+    plans.forEach((p) => {
+      const dateStr = format(p.planDate, 'yyyy-MM-dd');
+      if (!plansByDate[dateStr]) plansByDate[dateStr] = [];
+      plansByDate[dateStr].push({
+        itemCode: p.itemCode,
+        plannedQty: Number(p.plannedQty),
+        itemName: itemDescMap.get(p.itemCode) || p.itemCode,
+      });
+    });
+
+    // 4. Calculate daily metrics
+    const dailyMetrics: Record<string, ICutDailyResult> = {};
+    let totalMonthPlannedKg = 0;
+    let totalMonthRmReqKg = 0;
+    let totalMonthBlbKg = 0;
+    let totalMonthHours = 0;
+    let sumUtil = 0;
+    let activeDaysCount = 0;
+
+    for (const [dateStr, dayPlans] of Object.entries(plansByDate)) {
+      const res = calculateICutCapacity(dayPlans, specsMap, icutNodeConfig, dateStr, icutItemSet);
+      dailyMetrics[dateStr] = res;
+
+      if (res.totalPlannedKg > 0) {
+        totalMonthPlannedKg += res.totalPlannedKg;
+        totalMonthRmReqKg += res.totalRmRequiredKg;
+        totalMonthBlbKg += res.coProductBlbKg;
+        totalMonthHours += res.totalHoursNeeded;
+        sumUtil += res.capacityUtilizationPct;
+        activeDaysCount++;
+      }
+    }
+
+    return {
+      machineCode: 'ICUT-01',
+      config: icutNodeConfig,
+      summary: {
+        totalActiveDays: activeDaysCount,
+        totalPlannedKg: Number(totalMonthPlannedKg.toFixed(2)),
+        totalRmRequiredKg: Number(totalMonthRmReqKg.toFixed(2)),
+        totalBlbCoproductKg: Number(totalMonthBlbKg.toFixed(2)),
+        totalHoursNeeded: Number(totalMonthHours.toFixed(2)),
+        avgUtilizationPct: activeDaysCount > 0 ? Number((sumUtil / activeDaysCount).toFixed(1)) : 0,
       },
       daily: dailyMetrics,
     };

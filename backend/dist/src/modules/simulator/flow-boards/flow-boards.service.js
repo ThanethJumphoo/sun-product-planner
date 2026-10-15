@@ -194,8 +194,28 @@ let FlowBoardsService = class FlowBoardsService {
                 catch { }
                 srcDataObj.inputQuantity = Number(inputQty.toFixed(2));
                 srcDataObj.isSyncedFromParent = true;
-                const existingNode = existingSubNodes.find((n) => n.name.trim().toLowerCase() === src.name.trim().toLowerCase() &&
+                const customConnectedNode = existingSubNodes.find((n) => n.name.trim().toLowerCase() === src.name.trim().toLowerCase() &&
+                    existingSubEdges.some((e) => e.source === n.id && e.target !== partNode.id));
+                const partConnectedNode = existingSubNodes.find((n) => n.name.trim().toLowerCase() === src.name.trim().toLowerCase() &&
                     existingSubEdges.some((e) => e.source === n.id && e.target === partNode.id));
+                if (customConnectedNode && partConnectedNode) {
+                    await prisma_1.default.flowEdge.deleteMany({
+                        where: {
+                            boardId: subBoard.id,
+                            OR: [{ source: partConnectedNode.id }, { target: partConnectedNode.id }],
+                        },
+                    });
+                    await prisma_1.default.flowNode.delete({
+                        where: { id: partConnectedNode.id },
+                    });
+                    const idx = existingSubNodes.findIndex((n) => n.id === partConnectedNode.id);
+                    if (idx !== -1)
+                        existingSubNodes.splice(idx, 1);
+                    hasChanges = true;
+                }
+                const existingNode = customConnectedNode ||
+                    partConnectedNode ||
+                    existingSubNodes.find((n) => n.name.trim().toLowerCase() === src.name.trim().toLowerCase());
                 if (existingNode) {
                     let oldData = {};
                     try {
@@ -207,7 +227,7 @@ let FlowBoardsService = class FlowBoardsService {
                         await prisma_1.default.flowNode.update({
                             where: { id: existingNode.id },
                             data: {
-                                data: JSON.stringify(srcDataObj),
+                                data: JSON.stringify({ ...oldData, ...srcDataObj }),
                             },
                         });
                         hasChanges = true;

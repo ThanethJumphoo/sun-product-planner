@@ -33,6 +33,19 @@ export declare class MpsController {
         };
         daily: Record<string, import("./utils/toridasCapacity").ToridasDailyResult>;
     }>;
+    getICutMetrics(partName: string, currentMonth: string): Promise<{
+        machineCode: string;
+        config: {};
+        summary: {
+            totalActiveDays: number;
+            totalPlannedKg: number;
+            totalRmRequiredKg: number;
+            totalBlbCoproductKg: number;
+            totalHoursNeeded: number;
+            avgUtilizationPct: number;
+        };
+        daily: Record<string, import("./utils/icutCapacity").ICutDailyResult>;
+    }>;
     clearPlans(partName: string, startDate: string, endDate: string): Promise<{
         success: boolean;
         deletedCount: number;

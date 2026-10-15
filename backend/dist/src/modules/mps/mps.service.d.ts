@@ -1,4 +1,5 @@
 import { ToridasDailyResult } from './utils/toridasCapacity';
+import { ICutDailyResult } from './utils/icutCapacity';
 export declare class MpsService {
     saveMpsSupply(partName: string, payload: {
         date: string;
@@ -35,5 +36,18 @@ export declare class MpsService {
             avgUtilizationPct: number;
         };
         daily: Record<string, ToridasDailyResult>;
+    }>;
+    getICutMetrics(partName: string, currentMonth: string): Promise<{
+        machineCode: string;
+        config: {};
+        summary: {
+            totalActiveDays: number;
+            totalPlannedKg: number;
+            totalRmRequiredKg: number;
+            totalBlbCoproductKg: number;
+            totalHoursNeeded: number;
+            avgUtilizationPct: number;
+        };
+        daily: Record<string, ICutDailyResult>;
     }>;
 }

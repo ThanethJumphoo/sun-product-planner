@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const prisma_1 = __importDefault(require("../../lib/prisma"));
 const autoGeneratePlan_1 = require("./utils/autoGeneratePlan");
 const toridasCapacity_1 = require("./utils/toridasCapacity");
+const icutCapacity_1 = require("./utils/icutCapacity");
 const date_fns_1 = require("date-fns");
 let MpsService = class MpsService {
     async saveMpsSupply(partName, payload) {
@@ -354,6 +355,120 @@ let MpsService = class MpsService {
                 totalBonelessKg: Number(totalBoneless.toFixed(2)),
                 totalOverflowKg: Number(totalOverflow.toFixed(2)),
                 avgUtilizationPct: count > 0 ? Number((sumUtil / count).toFixed(1)) : 0,
+            },
+            daily: dailyMetrics,
+        };
+    }
+    async getICutMetrics(partName, currentMonth) {
+        const targetPart = partName.toUpperCase() === 'BIL' ? 'BL' : partName;
+        const monthStart = (0, date_fns_1.startOfMonth)(new Date(currentMonth));
+        const monthEnd = (0, date_fns_1.endOfMonth)(new Date(currentMonth));
+        const blBoard = await prisma_1.default.flowBoard.findFirst({
+            where: {
+                OR: [
+                    { name: `Master Production Flow - ${targetPart}` },
+                    { name: { contains: targetPart } },
+                ],
+            },
+            include: {
+                nodes: true,
+                edges: true,
+            },
+        });
+        const icutItemSet = new Set();
+        let icutNodeConfig = {};
+        if (blBoard) {
+            const icutNode = blBoard.nodes.find((n) => n.name?.toLowerCase().includes('icut') || n.name?.toLowerCase().includes('i-cut'));
+            if (icutNode) {
+                try {
+                    const mData = JSON.parse(icutNode.data || '{}');
+                    icutNodeConfig = {
+                        effectiveHoursPerShift: Number(mData['Effective Hours']) || 8,
+                        maxShifts: Number(mData['Lines']) ? 2 : 2,
+                    };
+                }
+                catch (e) { }
+                const outEdges = blBoard.edges.filter((e) => e.source === icutNode.id);
+                for (const edge of outEdges) {
+                    const rmNode = blBoard.nodes.find((n) => n.id === edge.target);
+                    if (rmNode) {
+                        const rmEdges = blBoard.edges.filter((e) => e.source === rmNode.id);
+                        for (const rme of rmEdges) {
+                            const itemNode = blBoard.nodes.find((n) => n.id === rme.target);
+                            try {
+                                const iData = JSON.parse(itemNode?.data || '{}');
+                                if (Array.isArray(iData.Items)) {
+                                    for (const itm of iData.Items) {
+                                        if (itm.erpItemCode)
+                                            icutItemSet.add(itm.erpItemCode);
+                                    }
+                                }
+                            }
+                            catch (e) { }
+                        }
+                    }
+                }
+            }
+        }
+        const [plans, specsArr, itemsArr] = await Promise.all([
+            prisma_1.default.mpsProductionTransaction.findMany({
+                where: { partName: targetPart, planDate: { gte: monthStart, lte: monthEnd } },
+                orderBy: { planDate: 'asc' },
+            }),
+            prisma_1.default.productSpec.findMany(),
+            prisma_1.default.erpItemMaster.findMany({
+                select: { erpItemCode: true, erpItemDesc: true },
+            }),
+        ]);
+        const itemDescMap = new Map();
+        itemsArr.forEach((i) => itemDescMap.set(i.erpItemCode, i.erpItemDesc));
+        const specsMap = {};
+        specsArr.forEach((s) => {
+            specsMap[s.erpItemCode] = {
+                ...s,
+                itemDesc: itemDescMap.get(s.erpItemCode) || '',
+            };
+        });
+        const plansByDate = {};
+        plans.forEach((p) => {
+            const dateStr = (0, date_fns_1.format)(p.planDate, 'yyyy-MM-dd');
+            if (!plansByDate[dateStr])
+                plansByDate[dateStr] = [];
+            plansByDate[dateStr].push({
+                itemCode: p.itemCode,
+                plannedQty: Number(p.plannedQty),
+                itemName: itemDescMap.get(p.itemCode) || p.itemCode,
+            });
+        });
+        const dailyMetrics = {};
+        let totalMonthPlannedKg = 0;
+        let totalMonthRmReqKg = 0;
+        let totalMonthBlbKg = 0;
+        let totalMonthHours = 0;
+        let sumUtil = 0;
+        let activeDaysCount = 0;
+        for (const [dateStr, dayPlans] of Object.entries(plansByDate)) {
+            const res = (0, icutCapacity_1.calculateICutCapacity)(dayPlans, specsMap, icutNodeConfig, dateStr, icutItemSet);
+            dailyMetrics[dateStr] = res;
+            if (res.totalPlannedKg > 0) {
+                totalMonthPlannedKg += res.totalPlannedKg;
+                totalMonthRmReqKg += res.totalRmRequiredKg;
+                totalMonthBlbKg += res.coProductBlbKg;
+                totalMonthHours += res.totalHoursNeeded;
+                sumUtil += res.capacityUtilizationPct;
+                activeDaysCount++;
+            }
+        }
+        return {
+            machineCode: 'ICUT-01',
+            config: icutNodeConfig,
+            summary: {
+                totalActiveDays: activeDaysCount,
+                totalPlannedKg: Number(totalMonthPlannedKg.toFixed(2)),
+                totalRmRequiredKg: Number(totalMonthRmReqKg.toFixed(2)),
+                totalBlbCoproductKg: Number(totalMonthBlbKg.toFixed(2)),
+                totalHoursNeeded: Number(totalMonthHours.toFixed(2)),
+                avgUtilizationPct: activeDaysCount > 0 ? Number((sumUtil / activeDaysCount).toFixed(1)) : 0,
             },
             daily: dailyMetrics,
         };

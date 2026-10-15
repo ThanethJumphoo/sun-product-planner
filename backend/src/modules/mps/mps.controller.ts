@@ -40,6 +40,14 @@ export class MpsController {
     return this.mpsService.getToridasMetrics(partName, currentMonth);
   }
 
+  @Get(':partName/icut-metrics')
+  async getICutMetrics(
+    @Param('partName') partName: string,
+    @Query('currentMonth') currentMonth: string,
+  ) {
+    return this.mpsService.getICutMetrics(partName, currentMonth);
+  }
+
   @Delete(':partName/plans')
   async clearPlans(
     @Param('partName') partName: string,

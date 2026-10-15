@@ -85,6 +85,9 @@ let ProductSpecService = class ProductSpecService {
         });
     }
     async saveSpec(erpItemCode, data) {
+        const serializedRmSizes = data.rmSizesJson
+            ? (typeof data.rmSizesJson === 'string' ? data.rmSizesJson : JSON.stringify(data.rmSizesJson))
+            : null;
         return prisma_1.default.productSpec.upsert({
             where: { erpItemCode },
             update: {
@@ -96,7 +99,7 @@ let ProductSpecService = class ProductSpecService {
                 leadMinDays: data.leadMinDays !== undefined ? Number(data.leadMinDays) : null,
                 leadMaxDays: data.leadMaxDays !== undefined ? Number(data.leadMaxDays) : null,
                 isExternalRm: data.isExternalRm === true,
-                rmSizesJson: data.rmSizesJson ? JSON.stringify(data.rmSizesJson) : null
+                rmSizesJson: serializedRmSizes
             },
             create: {
                 erpItemCode,
@@ -108,7 +111,7 @@ let ProductSpecService = class ProductSpecService {
                 leadMinDays: data.leadMinDays !== undefined ? Number(data.leadMinDays) : null,
                 leadMaxDays: data.leadMaxDays !== undefined ? Number(data.leadMaxDays) : null,
                 isExternalRm: data.isExternalRm === true,
-                rmSizesJson: data.rmSizesJson ? JSON.stringify(data.rmSizesJson) : null
+                rmSizesJson: serializedRmSizes
             }
         });
     }

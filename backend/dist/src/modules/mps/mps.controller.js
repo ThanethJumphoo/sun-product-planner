@@ -33,6 +33,9 @@ let MpsController = class MpsController {
     async getToridasMetrics(partName, currentMonth) {
         return this.mpsService.getToridasMetrics(partName, currentMonth);
     }
+    async getICutMetrics(partName, currentMonth) {
+        return this.mpsService.getICutMetrics(partName, currentMonth);
+    }
     async clearPlans(partName, startDate, endDate) {
         return this.mpsService.clearPlans(partName, startDate, endDate);
     }
@@ -71,6 +74,14 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], MpsController.prototype, "getToridasMetrics", null);
+__decorate([
+    (0, common_1.Get)(':partName/icut-metrics'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Query)('currentMonth')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], MpsController.prototype, "getICutMetrics", null);
 __decorate([
     (0, common_1.Delete)(':partName/plans'),
     __param(0, (0, common_1.Param)('partName')),

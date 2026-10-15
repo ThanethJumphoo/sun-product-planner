@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useLayoutStore } from "@/store/layout";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Calendar, ClipboardList, PieChart, Package, Settings, Users, Shield, KeyRound, LogOut, Activity, Database, ChevronDown, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Calendar, ClipboardList, PieChart, Package, Settings, Users, Shield, KeyRound, LogOut, Activity, Database, ChevronDown, ChevronRight, Cog } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import api from "@/lib/api";
 
@@ -38,6 +38,7 @@ const staticMenuSections = [
       { name: "Product Spec", href: "/product-spec", icon: ClipboardList },
       { name: "Production Flow", href: "/production-flow", icon: Activity },
       { name: "Weight Distribution", href: "/weight-distribution", icon: PieChart },
+      { name: "Machine", href: "/machine", icon: Cog },
     ],
   },
   {

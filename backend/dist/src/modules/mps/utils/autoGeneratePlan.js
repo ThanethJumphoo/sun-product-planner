@@ -266,7 +266,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
             flowBoards[0];
         const nodes = board.nodes || [];
         const edges = board.edges || [];
-        const machineNodes = nodes.filter((n) => n.nodeTypeId === 1003 || n.name?.toLowerCase().includes('machine'));
+        const machineNodes = nodes.filter((n) => n.nodeTypeId === 1003 || n.nodeTypeId === 2004 || n.name?.toLowerCase().includes('machine'));
         for (const mNode of machineNodes) {
             const outEdges = edges.filter((e) => e.source === mNode.id && (e.sourceHandle === 'byproduct' || e.sourceHandle === 'coproduct'));
             for (const oe of outEdges) {
@@ -442,26 +442,67 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                 plannedAnything = true;
                 continue;
             }
-            const isUnsizeAllowed = allowedSizes.length === 0 || allowedSizes.includes('Unsize') || allowedSizes.includes('All');
-            const eligibleBuckets = buckets.filter(b => {
+            const parsedRules = [];
+            let isUnsizeAllowed = allowedSizes.length === 0;
+            for (let idx = 0; idx < allowedSizes.length; idx++) {
+                const item = allowedSizes[idx];
+                if (typeof item === 'object' && item !== null) {
+                    const szStr = String(item.rmSize || '').trim();
+                    if (szStr === 'Unsize' || szStr === 'All' || !szStr)
+                        isUnsizeAllowed = true;
+                    parsedRules.push({
+                        priority: Number(item.priority || idx + 1),
+                        rmSize: szStr,
+                        yieldPercent: item.yieldPercent !== undefined ? Number(item.yieldPercent) : yieldPercent
+                    });
+                }
+                else {
+                    const szStr = String(item).trim();
+                    if (szStr === 'Unsize' || szStr === 'All')
+                        isUnsizeAllowed = true;
+                    parsedRules.push({
+                        priority: idx + 1,
+                        rmSize: szStr,
+                        yieldPercent: yieldPercent
+                    });
+                }
+            }
+            parsedRules.sort((a, b) => a.priority - b.priority);
+            const matchedBucketsWithYield = [];
+            for (const b of buckets) {
                 if (b.remaining <= 0)
-                    return false;
-                if (isUnsizeAllowed)
-                    return true;
-                return allowedSizes.includes(b.id.toString());
-            });
-            for (const bucket of eligibleBuckets) {
+                    continue;
+                const bNameWithoutG = b.name.replace(/g$/i, '').trim();
+                const bIdStr = String(b.id);
+                if (isUnsizeAllowed) {
+                    matchedBucketsWithYield.push({ bucket: b, specificYield: yieldPercent, priority: 999 });
+                    continue;
+                }
+                const matchRule = parsedRules.find(r => r.rmSize === bIdStr ||
+                    r.rmSize === b.name ||
+                    r.rmSize === bNameWithoutG ||
+                    r.rmSize.replace(/\s+/g, '') === bNameWithoutG.replace(/\s+/g, ''));
+                if (matchRule) {
+                    matchedBucketsWithYield.push({
+                        bucket: b,
+                        specificYield: matchRule.yieldPercent || yieldPercent,
+                        priority: matchRule.priority
+                    });
+                }
+            }
+            matchedBucketsWithYield.sort((a, b) => a.priority - b.priority);
+            for (const item of matchedBucketsWithYield) {
                 if (remainingPlanQty <= 0.01)
                     break;
+                const bucket = item.bucket;
+                const currentYield = item.specificYield || yieldPercent;
                 const availableRM = bucket.remaining;
-                const rmToTake = Math.min(requiredRM, availableRM);
-                const qtyProduced = rmToTake * (yieldPercent / 100);
+                const reqForRemaining = remainingPlanQty / (currentYield / 100);
+                const rmToTake = Math.min(reqForRemaining, availableRM);
+                const qtyProduced = rmToTake * (currentYield / 100);
                 if (rmToTake <= 0)
-                    break;
+                    continue;
                 bucket.remaining -= rmToTake;
-                if (requiredRM !== Infinity) {
-                    requiredRM -= rmToTake;
-                }
                 remainingPlanQty -= qtyProduced;
                 const keyForTracker = `${dateStr}_${demand.soNumber}_${demand.itemCode}`;
                 const nextIndex = (splitIndexTracker[keyForTracker] !== undefined ? splitIndexTracker[keyForTracker] : -1) + 1;

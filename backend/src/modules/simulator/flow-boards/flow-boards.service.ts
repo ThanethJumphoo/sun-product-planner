@@ -210,13 +210,43 @@ export class FlowBoardsService {
         srcDataObj.inputQuantity = Number(inputQty.toFixed(2));
         srcDataObj.isSyncedFromParent = true;
 
-        const existingNode = existingSubNodes.find(
+        // Check if there is already a node with the same name in the sub-board.
+        // It could be connected to partNode OR the user may have routed it to a dedicated process line!
+        const customConnectedNode = existingSubNodes.find(
           (n: any) =>
             n.name.trim().toLowerCase() === src.name.trim().toLowerCase() &&
-            existingSubEdges.some(
-              (e: any) => e.source === n.id && e.target === partNode.id,
-            ),
+            existingSubEdges.some((e: any) => e.source === n.id && e.target !== partNode.id),
         );
+
+        const partConnectedNode = existingSubNodes.find(
+          (n: any) =>
+            n.name.trim().toLowerCase() === src.name.trim().toLowerCase() &&
+            existingSubEdges.some((e: any) => e.source === n.id && e.target === partNode.id),
+        );
+
+        // If the user already has a custom-routed line for this RM (e.g. RM BL-TH -> BL-TH Manual Trimming),
+        // and there's also a duplicate node force-connected to partNode (BL), clean up the duplicate!
+        if (customConnectedNode && partConnectedNode) {
+          await prisma.flowEdge.deleteMany({
+            where: {
+              boardId: subBoard.id,
+              OR: [{ source: partConnectedNode.id }, { target: partConnectedNode.id }],
+            },
+          });
+          await prisma.flowNode.delete({
+            where: { id: partConnectedNode.id },
+          });
+          const idx = existingSubNodes.findIndex((n: any) => n.id === partConnectedNode.id);
+          if (idx !== -1) existingSubNodes.splice(idx, 1);
+          hasChanges = true;
+        }
+
+        const existingNode =
+          customConnectedNode ||
+          partConnectedNode ||
+          existingSubNodes.find(
+            (n: any) => n.name.trim().toLowerCase() === src.name.trim().toLowerCase(),
+          );
 
         if (existingNode) {
           let oldData: any = {};
@@ -231,7 +261,7 @@ export class FlowBoardsService {
             await prisma.flowNode.update({
               where: { id: existingNode.id },
               data: {
-                data: JSON.stringify(srcDataObj),
+                data: JSON.stringify({ ...oldData, ...srcDataObj }),
               },
             });
             hasChanges = true;
