@@ -200,8 +200,8 @@ export const MpsDemandCard = ({
                 {splits.length > 0 && (
                   <div className="space-y-1">
                     <p className="text-[10px] text-slate-400 font-semibold uppercase mb-2">Planned Splits</p>
-                    {splits.map((plan: any) => (
-                       <div key={plan.id || plan.planDate} className="flex items-center justify-between gap-1 bg-white p-2 rounded border border-slate-200 shadow-sm">
+                    {splits.map((plan: any, idx: number) => (
+                       <div key={plan.id || `${plan.planDate}_${idx}`} className="flex items-center justify-between gap-1 bg-white p-2 rounded border border-slate-200 shadow-sm">
                          {/* Date input to change split date */}
                          <input 
                            type="date"

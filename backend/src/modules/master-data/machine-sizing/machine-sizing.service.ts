@@ -16,6 +16,13 @@ export interface SizingGroup {
   rules: SizingRuleItem[];
 }
 
+export const EXCEL_TO_WD_SIZE_MAP: Record<string, string> = {
+  '225-243': '220-240',
+  '270-280': '280-300',
+  '300-325': '300-320',
+  '330-340': '320-340',
+};
+
 export const DEFAULT_BELT_GATE_BL_GROUPS: SizingGroup[] = [
   {
     id: 'grp_blk_25_30',
@@ -24,13 +31,13 @@ export const DEFAULT_BELT_GATE_BL_GROUPS: SizingGroup[] = [
     maxSize: 30,
     itemCodes: ['1111172B7', '211117114'],
     rules: [
-      { priority: 1, rmSize: '225-243', yieldPercent: 83.40 },
+      { priority: 1, rmSize: '220-240', yieldPercent: 83.40 },
       { priority: 2, rmSize: '360-380', yieldPercent: 80.25 },
       { priority: 3, rmSize: '260-280', yieldPercent: 80.36 },
       { priority: 4, rmSize: '300-320', yieldPercent: 80.19 },
       { priority: 5, rmSize: '340-360', yieldPercent: 79.62 },
       { priority: 6, rmSize: '320-340', yieldPercent: 79.43 },
-      { priority: 7, rmSize: '270-280', yieldPercent: 77.39 },
+      { priority: 7, rmSize: '280-300', yieldPercent: 77.39 },
     ],
   },
   {
@@ -79,7 +86,7 @@ export const DEFAULT_BELT_GATE_BL_GROUPS: SizingGroup[] = [
     rules: [
       { priority: 1, rmSize: '260-280', yieldPercent: 78.00 },
       { priority: 2, rmSize: '280-300', yieldPercent: 73.75 },
-      { priority: 3, rmSize: '300-325', yieldPercent: 72.37 },
+      { priority: 3, rmSize: '300-320', yieldPercent: 72.37 },
     ],
   },
   {
@@ -102,11 +109,24 @@ export const DEFAULT_BELT_GATE_BL_GROUPS: SizingGroup[] = [
     itemCodes: ['211117132'],
     rules: [
       { priority: 1, rmSize: '300-320', yieldPercent: 80.90 },
-      { priority: 2, rmSize: '330-340', yieldPercent: 78.50 },
+      { priority: 2, rmSize: '320-340', yieldPercent: 78.50 },
       { priority: 3, rmSize: '260-280', yieldPercent: 78.00 },
     ],
   },
 ];
+
+export function sanitizeGroupsWithWd(groups: SizingGroup[]): SizingGroup[] {
+  if (!Array.isArray(groups)) return [];
+  return groups.map((g) => ({
+    ...g,
+    rules: Array.isArray(g.rules)
+      ? g.rules.map((r) => ({
+          ...r,
+          rmSize: EXCEL_TO_WD_SIZE_MAP[r.rmSize] || r.rmSize,
+        }))
+      : [],
+  }));
+}
 
 @Injectable()
 export class MachineSizingService {
@@ -122,7 +142,8 @@ export class MachineSizingService {
 
     if (setting && setting.value) {
       try {
-        return JSON.parse(setting.value);
+        const parsed = JSON.parse(setting.value);
+        return sanitizeGroupsWithWd(parsed);
       } catch (e) {
         console.error('Failed to parse machine sizing config JSON', e);
       }

@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import api from '@/lib/api';
-import { Settings, FileSpreadsheet, Save, Wand2 } from 'lucide-react';
+import { Settings, FileSpreadsheet, Save, Wand2, Plus, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { ManualOrderModal } from './ManualOrderModal';
 
 interface SO_Line {
   id?: string;
@@ -19,6 +20,8 @@ interface SO_Line {
   planDate: string | null;
   status: string | null;
   planQty?: number | string | null;
+  isManual?: boolean;
+  customerName?: string;
 }
 
 interface CategorizedLines {
@@ -31,6 +34,7 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
   const [data, setData] = useState<CategorizedLines>({ product: [], coproduct: [], byproduct: [] });
   const [activeTab, setActiveTab] = useState<'product' | 'coproduct' | 'byproduct'>('product');
   const [isLoading, setIsLoading] = useState(false);
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
 
   useEffect(() => {
     if (partName) {
@@ -66,6 +70,24 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
     // Just fetch from server again, server already sorts them automatically
     fetchDemandData();
     toast.success("Auto sorted based on system priority!");
+  };
+
+  const handleDeleteManualOrder = async (soNumber: string) => {
+    if (!confirm(`Are you sure you want to delete manual order "${soNumber}"?`)) {
+      return;
+    }
+
+    const toastId = toast.loading('Deleting manual order...');
+    try {
+      await api.delete(`/api/v1/demand-planning/${encodeURIComponent(partName)}/manual-orders/${encodeURIComponent(soNumber)}`);
+      toast.dismiss(toastId);
+      toast.success(`Manual order ${soNumber} deleted successfully.`);
+      fetchDemandData();
+    } catch (err: any) {
+      console.error(err);
+      toast.dismiss(toastId);
+      toast.error(err.response?.data?.message || err.message || 'Failed to delete manual order');
+    }
   };
 
   const handleSave = async () => {
@@ -106,6 +128,13 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
         </div>
 
         <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsManualModalOpen(true)}
+            className="flex items-center gap-1.5 text-sm text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3.5 py-1.5 rounded-lg shadow-xs font-semibold transition-colors"
+          >
+            <Plus size={15} />
+            <span>Create Manual Order</span>
+          </button>
           <button 
             onClick={handleAutoSort}
             className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 bg-white border border-slate-200 px-3 py-1.5 rounded shadow-sm hover:border-blue-300 transition-colors"
@@ -173,12 +202,13 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">Plan Qty</th>
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">Plan Date</th>
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">Status</th>
+              <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">Action</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={11} className="p-8 text-center text-slate-500">
+                <td colSpan={12} className="p-8 text-center text-slate-500">
                   <div className="flex justify-center mb-2">
                     <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
                   </div>
@@ -187,7 +217,7 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
               </tr>
             ) : currentLines.length === 0 ? (
               <tr>
-                <td colSpan={11} className="p-8 text-center text-slate-500 italic bg-slate-50/50">
+                <td colSpan={12} className="p-8 text-center text-slate-500 italic bg-slate-50/50">
                   No Sales Order lines found for the items in {partName} ({activeTab}).
                 </td>
               </tr>
@@ -202,7 +232,21 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
                       className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-sm outline-none focus:border-primary"
                     />
                   </td>
-                  <td className="p-3 font-medium text-slate-800">{line.soNumber}</td>
+                  <td className="p-3 font-medium text-slate-800">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span>{line.soNumber}</span>
+                      {line.isManual && (
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          MANUAL
+                        </span>
+                      )}
+                    </div>
+                    {line.customerName && line.customerName !== '-' && (
+                      <div className="text-[11px] text-slate-400 font-normal truncate max-w-[160px]" title={line.customerName}>
+                        {line.customerName}
+                      </div>
+                    )}
+                  </td>
                   <td className="p-3 text-slate-500 truncate max-w-[80px]" title={line.lineNumber}>{line.lineNumber}</td>
                   <td className="p-3 text-blue-600 font-medium">{line.itemCode}</td>
                   <td className="p-3 text-slate-600 text-xs truncate max-w-[200px]" title={line.itemDesc}>{line.itemDesc}</td>
@@ -232,12 +276,33 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
                       <span className="px-2 py-0.5 rounded-full bg-slate-100 text-[10px] uppercase font-bold">{line.status}</span>
                     ) : '-'}
                   </td>
+                  <td className="p-3 text-center">
+                    {line.isManual ? (
+                      <button
+                        onClick={() => handleDeleteManualOrder(line.soNumber)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors inline-flex items-center justify-center"
+                        title={`Delete manual order ${line.soNumber}`}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    ) : (
+                      <span className="text-slate-300 text-xs">-</span>
+                    )}
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      {/* Manual Order Modal */}
+      <ManualOrderModal
+        isOpen={isManualModalOpen}
+        onClose={() => setIsManualModalOpen(false)}
+        partName={partName}
+        onSuccess={fetchDemandData}
+      />
     </div>
   );
 }

@@ -9,9 +9,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MachineSizingService = exports.DEFAULT_BELT_GATE_BL_GROUPS = void 0;
+exports.MachineSizingService = exports.DEFAULT_BELT_GATE_BL_GROUPS = exports.EXCEL_TO_WD_SIZE_MAP = void 0;
+exports.sanitizeGroupsWithWd = sanitizeGroupsWithWd;
 const common_1 = require("@nestjs/common");
 const prisma_1 = __importDefault(require("../../../lib/prisma"));
+exports.EXCEL_TO_WD_SIZE_MAP = {
+    '225-243': '220-240',
+    '270-280': '280-300',
+    '300-325': '300-320',
+    '330-340': '320-340',
+};
 exports.DEFAULT_BELT_GATE_BL_GROUPS = [
     {
         id: 'grp_blk_25_30',
@@ -20,13 +27,13 @@ exports.DEFAULT_BELT_GATE_BL_GROUPS = [
         maxSize: 30,
         itemCodes: ['1111172B7', '211117114'],
         rules: [
-            { priority: 1, rmSize: '225-243', yieldPercent: 83.40 },
+            { priority: 1, rmSize: '220-240', yieldPercent: 83.40 },
             { priority: 2, rmSize: '360-380', yieldPercent: 80.25 },
             { priority: 3, rmSize: '260-280', yieldPercent: 80.36 },
             { priority: 4, rmSize: '300-320', yieldPercent: 80.19 },
             { priority: 5, rmSize: '340-360', yieldPercent: 79.62 },
             { priority: 6, rmSize: '320-340', yieldPercent: 79.43 },
-            { priority: 7, rmSize: '270-280', yieldPercent: 77.39 },
+            { priority: 7, rmSize: '280-300', yieldPercent: 77.39 },
         ],
     },
     {
@@ -75,7 +82,7 @@ exports.DEFAULT_BELT_GATE_BL_GROUPS = [
         rules: [
             { priority: 1, rmSize: '260-280', yieldPercent: 78.00 },
             { priority: 2, rmSize: '280-300', yieldPercent: 73.75 },
-            { priority: 3, rmSize: '300-325', yieldPercent: 72.37 },
+            { priority: 3, rmSize: '300-320', yieldPercent: 72.37 },
         ],
     },
     {
@@ -98,11 +105,24 @@ exports.DEFAULT_BELT_GATE_BL_GROUPS = [
         itemCodes: ['211117132'],
         rules: [
             { priority: 1, rmSize: '300-320', yieldPercent: 80.90 },
-            { priority: 2, rmSize: '330-340', yieldPercent: 78.50 },
+            { priority: 2, rmSize: '320-340', yieldPercent: 78.50 },
             { priority: 3, rmSize: '260-280', yieldPercent: 78.00 },
         ],
     },
 ];
+function sanitizeGroupsWithWd(groups) {
+    if (!Array.isArray(groups))
+        return [];
+    return groups.map((g) => ({
+        ...g,
+        rules: Array.isArray(g.rules)
+            ? g.rules.map((r) => ({
+                ...r,
+                rmSize: exports.EXCEL_TO_WD_SIZE_MAP[r.rmSize] || r.rmSize,
+            }))
+            : [],
+    }));
+}
 let MachineSizingService = class MachineSizingService {
     getSettingKey(machineId, partName) {
         return `machine_sizing_${machineId.toLowerCase()}_${partName.toUpperCase()}`;
@@ -114,7 +134,8 @@ let MachineSizingService = class MachineSizingService {
         });
         if (setting && setting.value) {
             try {
-                return JSON.parse(setting.value);
+                const parsed = JSON.parse(setting.value);
+                return sanitizeGroupsWithWd(parsed);
             }
             catch (e) {
                 console.error('Failed to parse machine sizing config JSON', e);

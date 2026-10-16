@@ -1,9 +1,11 @@
+import { Prisma } from '@prisma/client';
 import { ProductSpecService } from '../master-data/product-spec/product-spec.service';
 export declare class DemandPlanningService {
     private readonly productSpecService;
     constructor(productSpecService: ProductSpecService);
     getSalesOrdersForPart(partName: string): Promise<{
         product: {
+            id: any;
             priority: any;
             soNumber: any;
             lineNumber: any;
@@ -16,8 +18,11 @@ export declare class DemandPlanningService {
             planDate: null;
             status: null;
             isSelected: boolean;
+            isManual: boolean;
+            customerName: any;
         }[];
         coproduct: {
+            id: any;
             priority: any;
             soNumber: any;
             lineNumber: any;
@@ -30,8 +35,11 @@ export declare class DemandPlanningService {
             planDate: null;
             status: null;
             isSelected: boolean;
+            isManual: boolean;
+            customerName: any;
         }[];
         byproduct: {
+            id: any;
             priority: any;
             soNumber: any;
             lineNumber: any;
@@ -44,9 +52,37 @@ export declare class DemandPlanningService {
             planDate: null;
             status: null;
             isSelected: boolean;
+            isManual: boolean;
+            customerName: any;
         }[];
     }>;
     private toDateKey;
+    clearDemandPlans(partName: string): Promise<{
+        success: boolean;
+        count: number;
+    }>;
+    createManualOrder(partName: string, payload: {
+        soNumber?: string;
+        customerName?: string;
+        customerGrade?: string;
+        shipDate: string;
+        items: Array<{
+            itemCode: string;
+            orderedQuantity: number;
+            priority?: number;
+            planQty?: number;
+            lineNumber?: string;
+        }>;
+    }): Promise<{
+        success: boolean;
+        soNumber: string;
+        headerId: string;
+        linesCount: number;
+    }>;
+    deleteManualOrder(partName: string, soNumber: string): Promise<{
+        success: boolean;
+        soNumber: string;
+    }>;
     saveDemandPlans(partName: string, payload: {
         soNumber: string;
         lineNumber: string;
@@ -66,7 +102,7 @@ export declare class DemandPlanningService {
         soNumber: string;
         lineNumber: string;
         planDate: Date;
-        plannedQty: import("@prisma/client/runtime/library").Decimal;
+        plannedQty: Prisma.Decimal;
         allocatedRmSize: string | null;
         splitIndex: number;
     }[]>;
@@ -79,7 +115,7 @@ export declare class DemandPlanningService {
         soNumber: string;
         lineNumber: string;
         planDate: Date;
-        plannedQty: import("@prisma/client/runtime/library").Decimal;
+        plannedQty: Prisma.Decimal;
         allocatedRmSize: string | null;
         splitIndex: number;
     }[]>;

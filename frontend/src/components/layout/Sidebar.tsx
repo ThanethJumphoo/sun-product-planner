@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useLayoutStore } from "@/store/layout";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Calendar, ClipboardList, PieChart, Package, Settings, Users, Shield, KeyRound, LogOut, Activity, Database, ChevronDown, ChevronRight, Cog } from "lucide-react";
+import { LayoutDashboard, Calendar, ClipboardList, PieChart, Package, Settings, Users, Shield, KeyRound, LogOut, Activity, Database, ChevronDown, ChevronRight, Cog, Truck } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import api from "@/lib/api";
 
@@ -25,11 +25,18 @@ const staticMenuSections = [
     ],
   },
   {
-    label: "Chicken Receiving",
+    label: "Supply & Receiving",
     items: [
+      { name: "External RM Supply", href: "/external-supply", icon: Truck },
       { name: "Monthly", href: "/chicken-receiving/monthly", icon: Calendar },
       { name: "Weekly", href: "/chicken-receiving/weekly", icon: Calendar },
       { name: "Daily", href: "/chicken-receiving/daily", icon: Calendar },
+    ],
+  },
+  {
+    label: "Operations & Capacity",
+    items: [
+      { name: "Manpower Planning", href: "/manpower-planning", icon: Users },
     ],
   },
   {

@@ -1,7 +1,8 @@
 export interface ICutConfig {
-  defaultSpeedKgH?: number;
-  effectiveHoursPerShift?: number;
+  machinesCount?: number;
+  hoursPerShift?: number;
   maxShifts?: number;
+  defaultSpeedKgH?: number;
 }
 
 export interface ICutItemDetail {
@@ -32,9 +33,10 @@ export interface ICutDailyResult {
 }
 
 export const DEFAULT_ICUT_CONFIG: Required<ICutConfig> = {
-  defaultSpeedKgH: 500,
-  effectiveHoursPerShift: 8,
+  machinesCount: 2,
+  hoursPerShift: 9.25,
   maxShifts: 2,
+  defaultSpeedKgH: 500,
 };
 
 /**
@@ -150,19 +152,16 @@ export function calculateICutCapacity(
   // BL BLOCK = totalRmRequiredKg * 0.20
   const coProductBlbKg = Number((totalRmRequiredKg * 0.2).toFixed(2));
 
-  // 3. Shift and capacity utilization calculations
+  // 3. Shift and capacity utilization calculations (2 machines × 2 shifts × 9.25h = 37h/day)
+  const shift1Hours = cfg.machinesCount * cfg.hoursPerShift; // 2 * 9.25 = 18.5h
+  const maxCapacityHours = cfg.machinesCount * cfg.maxShifts * cfg.hoursPerShift; // 2 * 2 * 9.25 = 37.0h
+
   let shiftsNeeded = 0;
   if (totalHoursNeeded > 0) {
-    if (totalHoursNeeded <= cfg.effectiveHoursPerShift) {
-      shiftsNeeded = 1;
-    } else {
-      shiftsNeeded = 2;
-    }
+    shiftsNeeded = totalHoursNeeded <= shift1Hours ? 1 : 2;
   }
 
-  const availableHours = shiftsNeeded === 0
-    ? cfg.effectiveHoursPerShift
-    : shiftsNeeded * cfg.effectiveHoursPerShift;
+  const availableHours = shiftsNeeded <= 1 ? shift1Hours : maxCapacityHours;
 
   const capacityUtilizationPct = totalHoursNeeded > 0
     ? Number(((totalHoursNeeded / availableHours) * 100).toFixed(1))
@@ -170,7 +169,7 @@ export function calculateICutCapacity(
 
   let status: 'idle' | 'normal' | 'high' | 'overload' = 'idle';
   if (totalHoursNeeded > 0) {
-    if (totalHoursNeeded > cfg.effectiveHoursPerShift * cfg.maxShifts) {
+    if (totalHoursNeeded > maxCapacityHours) {
       status = 'overload';
     } else if (capacityUtilizationPct >= 90) {
       status = 'high';
@@ -192,7 +191,7 @@ export function calculateICutCapacity(
     totalRmRequiredKg: Number(totalRmRequiredKg.toFixed(2)),
     coProductBlbKg,
     totalHoursNeeded: Number(totalHoursNeeded.toFixed(2)),
-    effectiveHoursPerShift: cfg.effectiveHoursPerShift,
+    effectiveHoursPerShift: cfg.hoursPerShift,
     maxShifts: cfg.maxShifts,
     shiftsNeeded,
     availableHours,

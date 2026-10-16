@@ -166,31 +166,38 @@ export default function OutputsSummaryPanel({
                     totalWeight: 0,
                     linkedItems: []
                   };
+                }
 
-                  // Find linked items by tracing outgoing edges from the RM node
-                  const rmOutgoing = findOutgoingEdges(targetRmNode.id);
-                  const linkedItemNodes = rmOutgoing
-                    .map((e: any) => nodes.find((n: any) => n.id === e.target))
-                    .filter((n: any) => n && (n.nodeTypeId === 3002 || n.nodeTypeId === 3001));
-                  
-                  const itemsMap = new Map();
-                  for (const iNode of linkedItemNodes) {
-                    try {
-                      const iData = JSON.parse(iNode.data || '{}');
-                      if (iData.Items && Array.isArray(iData.Items)) {
-                        for (const item of iData.Items) {
-                          if (!itemsMap.has(item.erpItemCode)) {
-                            itemsMap.set(item.erpItemCode, {
-                              itemCode: item.erpItemCode,
-                              itemDesc: item.erpItemDesc
-                            });
-                          }
+                // Find linked items by tracing outgoing edges from the RM node
+                const rmOutgoing = findOutgoingEdges(targetRmNode.id);
+                const linkedItemNodes = rmOutgoing
+                  .map((e: any) => nodes.find((n: any) => n.id === e.target))
+                  .filter((n: any) => n && (n.nodeTypeId === 3002 || n.nodeTypeId === 3001));
+                
+                const existingLinked = generatedOutputs[rmName].linkedItems || [];
+                const itemsMap = new Map();
+                existingLinked.forEach((item: any) => {
+                  const code = String(item.itemCode || '').trim();
+                  if (code) itemsMap.set(code, item);
+                });
+
+                for (const iNode of linkedItemNodes) {
+                  try {
+                    const iData = JSON.parse(iNode.data || '{}');
+                    if (iData.Items && Array.isArray(iData.Items)) {
+                      for (const item of iData.Items) {
+                        const code = String(item.erpItemCode || '').trim();
+                        if (code && !itemsMap.has(code)) {
+                          itemsMap.set(code, {
+                            itemCode: code,
+                            itemDesc: item.erpItemDesc
+                          });
                         }
                       }
-                    } catch (e) {}
-                  }
-                  generatedOutputs[rmName].linkedItems = Array.from(itemsMap.values());
+                    }
+                  } catch (e) {}
                 }
+                generatedOutputs[rmName].linkedItems = Array.from(itemsMap.values());
                 generatedOutputs[rmName].totalWeight += generatedWeight;
               }
             }
@@ -228,9 +235,10 @@ export default function OutputsSummaryPanel({
                 const iData = JSON.parse(iNode.data || '{}');
                 if (iData.Items && Array.isArray(iData.Items)) {
                   for (const item of iData.Items) {
-                    if (!itemsMap.has(item.erpItemCode)) {
-                      itemsMap.set(item.erpItemCode, {
-                        itemCode: item.erpItemCode,
+                    const code = String(item.erpItemCode || '').trim();
+                    if (code && !itemsMap.has(code)) {
+                      itemsMap.set(code, {
+                        itemCode: code,
                         itemDesc: item.erpItemDesc
                       });
                     }
@@ -242,12 +250,15 @@ export default function OutputsSummaryPanel({
           }
         }
 
-        if (bp.itemCode && !linkedItems.some((i: any) => i.itemCode === bp.itemCode)) {
-          const spec = specs?.[bp.itemCode];
-          linkedItems.push({
-            itemCode: bp.itemCode,
-            itemDesc: spec?.itemDesc || bp.name
-          });
+        if (bp.itemCode) {
+          const bpCode = String(bp.itemCode).trim();
+          if (bpCode && !linkedItems.some((i: any) => String(i.itemCode).trim() === bpCode)) {
+            const spec = specs?.[bp.itemCode];
+            linkedItems.push({
+              itemCode: bpCode,
+              itemDesc: spec?.itemDesc || bp.name
+            });
+          }
         }
 
         const isCoProduct = bp.itemCode && specs?.[bp.itemCode]?.itemCategory === 'coproduct';
@@ -281,12 +292,18 @@ export default function OutputsSummaryPanel({
           generatedOutputs[existingKey].totalWeight += bp.weightKg;
           if (linkedItems.length > 0) {
             const currentLinked = generatedOutputs[existingKey].linkedItems || [];
+            const linkedMap = new Map();
+            currentLinked.forEach((item: any) => {
+              const code = String(item.itemCode || '').trim();
+              if (code) linkedMap.set(code, item);
+            });
             for (const item of linkedItems) {
-              if (!currentLinked.some((c: any) => c.itemCode === item.itemCode)) {
-                currentLinked.push(item);
+              const code = String(item.itemCode || '').trim();
+              if (code && !linkedMap.has(code)) {
+                linkedMap.set(code, item);
               }
             }
-            generatedOutputs[existingKey].linkedItems = currentLinked;
+            generatedOutputs[existingKey].linkedItems = Array.from(linkedMap.values());
           }
         }
       }
@@ -307,36 +324,55 @@ export default function OutputsSummaryPanel({
 
     // 3. Now calculate used weight from Co-Product / By-Product plans
     if (dailyPlans && dailyPlans.length > 0) {
-      for (const plan of dailyPlans) {
+      const nonProductPlans = dailyPlans
+        .filter((plan: any) => {
+          const spec = specs?.[plan.itemCode];
+          return spec && (spec.itemCategory === 'coproduct' || spec.itemCategory === 'byproduct');
+        })
+        .sort((a: any, b: any) => {
+          const countA = Object.values(generatedOutputs).filter((out: any) => 
+            out.linkedItems?.some((i: any) => i.itemCode === a.itemCode)
+          ).length;
+          const countB = Object.values(generatedOutputs).filter((out: any) => 
+            out.linkedItems?.some((i: any) => i.itemCode === b.itemCode)
+          ).length;
+          return countA - countB;
+        });
+
+      for (const plan of nonProductPlans) {
         const spec = specs?.[plan.itemCode];
-        if (spec && (spec.itemCategory === 'coproduct' || spec.itemCategory === 'byproduct')) {
-          const yieldPercent = spec.yieldPercent || 100;
-          const requiredWeight = Number(plan.plannedQty) / (yieldPercent / 100);
-          if (requiredWeight > 0) {
-            let remainingRequired = requiredWeight;
-            
-            // Phase 1: Consume from outputs that have remaining capacity
+        const yieldPercent = spec?.yieldPercent || 100;
+        const requiredWeight = Number(plan.plannedQty) / (yieldPercent / 100);
+        if (requiredWeight > 0) {
+          let remainingRequired = requiredWeight;
+          
+          // Phase 1: Consume from outputs that have remaining capacity (pick largest available pool first)
+          while (remainingRequired > 0.001) {
+            let bestKey: string | null = null;
+            let bestRemain = 0;
             for (const key in generatedOutputs) {
-              if (remainingRequired <= 0) break;
               const out = generatedOutputs[key];
               if (out.linkedItems?.some((i: any) => i.itemCode === plan.itemCode)) {
                 const outRemain = out.totalWeight - (out.usedWeight || 0);
-                if (outRemain > 0) {
-                  const amountToTake = Math.min(remainingRequired, outRemain);
-                  out.usedWeight = (out.usedWeight || 0) + amountToTake;
-                  remainingRequired -= amountToTake;
+                if (outRemain > bestRemain) {
+                  bestRemain = outRemain;
+                  bestKey = key;
                 }
               }
             }
-            
-            // Phase 2: If there's still required weight (over-allocated), just dump it on the first matching output
-            if (remainingRequired > 0) {
-              for (const key in generatedOutputs) {
-                const out = generatedOutputs[key];
-                if (out.linkedItems?.some((i: any) => i.itemCode === plan.itemCode)) {
-                  out.usedWeight = (out.usedWeight || 0) + remainingRequired;
-                  break;
-                }
+            if (!bestKey || bestRemain <= 0.001) break;
+            const amountToTake = Math.min(remainingRequired, bestRemain);
+            generatedOutputs[bestKey].usedWeight = (generatedOutputs[bestKey].usedWeight || 0) + amountToTake;
+            remainingRequired -= amountToTake;
+          }
+          
+          // Phase 2: If there's still required weight (over-allocated), just dump it on the first matching output
+          if (remainingRequired > 0) {
+            for (const key in generatedOutputs) {
+              const out = generatedOutputs[key];
+              if (out.linkedItems?.some((i: any) => i.itemCode === plan.itemCode)) {
+                out.usedWeight = (out.usedWeight || 0) + remainingRequired;
+                break;
               }
             }
           }
@@ -396,7 +432,7 @@ export default function OutputsSummaryPanel({
               </div>
               <div className="divide-y divide-slate-100">
                 {coProducts.map((out, i) => (
-                  <div key={i} className="flex flex-col p-3 hover:bg-slate-50 transition-colors">
+                  <div key={`${out.name}_${i}`} className="flex flex-col p-3 hover:bg-slate-50 transition-colors">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-sm font-medium text-slate-700">{out.name}</span>
                       <div className="flex gap-4 text-xs">
@@ -418,8 +454,8 @@ export default function OutputsSummaryPanel({
                     </div>
                     {out.linkedItems && out.linkedItems.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {out.linkedItems.map((item: any) => (
-                          <span key={item.itemCode} title={item.itemDesc} className="inline-block bg-white border border-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded cursor-help">
+                        {out.linkedItems.map((item: any, idx: number) => (
+                          <span key={`${out.name}_${item.itemCode || ''}_${idx}`} title={item.itemDesc} className="inline-block bg-white border border-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded cursor-help">
                             {item.itemCode}
                           </span>
                         ))}
@@ -441,7 +477,7 @@ export default function OutputsSummaryPanel({
               </div>
               <div className="divide-y divide-slate-100">
                 {byProducts.map((out, i) => (
-                  <div key={i} className="flex flex-col p-3 hover:bg-slate-50 transition-colors">
+                  <div key={`${out.name}_${i}`} className="flex flex-col p-3 hover:bg-slate-50 transition-colors">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-sm font-medium text-slate-700">{out.name}</span>
                       <div className="flex gap-4 text-xs">
@@ -463,8 +499,8 @@ export default function OutputsSummaryPanel({
                     </div>
                     {out.linkedItems && out.linkedItems.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {out.linkedItems.map((item: any) => (
-                          <span key={item.itemCode} title={item.itemDesc} className="inline-block bg-white border border-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded cursor-help">
+                        {out.linkedItems.map((item: any, idx: number) => (
+                          <span key={`${out.name}_${item.itemCode || ''}_${idx}`} title={item.itemDesc} className="inline-block bg-white border border-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded cursor-help">
                             {item.itemCode}
                           </span>
                         ))}

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, UseGuards, Query } from '@nestjs/common';
 import { DemandPlanningService } from './demand-planning.service';
 import { JwtAuthGuard } from '../../core/guards/jwt-auth.guard';
 
@@ -18,6 +18,27 @@ export class DemandPlanningController {
     @Body() payload: { soNumber: string; lineNumber: string; itemCode: string; shipDate: string; priority: number; planQty: number | null }[]
   ) {
     return this.service.saveDemandPlans(partName, payload);
+  }
+
+  @Delete(':partName/sales-orders')
+  async clearDemandPlans(@Param('partName') partName: string) {
+    return this.service.clearDemandPlans(partName);
+  }
+
+  @Post(':partName/manual-orders')
+  async createManualOrder(
+    @Param('partName') partName: string,
+    @Body() payload: any
+  ) {
+    return this.service.createManualOrder(partName, payload);
+  }
+
+  @Delete(':partName/manual-orders/:soNumber')
+  async deleteManualOrder(
+    @Param('partName') partName: string,
+    @Param('soNumber') soNumber: string
+  ) {
+    return this.service.deleteManualOrder(partName, soNumber);
   }
   @Get(':partName/sales-orders/:soNumber/items/:itemCode/splits')
   async getSplitsForSalesOrder(

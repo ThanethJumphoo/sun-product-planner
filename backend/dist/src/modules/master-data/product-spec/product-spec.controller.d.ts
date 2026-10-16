@@ -2,8 +2,17 @@ import { ProductSpecService } from './product-spec.service';
 export declare class ProductSpecController {
     private readonly productSpecService;
     constructor(productSpecService: ProductSpecService);
-    getItemsForPart(partName: string): never[] | Promise<{
+    getItemsForPart(partName: string, onlyIcut?: string): never[] | Promise<{
         defaultItemCategory: string | null;
+        iCutSpeed: number | null;
+        yieldPercent: number | null;
+        productSpec: {
+            yieldPercent: number | null;
+            erpItemCode: string;
+            productType: string | null;
+            iCutSpeed: number | null;
+            itemCategory: string | null;
+        } | null;
         erpItemCode: string;
         erpItemDesc: string;
     }[]>;

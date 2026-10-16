@@ -41,8 +41,11 @@ const KNOWN_ICUT_ITEM_CODES = new Set([
 ]);
 
 const DEFAULT_ICUT_SPEED_KG_H = 500;
-const EFFECTIVE_HOURS_PER_SHIFT = 8;
-const MAX_SHIFTS = 2;
+const ICUT_MACHINES_COUNT = 2; // 2 เครื่อง
+const HOURS_PER_SHIFT = 9.25; // 9.25 ชม./กะ
+const MAX_SHIFTS = 2; // 2 กะ
+const SHIFT_1_HOURS = ICUT_MACHINES_COUNT * HOURS_PER_SHIFT; // 18.5 ชม. (1 กะ)
+const MAX_CAPACITY_HOURS_PER_DAY = ICUT_MACHINES_COUNT * MAX_SHIFTS * HOURS_PER_SHIFT; // 37.0 ชม./วัน (2 กะ)
 
 export function ICutStatusCard({ selectedDate, dailyPlans = [], specs = {}, isLoading = false }: ICutStatusCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -55,7 +58,7 @@ export function ICutStatusCard({ selectedDate, dailyPlans = [], specs = {}, isLo
         coProductBlbKg: 0,
         totalHoursNeeded: 0,
         shiftsNeeded: 0,
-        availableHours: EFFECTIVE_HOURS_PER_SHIFT,
+        availableHours: SHIFT_1_HOURS,
         capacityUtilizationPct: 0,
         status: 'idle' as const,
         items: [] as ICutItemDetail[],
@@ -79,7 +82,7 @@ export function ICutStatusCard({ selectedDate, dailyPlans = [], specs = {}, isLo
     let totalHoursNeeded = 0;
     let hasDefaultSpeedItems = false;
 
-    const rawItems: Array<{
+    const groupedItemsMap = new Map<string, {
       itemCode: string;
       itemName: string;
       plannedQty: number;
@@ -87,7 +90,7 @@ export function ICutStatusCard({ selectedDate, dailyPlans = [], specs = {}, isLo
       isDefaultSpeed: boolean;
       hoursNeeded: number;
       rmRequiredKg: number;
-    }> = [];
+    }>();
 
     for (const plan of icutPlans) {
       const qty = Number(plan.plannedQty) || 0;
@@ -106,15 +109,22 @@ export function ICutStatusCard({ selectedDate, dailyPlans = [], specs = {}, isLo
       totalRmRequiredKg += rmReq;
       totalHoursNeeded += hours;
 
-      rawItems.push({
-        itemCode: plan.itemCode,
-        itemName: spec?.itemDesc || spec?.productName || plan.itemDesc || plan.itemCode,
-        plannedQty: Number(qty.toFixed(2)),
-        iCutSpeed: speed,
-        isDefaultSpeed,
-        hoursNeeded: Number(hours.toFixed(2)),
-        rmRequiredKg: Number(rmReq.toFixed(2)),
-      });
+      const existing = groupedItemsMap.get(plan.itemCode);
+      if (existing) {
+        existing.plannedQty += qty;
+        existing.hoursNeeded += hours;
+        existing.rmRequiredKg += rmReq;
+      } else {
+        groupedItemsMap.set(plan.itemCode, {
+          itemCode: plan.itemCode,
+          itemName: spec?.itemDesc || spec?.productName || plan.itemDesc || plan.itemCode,
+          plannedQty: qty,
+          iCutSpeed: speed,
+          isDefaultSpeed,
+          hoursNeeded: hours,
+          rmRequiredKg: rmReq,
+        });
+      }
     }
 
     // 20% Co-product RM BLB (BL BLOCK)
@@ -122,12 +132,10 @@ export function ICutStatusCard({ selectedDate, dailyPlans = [], specs = {}, isLo
 
     let shiftsNeeded = 0;
     if (totalHoursNeeded > 0) {
-      shiftsNeeded = totalHoursNeeded <= EFFECTIVE_HOURS_PER_SHIFT ? 1 : 2;
+      shiftsNeeded = totalHoursNeeded <= SHIFT_1_HOURS ? 1 : 2;
     }
 
-    const availableHours = shiftsNeeded === 0
-      ? EFFECTIVE_HOURS_PER_SHIFT
-      : shiftsNeeded * EFFECTIVE_HOURS_PER_SHIFT;
+    const availableHours = shiftsNeeded <= 1 ? SHIFT_1_HOURS : MAX_CAPACITY_HOURS_PER_DAY;
 
     const capacityUtilizationPct = totalHoursNeeded > 0
       ? Number(((totalHoursNeeded / availableHours) * 100).toFixed(1))
@@ -135,7 +143,7 @@ export function ICutStatusCard({ selectedDate, dailyPlans = [], specs = {}, isLo
 
     let status: 'idle' | 'normal' | 'high' | 'overload' = 'idle';
     if (totalHoursNeeded > 0) {
-      if (totalHoursNeeded > EFFECTIVE_HOURS_PER_SHIFT * MAX_SHIFTS) {
+      if (totalHoursNeeded > MAX_CAPACITY_HOURS_PER_DAY) {
         status = 'overload';
       } else if (capacityUtilizationPct >= 90) {
         status = 'high';
@@ -144,8 +152,11 @@ export function ICutStatusCard({ selectedDate, dailyPlans = [], specs = {}, isLo
       }
     }
 
-    const items: ICutItemDetail[] = rawItems.map((item) => ({
+    const items: ICutItemDetail[] = Array.from(groupedItemsMap.values()).map((item) => ({
       ...item,
+      plannedQty: Number(item.plannedQty.toFixed(2)),
+      hoursNeeded: Number(item.hoursNeeded.toFixed(2)),
+      rmRequiredKg: Number(item.rmRequiredKg.toFixed(2)),
       sharePercent: totalHoursNeeded > 0 ? Number(((item.hoursNeeded / totalHoursNeeded) * 100).toFixed(1)) : 0,
     }));
 
@@ -208,7 +219,7 @@ export function ICutStatusCard({ selectedDate, dailyPlans = [], specs = {}, isLo
           </div>
           <div>
             <h3 className="font-semibold text-sm text-slate-800 leading-tight">I-CUT Machine Status</h3>
-            <p className="text-[10px] text-slate-500">Asset ICUT-01 (BL Dicing & Portioning Line)</p>
+            <p className="text-[10px] text-slate-500">2 เครื่อง × 2 กะ (9.25 ชม./กะ) = 37 ชม./วัน</p>
           </div>
         </div>
         <div className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border flex items-center gap-1 ${getBadgeStyle()}`}>
@@ -306,9 +317,9 @@ export function ICutStatusCard({ selectedDate, dailyPlans = [], specs = {}, isLo
 
             {isExpanded && (
               <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                {metrics.items.map((item) => (
+                {metrics.items.map((item, idx) => (
                   <div
-                    key={item.itemCode}
+                    key={`${item.itemCode}_${idx}`}
                     className="p-2 bg-slate-50 border border-slate-200/70 rounded-md text-xs space-y-1"
                   >
                     <div className="flex justify-between items-start gap-1">

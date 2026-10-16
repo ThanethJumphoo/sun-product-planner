@@ -89,6 +89,20 @@ export class MpsService {
   }
 
   async autoGeneratePlan(partName: string, currentMonth: string) {
+    const monthStart = startOfMonth(new Date(currentMonth));
+    const monthEnd = endOfMonth(new Date(currentMonth));
+
+    // Clear existing plans for this part and month so recalculation is fresh and clean against current supply
+    await prisma.mpsProductionTransaction.deleteMany({
+      where: {
+        partName,
+        planDate: {
+          gte: monthStart,
+          lte: monthEnd,
+        },
+      },
+    });
+
     const { generatedTransactions, stats } = await generateAutoPlanOnServer(partName, currentMonth);
 
     if (generatedTransactions.length > 0) {
@@ -129,7 +143,8 @@ export class MpsService {
           where: {
             partName,
             planDate: {
-              gte: new Date(currentMonth), // Rough estimation, better would be month bounds
+              gte: monthStart,
+              lte: monthEnd,
             },
             plannedQty: { lte: 0 }
           }
@@ -137,10 +152,12 @@ export class MpsService {
       });
     }
 
-    // Trigger synchronization to child parts (e.g. BIL -> Toridas -> BL)
+    // Trigger synchronization to child parts ONLY for BIL (BIL -> Toridas -> BL)
     let childSyncResults: any[] = [];
     try {
-      childSyncResults = await this.syncChildPartsSupply(partName, currentMonth);
+      if (partName.toUpperCase() === 'BIL') {
+        childSyncResults = await this.syncChildPartsSupply(partName, currentMonth);
+      }
     } catch (syncErr) {
       console.error('Error during child part supply sync:', syncErr);
     }
@@ -154,6 +171,7 @@ export class MpsService {
   }
 
   async syncChildPartsSupply(parentPartName: string, currentMonth: string): Promise<any[]> {
+    if (parentPartName.toUpperCase() !== 'BIL') return [];
     const monthStart = startOfMonth(new Date(currentMonth));
     const monthEnd = endOfMonth(new Date(currentMonth));
 
@@ -233,6 +251,7 @@ export class MpsService {
     // 5. Calculate & upsert for each child part
     for (const child of childNodes) {
       const childPartName = child.name; // e.g. 'BL'
+      if (childPartName?.toLowerCase() === parentPartName.toLowerCase()) continue;
       const childSuppliesToUpsert: any[] = [];
       const dailyMetrics: ToridasDailyResult[] = [];
 
@@ -442,8 +461,9 @@ export class MpsService {
         try {
           const mData = JSON.parse(icutNode.data || '{}');
           icutNodeConfig = {
-            effectiveHoursPerShift: Number(mData['Effective Hours']) || 8,
-            maxShifts: Number(mData['Lines']) ? 2 : 2,
+            machinesCount: Number(mData['Machines']) || 2,
+            hoursPerShift: Number(mData['Effective Hours']) || 9.25,
+            maxShifts: 2,
           };
         } catch (e) {}
 

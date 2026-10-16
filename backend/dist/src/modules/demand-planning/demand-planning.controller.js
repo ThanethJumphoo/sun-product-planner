@@ -27,6 +27,15 @@ let DemandPlanningController = class DemandPlanningController {
     async saveDemandPlans(partName, payload) {
         return this.service.saveDemandPlans(partName, payload);
     }
+    async clearDemandPlans(partName) {
+        return this.service.clearDemandPlans(partName);
+    }
+    async createManualOrder(partName, payload) {
+        return this.service.createManualOrder(partName, payload);
+    }
+    async deleteManualOrder(partName, soNumber) {
+        return this.service.deleteManualOrder(partName, soNumber);
+    }
     async getSplitsForSalesOrder(partName, soNumber, itemCode) {
         return this.service.getSplitsForSalesOrder(partName, soNumber, itemCode);
     }
@@ -53,6 +62,29 @@ __decorate([
     __metadata("design:paramtypes", [String, Array]),
     __metadata("design:returntype", Promise)
 ], DemandPlanningController.prototype, "saveDemandPlans", null);
+__decorate([
+    (0, common_1.Delete)(':partName/sales-orders'),
+    __param(0, (0, common_1.Param)('partName')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], DemandPlanningController.prototype, "clearDemandPlans", null);
+__decorate([
+    (0, common_1.Post)(':partName/manual-orders'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], DemandPlanningController.prototype, "createManualOrder", null);
+__decorate([
+    (0, common_1.Delete)(':partName/manual-orders/:soNumber'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Param)('soNumber')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], DemandPlanningController.prototype, "deleteManualOrder", null);
 __decorate([
     (0, common_1.Get)(':partName/sales-orders/:soNumber/items/:itemCode/splits'),
     __param(0, (0, common_1.Param)('partName')),

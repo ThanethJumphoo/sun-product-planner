@@ -4,9 +4,10 @@ exports.KNOWN_ICUT_ITEM_CODES = exports.DEFAULT_ICUT_CONFIG = void 0;
 exports.isICutItem = isICutItem;
 exports.calculateICutCapacity = calculateICutCapacity;
 exports.DEFAULT_ICUT_CONFIG = {
-    defaultSpeedKgH: 500,
-    effectiveHoursPerShift: 8,
+    machinesCount: 2,
+    hoursPerShift: 9.25,
     maxShifts: 2,
+    defaultSpeedKgH: 500,
 };
 exports.KNOWN_ICUT_ITEM_CODES = new Set([
     '111117289',
@@ -79,24 +80,19 @@ function calculateICutCapacity(plans, specsMap = {}, config = {}, dateStr = '', 
         });
     }
     const coProductBlbKg = Number((totalRmRequiredKg * 0.2).toFixed(2));
+    const shift1Hours = cfg.machinesCount * cfg.hoursPerShift;
+    const maxCapacityHours = cfg.machinesCount * cfg.maxShifts * cfg.hoursPerShift;
     let shiftsNeeded = 0;
     if (totalHoursNeeded > 0) {
-        if (totalHoursNeeded <= cfg.effectiveHoursPerShift) {
-            shiftsNeeded = 1;
-        }
-        else {
-            shiftsNeeded = 2;
-        }
+        shiftsNeeded = totalHoursNeeded <= shift1Hours ? 1 : 2;
     }
-    const availableHours = shiftsNeeded === 0
-        ? cfg.effectiveHoursPerShift
-        : shiftsNeeded * cfg.effectiveHoursPerShift;
+    const availableHours = shiftsNeeded <= 1 ? shift1Hours : maxCapacityHours;
     const capacityUtilizationPct = totalHoursNeeded > 0
         ? Number(((totalHoursNeeded / availableHours) * 100).toFixed(1))
         : 0;
     let status = 'idle';
     if (totalHoursNeeded > 0) {
-        if (totalHoursNeeded > cfg.effectiveHoursPerShift * cfg.maxShifts) {
+        if (totalHoursNeeded > maxCapacityHours) {
             status = 'overload';
         }
         else if (capacityUtilizationPct >= 90) {
@@ -117,7 +113,7 @@ function calculateICutCapacity(plans, specsMap = {}, config = {}, dateStr = '', 
         totalRmRequiredKg: Number(totalRmRequiredKg.toFixed(2)),
         coProductBlbKg,
         totalHoursNeeded: Number(totalHoursNeeded.toFixed(2)),
-        effectiveHoursPerShift: cfg.effectiveHoursPerShift,
+        effectiveHoursPerShift: cfg.hoursPerShift,
         maxShifts: cfg.maxShifts,
         shiftsNeeded,
         availableHours,

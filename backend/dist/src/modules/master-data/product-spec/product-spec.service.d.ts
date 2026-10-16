@@ -6,8 +6,17 @@ export declare class ProductSpecService {
         }[]>;
         allAssignedItemCodes: string[];
     }>;
-    getItemsForPart(partName: string): Promise<{
+    getItemsForPart(partName: string, onlyIcut?: boolean): Promise<{
         defaultItemCategory: string | null;
+        iCutSpeed: number | null;
+        yieldPercent: number | null;
+        productSpec: {
+            yieldPercent: number | null;
+            erpItemCode: string;
+            productType: string | null;
+            iCutSpeed: number | null;
+            itemCategory: string | null;
+        } | null;
         erpItemCode: string;
         erpItemDesc: string;
     }[]>;

@@ -217,7 +217,7 @@ export default function SupplySummaryPanel({
               <h3 className="font-semibold text-sm text-slate-800">RM Distribution</h3>
             </div>
             <div className="flex items-center gap-3">
-              {supplyBreakdown.sizes.some((s: any) => s.remaining < 0) && (
+              {supplyBreakdown.sizes.some((s: any) => s.remaining < -0.5) && (
                 <span className="text-xs font-semibold text-red-600 bg-red-100 px-2 py-0.5 rounded flex items-center gap-1">
                   <AlertCircle size={12} /> Over-allocated
                 </span>

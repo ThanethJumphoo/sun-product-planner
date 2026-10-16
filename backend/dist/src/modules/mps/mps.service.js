@@ -81,6 +81,17 @@ let MpsService = class MpsService {
         return supplyMap;
     }
     async autoGeneratePlan(partName, currentMonth) {
+        const monthStart = (0, date_fns_1.startOfMonth)(new Date(currentMonth));
+        const monthEnd = (0, date_fns_1.endOfMonth)(new Date(currentMonth));
+        await prisma_1.default.mpsProductionTransaction.deleteMany({
+            where: {
+                partName,
+                planDate: {
+                    gte: monthStart,
+                    lte: monthEnd,
+                },
+            },
+        });
         const { generatedTransactions, stats } = await (0, autoGeneratePlan_1.generateAutoPlanOnServer)(partName, currentMonth);
         if (generatedTransactions.length > 0) {
             await prisma_1.default.$transaction(async (tx) => {
@@ -118,7 +129,8 @@ let MpsService = class MpsService {
                     where: {
                         partName,
                         planDate: {
-                            gte: new Date(currentMonth),
+                            gte: monthStart,
+                            lte: monthEnd,
                         },
                         plannedQty: { lte: 0 }
                     }
@@ -127,7 +139,9 @@ let MpsService = class MpsService {
         }
         let childSyncResults = [];
         try {
-            childSyncResults = await this.syncChildPartsSupply(partName, currentMonth);
+            if (partName.toUpperCase() === 'BIL') {
+                childSyncResults = await this.syncChildPartsSupply(partName, currentMonth);
+            }
         }
         catch (syncErr) {
             console.error('Error during child part supply sync:', syncErr);
@@ -140,6 +154,8 @@ let MpsService = class MpsService {
         };
     }
     async syncChildPartsSupply(parentPartName, currentMonth) {
+        if (parentPartName.toUpperCase() !== 'BIL')
+            return [];
         const monthStart = (0, date_fns_1.startOfMonth)(new Date(currentMonth));
         const monthEnd = (0, date_fns_1.endOfMonth)(new Date(currentMonth));
         const parentBoard = await prisma_1.default.flowBoard.findFirst({
@@ -206,6 +222,8 @@ let MpsService = class MpsService {
         const syncResults = [];
         for (const child of childNodes) {
             const childPartName = child.name;
+            if (childPartName?.toLowerCase() === parentPartName.toLowerCase())
+                continue;
             const childSuppliesToUpsert = [];
             const dailyMetrics = [];
             for (const sup of parentSupplies) {
@@ -383,8 +401,9 @@ let MpsService = class MpsService {
                 try {
                     const mData = JSON.parse(icutNode.data || '{}');
                     icutNodeConfig = {
-                        effectiveHoursPerShift: Number(mData['Effective Hours']) || 8,
-                        maxShifts: Number(mData['Lines']) ? 2 : 2,
+                        machinesCount: Number(mData['Machines']) || 2,
+                        hoursPerShift: Number(mData['Effective Hours']) || 9.25,
+                        maxShifts: 2,
                     };
                 }
                 catch (e) { }

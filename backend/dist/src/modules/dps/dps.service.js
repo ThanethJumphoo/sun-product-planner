@@ -271,11 +271,19 @@ let DpsService = class DpsService {
     }
     async getMpsSupply(partName, dateStr) {
         const planDate = new Date(dateStr);
-        const supplies = await prisma_1.default.dailyChickenReceiving.findMany({
-            where: {
-                receiveDate: planDate
-            }
-        });
+        const [supplies, extSupplies] = await Promise.all([
+            prisma_1.default.dailyChickenReceiving.findMany({
+                where: {
+                    receiveDate: planDate
+                }
+            }),
+            prisma_1.default.externalRmSupply.findMany({
+                where: {
+                    partName,
+                    date: planDate
+                }
+            })
+        ]);
         const aggregated = {};
         for (const s of supplies) {
             const sublot = s.sublot || 'Unknown';
@@ -289,6 +297,7 @@ let DpsService = class DpsService {
                     count: 0,
                     totalWeight: 0,
                     supplyWeight: 0,
+                    isExternal: false,
                 };
             }
             aggregated[sublot].count += count;
@@ -299,6 +308,24 @@ let DpsService = class DpsService {
             s.avgWeight = s.count > 0 ? s.totalWeight / s.count : 0;
             return s;
         });
+        for (let i = 0; i < extSupplies.length; i++) {
+            const es = extSupplies[i];
+            const extSublotName = `EXT-${es.rmSizeName || 'RM'}${es.supplierName ? `-${es.supplierName}` : ''}${extSupplies.length > 1 ? ` #${i + 1}` : ''}`;
+            const extWeight = Number(es.quantityKg || 0);
+            result.push({
+                id: `ext-${es.id}`,
+                date: es.date.toISOString(),
+                sublot: extSublotName,
+                count: 0,
+                totalWeight: extWeight,
+                supplyWeight: extWeight,
+                avgWeight: 0,
+                isExternal: true,
+                rmSizeName: es.rmSizeName,
+                partRmSizeId: es.partRmSizeId,
+                supplierName: es.supplierName || 'External Vendor',
+            });
+        }
         result.sort((a, b) => (a.sublot || '').localeCompare(b.sublot || '', undefined, { numeric: true }));
         return result;
     }

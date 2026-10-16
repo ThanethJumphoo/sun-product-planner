@@ -316,21 +316,33 @@ export default function DPSPage() {
         availableRM[s.sublot] = [];
         totalDailyWeight += Number(s.totalWeight || 0);
         
-        const roundedAvgWeight = Number(Number(s.avgWeight).toFixed(2));
-        const row = wdMatrix?.find((r: any) => roundedAvgWeight >= Number(r.chickenWeight.minWeight) && roundedAvgWeight <= Number(r.chickenWeight.maxWeight));
-        
-        if (row) {
-          row.rmSizes.forEach((rmDist: any) => {
-            const percent = Number(rmDist.percent) || 0;
-            if (percent > 0) {
-              const rm = rmDist.rmSize;
-              const sizeName = rm.minSize && rm.maxSize ? `${rm.minSize}-${rm.maxSize}g` : rm.minSize ? `>${rm.minSize}g` : rm.maxSize ? `<${rm.maxSize}g` : 'Unsize';
-              availableRM[s.sublot].push({
-                name: sizeName,
-                weight: (percent / 100) * Number(s.totalWeight)
-              });
-            }
+        const isExternalSublot = s.isExternal || (s.sublot && s.sublot.startsWith('EXT-'));
+        if (isExternalSublot) {
+          // External RM has 100% of its weight allocated directly to its specified size
+          const sizeName = s.rmSizeName || 'Unsize';
+          availableRM[s.sublot].push({
+            name: sizeName,
+            weight: Number(s.totalWeight || s.supplyWeight || 0),
+            isExternal: true
           });
+        } else {
+          const roundedAvgWeight = Number(Number(s.avgWeight).toFixed(2));
+          const row = wdMatrix?.find((r: any) => roundedAvgWeight >= Number(r.chickenWeight.minWeight) && roundedAvgWeight <= Number(r.chickenWeight.maxWeight));
+          
+          if (row) {
+            row.rmSizes.forEach((rmDist: any) => {
+              const percent = Number(rmDist.percent) || 0;
+              if (percent > 0) {
+                const rm = rmDist.rmSize;
+                const sizeName = rm.minSize && rm.maxSize ? `${rm.minSize}-${rm.maxSize}g` : rm.minSize ? `>${rm.minSize}g` : rm.maxSize ? `<${rm.maxSize}g` : 'Unsize';
+                availableRM[s.sublot].push({
+                  name: sizeName,
+                  weight: (percent / 100) * Number(s.totalWeight),
+                  isExternal: false
+                });
+              }
+            });
+          }
         }
       });
 
@@ -350,16 +362,22 @@ export default function DPSPage() {
         const spec = specMap[order.itemCode];
         const isMainProduct = (order.itemCategory || spec?.itemCategory || '').toLowerCase() === 'product';
         const yieldPercent = spec?.yieldPercent || 100;
+        const allowsExternal = spec?.isExternalRm === true;
         
+        const eligibleSublotsForSplit = allowsExternal 
+          ? savedSupplies 
+          : savedSupplies.filter((s: any) => !(s.isExternal || (s.sublot && s.sublot.startsWith('EXT-'))));
+        const sublotsForSplit = eligibleSublotsForSplit.length > 0 ? eligibleSublotsForSplit : savedSupplies;
+
         if (!isMainProduct) {
           // Non-products (Co-product, By-product): Proportional split without consuming RM
           let runningTotal = 0;
-          savedSupplies.forEach((s: any, idx: number) => {
+          sublotsForSplit.forEach((s: any, idx: number) => {
             let allocatedQty = 0;
-            if (idx === savedSupplies.length - 1) {
+            if (idx === sublotsForSplit.length - 1) {
               allocatedQty = Number((remainingQty - runningTotal).toFixed(2));
             } else {
-              const weightRatio = Number(s.totalWeight || 0) / totalDailyWeight;
+              const weightRatio = Number(s.totalWeight || 0) / (totalDailyWeight || 1);
               allocatedQty = Number((remainingQty * weightRatio).toFixed(2));
               runningTotal += allocatedQty;
             }
@@ -392,10 +410,15 @@ export default function DPSPage() {
           savedSupplies.forEach((s: any) => {
             if (requiredRM <= 0) return;
             
-            const rmList = availableRM[s.sublot];
+            const rmList = availableRM[s.sublot] || [];
             for (const rm of rmList) {
               if (requiredRM <= 0) break;
               
+              // CRITICAL: External RM can ONLY be consumed by items with isExternalRm = true
+              if (rm.isExternal && !allowsExternal) {
+                continue;
+              }
+
               if ((isAnySize || allowedSizeNames.includes(rm.name)) && rm.weight > 0) {
                 const takeRM = Math.min(requiredRM, rm.weight);
                 const produceQty = Number((takeRM * (yieldPercent / 100)).toFixed(2));
@@ -410,16 +433,16 @@ export default function DPSPage() {
             }
           });
 
-          // Pass 2: If there's STILL remainingQty (not enough matching RM), force proportional split over sublots to show shortage
+          // Pass 2: If there's STILL remainingQty (not enough matching RM), force proportional split over eligible sublots to show shortage
           if (remainingQty > 0.01) {
             let runningTotal = 0;
             const originalRemaining = remainingQty;
-            savedSupplies.forEach((s: any, idx: number) => {
+            sublotsForSplit.forEach((s: any, idx: number) => {
               let allocatedQty = 0;
-              if (idx === savedSupplies.length - 1) {
+              if (idx === sublotsForSplit.length - 1) {
                 allocatedQty = Number((originalRemaining - runningTotal).toFixed(2));
               } else {
-                const weightRatio = Number(s.totalWeight || 0) / totalDailyWeight;
+                const weightRatio = Number(s.totalWeight || 0) / (totalDailyWeight || 1);
                 allocatedQty = Number((originalRemaining * weightRatio).toFixed(2));
                 runningTotal += allocatedQty;
               }

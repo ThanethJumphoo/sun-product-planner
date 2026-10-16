@@ -44,6 +44,26 @@ interface BeltGateSizingMatrixProps {
   partName: string;
 }
 
+export const EXCEL_TO_WD_SIZE_MAP: Record<string, string> = {
+  '225-243': '220-240',
+  '270-280': '280-300',
+  '300-325': '300-320',
+  '330-340': '320-340',
+};
+
+export function sanitizeGroupsWithWd(groups: SizingGroup[]): SizingGroup[] {
+  if (!Array.isArray(groups)) return [];
+  return groups.map((g) => ({
+    ...g,
+    rules: Array.isArray(g.rules)
+      ? g.rules.map((r) => ({
+          ...r,
+          rmSize: EXCEL_TO_WD_SIZE_MAP[r.rmSize] || r.rmSize,
+        }))
+      : [],
+  }));
+}
+
 export const DEFAULT_BELT_GATE_BL_GROUPS: SizingGroup[] = [
   {
     id: 'grp_blk_25_30',
@@ -52,13 +72,13 @@ export const DEFAULT_BELT_GATE_BL_GROUPS: SizingGroup[] = [
     maxSize: 30,
     itemCodes: ['1111172B7', '211117114'],
     rules: [
-      { priority: 1, rmSize: '225-243', yieldPercent: 83.40 },
+      { priority: 1, rmSize: '220-240', yieldPercent: 83.40 },
       { priority: 2, rmSize: '360-380', yieldPercent: 80.25 },
       { priority: 3, rmSize: '260-280', yieldPercent: 80.36 },
       { priority: 4, rmSize: '300-320', yieldPercent: 80.19 },
       { priority: 5, rmSize: '340-360', yieldPercent: 79.62 },
       { priority: 6, rmSize: '320-340', yieldPercent: 79.43 },
-      { priority: 7, rmSize: '270-280', yieldPercent: 77.39 },
+      { priority: 7, rmSize: '280-300', yieldPercent: 77.39 },
     ],
   },
   {
@@ -107,7 +127,7 @@ export const DEFAULT_BELT_GATE_BL_GROUPS: SizingGroup[] = [
     rules: [
       { priority: 1, rmSize: '260-280', yieldPercent: 78.00 },
       { priority: 2, rmSize: '280-300', yieldPercent: 73.75 },
-      { priority: 3, rmSize: '300-325', yieldPercent: 72.37 },
+      { priority: 3, rmSize: '300-320', yieldPercent: 72.37 },
     ],
   },
   {
@@ -130,7 +150,7 @@ export const DEFAULT_BELT_GATE_BL_GROUPS: SizingGroup[] = [
     itemCodes: ['211117132'],
     rules: [
       { priority: 1, rmSize: '300-320', yieldPercent: 80.90 },
-      { priority: 2, rmSize: '330-340', yieldPercent: 78.50 },
+      { priority: 2, rmSize: '320-340', yieldPercent: 78.50 },
       { priority: 3, rmSize: '260-280', yieldPercent: 78.00 },
     ],
   },
@@ -146,7 +166,7 @@ export function BeltGateSizingMatrix({ partName }: BeltGateSizingMatrixProps) {
   // Active tab per card: group.id -> 'rules' | 'items'
   const [activeCardTabs, setActiveCardTabs] = useState<Record<string, 'rules' | 'items'>>({});
 
-  // Part RM sizes for dropdown
+  // Part RM sizes for dropdown (strictly from Weight Distribution)
   const [availableRmSizes, setAvailableRmSizes] = useState<string[]>([]);
   
   // Part items for assignment
@@ -162,6 +182,7 @@ export function BeltGateSizingMatrix({ partName }: BeltGateSizingMatrixProps) {
   // Modal state: Add Items to Group
   const [targetGroupForItems, setTargetGroupForItems] = useState<SizingGroup | null>(null);
   const [itemSearchQuery, setItemSearchQuery] = useState('');
+  const [filterOnlyIcutSpeed, setFilterOnlyIcutSpeed] = useState(true);
 
   useEffect(() => {
     fetchInitialData();
@@ -173,52 +194,89 @@ export function BeltGateSizingMatrix({ partName }: BeltGateSizingMatrixProps) {
       // 1. Fetch Sizing Configs from backend
       const configRes = await api.get(`/api/v1/machine-sizing/belt-gate/${encodeURIComponent(partName)}`);
       if (Array.isArray(configRes.data) && configRes.data.length > 0) {
-        setGroups(configRes.data);
+        setGroups(sanitizeGroupsWithWd(configRes.data));
       } else if (partName.toUpperCase() === 'BL') {
         setGroups(DEFAULT_BELT_GATE_BL_GROUPS);
       } else {
         setGroups([]);
       }
 
-      // 2. Fetch Part RM Sizes
-      const wdRes = await api.get('/api/v1/weight-distribution', { params: { partName } });
-      const sizeSet = new Set<string>();
-      if (Array.isArray(wdRes.data)) {
-        wdRes.data.forEach((row: any) => {
-          row.rmSizes?.forEach((rmDist: any) => {
-            const rm = rmDist.rmSize;
-            if (rm) {
-              const name = rm.minSize && rm.maxSize 
-                ? `${rm.minSize}-${rm.maxSize}` 
-                : rm.minSize ? `>${rm.minSize}` 
-                : rm.maxSize ? `<${rm.maxSize}` 
-                : 'Unsize';
-              sizeSet.add(name);
-            }
+      // 2. Fetch Part RM Sizes strictly from Weight Distribution Master Data (part_rm_sizes)
+      let rmSizesList: string[] = [];
+      try {
+        const rmRes = await api.get('/api/v1/part-rm-sizes', { params: { partName } });
+        if (Array.isArray(rmRes.data) && rmRes.data.length > 0) {
+          // Sort numerically by minSize then maxSize
+          const sorted = [...rmRes.data].sort((a: any, b: any) => {
+            const aMin = a.minSize != null ? Number(a.minSize) : 0;
+            const bMin = b.minSize != null ? Number(b.minSize) : 0;
+            if (aMin !== bMin) return aMin - bMin;
+            const aMax = a.maxSize != null ? Number(a.maxSize) : 0;
+            const bMax = b.maxSize != null ? Number(b.maxSize) : 0;
+            return aMax - bMax;
           });
-        });
+          rmSizesList = sorted.map((rm: any) => {
+            if (rm.minSize && rm.maxSize) return `${rm.minSize}-${rm.maxSize}`;
+            if (rm.minSize) return `>${rm.minSize}`;
+            if (rm.maxSize) return `<${rm.maxSize}`;
+            return 'Unsize';
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch from part-rm-sizes', err);
       }
-      
-      // Fallback standard sizes
-      const defaultSizes = ['220-240', '225-243', '260-280', '270-280', '280-300', '300-320', '300-325', '320-340', '330-340', '340-360', '360-380'];
-      defaultSizes.forEach(s => sizeSet.add(s));
-      setAvailableRmSizes(Array.from(sizeSet));
 
-      // 3. Fetch Items belonging to Part
+      // Fallback: If part-rm-sizes returned empty, check weight-distribution matrix
+      if (rmSizesList.length === 0) {
+        try {
+          const wdRes = await api.get('/api/v1/weight-distribution', { params: { partName } });
+          const sizeSet = new Set<string>();
+          if (Array.isArray(wdRes.data)) {
+            wdRes.data.forEach((row: any) => {
+              row.rmSizes?.forEach((rmDist: any) => {
+                const rm = rmDist.rmSize;
+                if (rm) {
+                  const name = rm.minSize && rm.maxSize 
+                    ? `${rm.minSize}-${rm.maxSize}` 
+                    : rm.minSize ? `>${rm.minSize}` 
+                    : rm.maxSize ? `<${rm.maxSize}` 
+                    : 'Unsize';
+                  sizeSet.add(name);
+                }
+              });
+            });
+          }
+          // Sort numerically
+          rmSizesList = Array.from(sizeSet).sort((a, b) => {
+            const getVal = (s: string) => {
+              if (s.startsWith('<')) return Number(s.slice(1)) - 0.5;
+              if (s.startsWith('>')) return Number(s.slice(1)) + 0.5;
+              const p = s.split('-');
+              return Number(p[0]) || 0;
+            };
+            return getVal(a) - getVal(b);
+          });
+        } catch (err) {
+          console.error('Failed to fetch from weight-distribution', err);
+        }
+      }
+
+      setAvailableRmSizes(rmSizesList);
+
+      // 3. Fetch Items belonging to Part (with productSpec and iCutSpeed)
       const itemsRes = await api.get('/api/v1/product-spec/items', { params: { partName } });
       const itemsList = Array.isArray(itemsRes.data) ? itemsRes.data : [];
       setPartItems(itemsList);
 
-      // 4. Fetch specs for items
+      // 4. Map specs directly from itemsList
       const specsMap: Record<string, any> = {};
-      await Promise.all(
-        itemsList.slice(0, 50).map(async (itm: any) => {
-          try {
-            const sRes = await api.get(`/api/v1/product-spec/${itm.erpItemCode}`);
-            if (sRes.data) specsMap[itm.erpItemCode] = sRes.data;
-          } catch (e) {}
-        })
-      );
+      itemsList.forEach((itm: any) => {
+        if (itm.productSpec) {
+          specsMap[itm.erpItemCode] = itm.productSpec;
+        } else if (itm.iCutSpeed !== null && itm.iCutSpeed !== undefined) {
+          specsMap[itm.erpItemCode] = { iCutSpeed: itm.iCutSpeed };
+        }
+      });
       setItemSpecs(specsMap);
 
     } catch (e) {
@@ -265,7 +323,7 @@ export function BeltGateSizingMatrix({ partName }: BeltGateSizingMatrixProps) {
       maxSize: newMaxSize ? Number(newMaxSize) : null,
       itemCodes: [],
       rules: [
-        { priority: 1, rmSize: availableRmSizes[0] || '260-280', yieldPercent: 80.0 },
+        { priority: 1, rmSize: availableRmSizes[0] || '', yieldPercent: 80.0 },
       ],
     };
 
@@ -291,7 +349,7 @@ export function BeltGateSizingMatrix({ partName }: BeltGateSizingMatrixProps) {
         ...g,
         rules: [
           ...g.rules,
-          { priority: nextPriority, rmSize: availableRmSizes[0] || '260-280', yieldPercent: 80.0 }
+          { priority: nextPriority, rmSize: availableRmSizes[0] || '', yieldPercent: 80.0 }
         ]
       };
     }));
@@ -471,6 +529,38 @@ export function BeltGateSizingMatrix({ partName }: BeltGateSizingMatrixProps) {
         </div>
       </div>
 
+      {/* Weight Distribution Source Info & Status */}
+      {availableRmSizes.length === 0 ? (
+        <div className="mb-4 p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-900 text-xs shadow-2xs">
+          <AlertCircle size={18} className="text-amber-600 shrink-0" />
+          <div>
+            <div className="font-bold">ไม่พบขนาด RM ใน Weight Distribution ของชิ้นส่วน {partName}</div>
+            <div className="text-amber-700 mt-0.5">
+              กรุณากำหนดขนาด RM ในเมนู <strong>Weight Distribution</strong> ก่อน จึงจะสามารถเลือก Size RM บนเครื่อง Belt Gate ได้
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-4 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+              <Layers size={13} className="text-primary" />
+              <span>ขนาด RM จาก Weight Distribution ({availableRmSizes.length} ขนาด):</span>
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {availableRmSizes.map(s => (
+                <span key={s} className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-700 font-mono text-[11px] font-medium shadow-2xs">
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+          <span className="text-[11px] text-slate-500 italic">
+            *ตัวเลือก Size RM ทั้งหมดดึงจาก Weight Distribution เพื่อป้องกันข้อมูลคลาดเคลื่อน
+          </span>
+        </div>
+      )}
+
       {/* View Mode 1: Sizing Groups Cards Grid */}
       {viewMode === 'cards' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-5">
@@ -565,8 +655,17 @@ export function BeltGateSizingMatrix({ partName }: BeltGateSizingMatrixProps) {
                                 <select
                                   value={rule.rmSize}
                                   onChange={e => handleUpdateRule(group.id, idx, 'rmSize', e.target.value)}
-                                  className="w-full font-semibold text-slate-800 bg-white rounded py-1 px-2 text-xs border border-slate-200 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                                  className={`w-full font-semibold rounded py-1 px-2 text-xs border focus:outline-none focus:ring-1 ${
+                                    !availableRmSizes.includes(rule.rmSize)
+                                      ? 'bg-amber-50 text-amber-900 border-amber-300 focus:border-amber-500 focus:ring-amber-500'
+                                      : 'bg-white text-slate-800 border-slate-200 focus:border-primary focus:ring-primary'
+                                  }`}
                                 >
+                                  {!availableRmSizes.includes(rule.rmSize) && rule.rmSize && (
+                                    <option value={rule.rmSize}>
+                                      ⚠️ {rule.rmSize} (ไม่อยู่ใน WD)
+                                    </option>
+                                  )}
                                   {availableRmSizes.map(s => (
                                     <option key={s} value={s}>{s}</option>
                                   ))}
@@ -898,7 +997,7 @@ export function BeltGateSizingMatrix({ partName }: BeltGateSizingMatrixProps) {
               </button>
             </div>
 
-            <div className="p-4 border-b border-slate-100 bg-white">
+            <div className="p-3.5 border-b border-slate-100 bg-white space-y-2.5">
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 text-slate-400" size={15} />
                 <input 
@@ -910,17 +1009,71 @@ export function BeltGateSizingMatrix({ partName }: BeltGateSizingMatrixProps) {
                   autoFocus
                 />
               </div>
+
+              <div className="flex items-center justify-between pt-0.5">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 select-none">
+                  <input 
+                    type="checkbox"
+                    checked={filterOnlyIcutSpeed}
+                    onChange={e => setFilterOnlyIcutSpeed(e.target.checked)}
+                    className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300"
+                  />
+                  <span className="flex items-center gap-1.5">
+                    <Gauge size={13} className="text-primary" />
+                    <span>ดึงเฉพาะสินค้าที่มีค่า I-Cut Speed</span>
+                  </span>
+                </label>
+
+                <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  {
+                    partItems.filter(itm => {
+                      const q = itemSearchQuery.trim().toLowerCase();
+                      const matchesSearch = !q || 
+                        itm.erpItemCode.toLowerCase().includes(q) ||
+                        (itm.erpItemDesc && itm.erpItemDesc.toLowerCase().includes(q));
+                      if (!matchesSearch) return false;
+                      if (filterOnlyIcutSpeed) {
+                        const speed = itm.iCutSpeed ?? itemSpecs[itm.erpItemCode]?.iCutSpeed ?? 0;
+                        return typeof speed === 'number' && speed > 0;
+                      }
+                      return true;
+                    }).length
+                  } รายการ
+                </span>
+              </div>
             </div>
 
             <div className="p-4 overflow-y-auto flex-1 space-y-1.5">
-              {partItems
-                .filter(itm => 
-                  !itemSearchQuery.trim() || 
-                  itm.erpItemCode.toLowerCase().includes(itemSearchQuery.toLowerCase()) ||
-                  itm.erpItemDesc.toLowerCase().includes(itemSearchQuery.toLowerCase())
-                )
-                .map(itm => {
+              {(() => {
+                const filtered = partItems.filter(itm => {
+                  const q = itemSearchQuery.trim().toLowerCase();
+                  const matchesSearch = !q || 
+                    itm.erpItemCode.toLowerCase().includes(q) ||
+                    (itm.erpItemDesc && itm.erpItemDesc.toLowerCase().includes(q));
+                  if (!matchesSearch) return false;
+                  if (filterOnlyIcutSpeed) {
+                    const speed = itm.iCutSpeed ?? itemSpecs[itm.erpItemCode]?.iCutSpeed ?? 0;
+                    return typeof speed === 'number' && speed > 0;
+                  }
+                  return true;
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-xs text-slate-400 space-y-2 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
+                      <AlertCircle size={24} className="mx-auto text-slate-300" />
+                      <p className="font-semibold text-slate-700">ไม่พบสินค้าที่มีค่า I-Cut Speed ใน Part {partName}</p>
+                      <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                        คุณสามารถกำหนดค่า I-Cut Speed ให้กับสินค้าได้ที่เมนู <strong>Product Spec</strong> หรือคลิกปลดติ๊กช่อง <em>"ดึงเฉพาะสินค้าที่มีค่า I-Cut Speed"</em> ด้านบนเพื่อเลือกสินค้าทั้งหมด
+                      </p>
+                    </div>
+                  );
+                }
+
+                return filtered.map(itm => {
                   const isChecked = targetGroupForItems.itemCodes.includes(itm.erpItemCode);
+                  const speed = itm.iCutSpeed ?? itemSpecs[itm.erpItemCode]?.iCutSpeed ?? 0;
+
                   return (
                     <label 
                       key={itm.erpItemCode}
@@ -938,7 +1091,19 @@ export function BeltGateSizingMatrix({ partName }: BeltGateSizingMatrixProps) {
                           className="w-4 h-4 rounded text-primary focus:ring-primary"
                         />
                         <div className="min-w-0">
-                          <div className="font-bold text-slate-900 text-xs">{itm.erpItemCode}</div>
+                          <div className="font-bold text-slate-900 text-xs flex items-center gap-2 flex-wrap">
+                            <span>{itm.erpItemCode}</span>
+                            {speed > 0 ? (
+                              <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Gauge size={10} />
+                                I-Cut: {speed} kg/h
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                ไม่มีค่า I-Cut Speed
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[11px] text-slate-500 truncate">{itm.erpItemDesc}</div>
                         </div>
                       </div>
@@ -950,7 +1115,8 @@ export function BeltGateSizingMatrix({ partName }: BeltGateSizingMatrixProps) {
                       )}
                     </label>
                   );
-                })}
+                });
+              })()}
             </div>
 
             <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">

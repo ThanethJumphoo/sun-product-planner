@@ -8,9 +8,12 @@ export class ProductSpecController {
   constructor(private readonly productSpecService: ProductSpecService) {}
 
   @Get('items')
-  getItemsForPart(@Query('partName') partName: string) {
+  getItemsForPart(
+    @Query('partName') partName: string,
+    @Query('onlyIcut') onlyIcut?: string,
+  ) {
     if (!partName) return [];
-    return this.productSpecService.getItemsForPart(partName);
+    return this.productSpecService.getItemsForPart(partName, onlyIcut === 'true');
   }
 
   @Get(':itemCode')

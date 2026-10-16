@@ -50,7 +50,7 @@ export class ProductSpecService {
     return { partToItems, allAssignedItemCodes: Array.from(allAssignedItemCodes) };
   }
 
-  async getItemsForPart(partName: string) {
+  async getItemsForPart(partName: string, onlyIcut = false) {
     const { partToItems, allAssignedItemCodes } = await this.getAssignedItemsByPart();
 
     if (partName === 'Item Unassigned') {
@@ -58,10 +58,30 @@ export class ProductSpecService {
       const allItems = await prisma.erpItemMaster.findMany({
         select: { erpItemCode: true, erpItemDesc: true }
       });
-      return allItems.filter(item => !allAssignedItemCodes.includes(item.erpItemCode)).map(item => ({
-        ...item,
-        defaultItemCategory: null
-      }));
+      const unassignedItems = allItems.filter(item => !allAssignedItemCodes.includes(item.erpItemCode));
+      const unassignedCodes = unassignedItems.map(i => i.erpItemCode);
+
+      const specs = await prisma.productSpec.findMany({
+        where: { erpItemCode: { in: unassignedCodes } },
+        select: { erpItemCode: true, iCutSpeed: true, yieldPercent: true, itemCategory: true, productType: true }
+      });
+      const specMap = new Map(specs.map(s => [s.erpItemCode, s]));
+
+      let results = unassignedItems.map(item => {
+        const spec = specMap.get(item.erpItemCode);
+        return {
+          ...item,
+          defaultItemCategory: spec?.itemCategory || null,
+          iCutSpeed: spec?.iCutSpeed !== null && spec?.iCutSpeed !== undefined ? Number(spec.iCutSpeed) : null,
+          yieldPercent: spec?.yieldPercent !== null && spec?.yieldPercent !== undefined ? Number(spec.yieldPercent) : null,
+          productSpec: spec || null
+        };
+      });
+
+      if (onlyIcut) {
+        results = results.filter(i => i.iCutSpeed !== null && i.iCutSpeed > 0);
+      }
+      return results;
     } else {
       const itemsMap = partToItems[partName] || [];
       if (itemsMap.length === 0) return [];
@@ -73,14 +93,30 @@ export class ProductSpecService {
         where: { erpItemCode: { in: targetItemCodes } },
         select: { erpItemCode: true, erpItemDesc: true }
       });
+
+      const specs = await prisma.productSpec.findMany({
+        where: { erpItemCode: { in: targetItemCodes } },
+        select: { erpItemCode: true, iCutSpeed: true, yieldPercent: true, itemCategory: true, productType: true }
+      });
+      const specMap = new Map(specs.map(s => [s.erpItemCode, s]));
       
-      return dbItems.map(item => {
+      let results = dbItems.map(item => {
         const match = itemsMap.find(i => i.code === item.erpItemCode);
+        const spec = specMap.get(item.erpItemCode);
         return {
           ...item,
-          defaultItemCategory: match ? match.category : null
+          defaultItemCategory: match ? match.category : (spec?.itemCategory || null),
+          iCutSpeed: spec?.iCutSpeed !== null && spec?.iCutSpeed !== undefined ? Number(spec.iCutSpeed) : null,
+          yieldPercent: spec?.yieldPercent !== null && spec?.yieldPercent !== undefined ? Number(spec.yieldPercent) : null,
+          productSpec: spec || null
         };
       });
+
+      if (onlyIcut) {
+        results = results.filter(i => i.iCutSpeed !== null && i.iCutSpeed > 0);
+      }
+
+      return results;
     }
   }
 

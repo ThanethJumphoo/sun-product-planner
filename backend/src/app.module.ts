@@ -19,6 +19,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ChickenReceivingModule } from './modules/master-data/chicken-receiving/chicken-receiving.module';
 import { ProductSpecModule } from './modules/master-data/product-spec/product-spec.module';
 import { DemandPlanningModule } from './modules/demand-planning/demand-planning.module';
+import { ExternalSupplyModule } from './modules/external-supply/external-supply.module';
+import { ManpowerModule } from './modules/manpower/manpower.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { MpsModule } from './modules/mps/mps.module';
 import { DpsModule } from './modules/dps/dps.module';
@@ -48,6 +50,8 @@ import { MachineSizingModule } from './modules/master-data/machine-sizing/machin
     ChickenReceivingModule,
     ProductSpecModule,
     DemandPlanningModule,
+    ExternalSupplyModule,
+    ManpowerModule,
     MpsModule,
     DpsModule,
     MachineSizingModule,

@@ -163,7 +163,7 @@ export const DpsDemandModal: React.FC<DpsDemandModalProps> = ({
                 pagination={true}
                 paginationPageSize={20}
                 rowSelection={{ mode: "multiRow" }}
-                getRowId={(params) => params.data.id}
+                getRowId={(params: any) => params.data.id || `${params.data.soNumber}_${params.data.itemCode}`}
                 onGridReady={onGridReady}
                 onSelectionChanged={onSelectionChanged}
                 animateRows={true}

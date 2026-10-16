@@ -28,6 +28,8 @@ const schedule_1 = require("@nestjs/schedule");
 const chicken_receiving_module_1 = require("./modules/master-data/chicken-receiving/chicken-receiving.module");
 const product_spec_module_1 = require("./modules/master-data/product-spec/product-spec.module");
 const demand_planning_module_1 = require("./modules/demand-planning/demand-planning.module");
+const external_supply_module_1 = require("./modules/external-supply/external-supply.module");
+const manpower_module_1 = require("./modules/manpower/manpower.module");
 const cache_manager_1 = require("@nestjs/cache-manager");
 const mps_module_1 = require("./modules/mps/mps.module");
 const dps_module_1 = require("./modules/dps/dps.module");
@@ -60,6 +62,8 @@ exports.AppModule = AppModule = __decorate([
             chicken_receiving_module_1.ChickenReceivingModule,
             product_spec_module_1.ProductSpecModule,
             demand_planning_module_1.DemandPlanningModule,
+            external_supply_module_1.ExternalSupplyModule,
+            manpower_module_1.ManpowerModule,
             mps_module_1.MpsModule,
             dps_module_1.DpsModule,
             machine_sizing_module_1.MachineSizingModule,

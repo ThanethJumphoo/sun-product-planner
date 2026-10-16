@@ -4,6 +4,7 @@ export declare class DemandPlanningController {
     constructor(service: DemandPlanningService);
     getSalesOrdersForPart(partName: string): Promise<{
         product: {
+            id: any;
             priority: any;
             soNumber: any;
             lineNumber: any;
@@ -16,8 +17,11 @@ export declare class DemandPlanningController {
             planDate: null;
             status: null;
             isSelected: boolean;
+            isManual: boolean;
+            customerName: any;
         }[];
         coproduct: {
+            id: any;
             priority: any;
             soNumber: any;
             lineNumber: any;
@@ -30,8 +34,11 @@ export declare class DemandPlanningController {
             planDate: null;
             status: null;
             isSelected: boolean;
+            isManual: boolean;
+            customerName: any;
         }[];
         byproduct: {
+            id: any;
             priority: any;
             soNumber: any;
             lineNumber: any;
@@ -44,6 +51,8 @@ export declare class DemandPlanningController {
             planDate: null;
             status: null;
             isSelected: boolean;
+            isManual: boolean;
+            customerName: any;
         }[];
     }>;
     saveDemandPlans(partName: string, payload: {
@@ -55,6 +64,20 @@ export declare class DemandPlanningController {
         planQty: number | null;
     }[]): Promise<{
         success: boolean;
+    }>;
+    clearDemandPlans(partName: string): Promise<{
+        success: boolean;
+        count: number;
+    }>;
+    createManualOrder(partName: string, payload: any): Promise<{
+        success: boolean;
+        soNumber: string;
+        headerId: string;
+        linesCount: number;
+    }>;
+    deleteManualOrder(partName: string, soNumber: string): Promise<{
+        success: boolean;
+        soNumber: string;
     }>;
     getSplitsForSalesOrder(partName: string, soNumber: string, itemCode: string): Promise<{
         id: string;

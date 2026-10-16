@@ -1,7 +1,8 @@
-import React from "react";
-import { ShoppingCart, X, Calendar } from "lucide-react";
+import React, { useState } from "react";
+import { ShoppingCart, X, Calendar, Trash2, Plus } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import { themeAlpine } from 'ag-grid-community';
+import { ManualOrderModal } from "@/app/(dashboard)/demand-planning/components/ManualOrderModal";
 
 interface MpsDemandModalProps {
   isOpen: boolean;
@@ -20,6 +21,9 @@ interface MpsDemandModalProps {
   onRowDataUpdated: (params: any) => void;
   handleCreateDemand: () => void;
   isCreatingDemand: boolean;
+  handleClearDemand?: () => void;
+  isClearingDemand?: boolean;
+  onRefreshDemand?: () => void;
 }
 
 export function MpsDemandModal({
@@ -38,8 +42,13 @@ export function MpsDemandModal({
   onRowSelected,
   onRowDataUpdated,
   handleCreateDemand,
-  isCreatingDemand
+  isCreatingDemand,
+  handleClearDemand,
+  isClearingDemand = false,
+  onRefreshDemand
 }: MpsDemandModalProps) {
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+
   if (!isOpen) return null;
 
   return (
@@ -92,27 +101,37 @@ export function MpsDemandModal({
               ))}
             </div>
 
-            <button 
-              onClick={() => {
-                if (demandGridRef.current?.api) {
-                  const api = demandGridRef.current.api;
-                  const nodesToSelect: any[] = [];
-                  api.forEachNodeAfterFilterAndSort((node: any) => {
-                    if (node.data && node.data.shipDate) {
-                      const d = new Date(node.data.shipDate);
-                      if (d.getMonth() === currentMonth.getMonth() && d.getFullYear() === currentMonth.getFullYear()) {
-                        nodesToSelect.push(node);
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setIsManualModalOpen(true)}
+                className="px-3 py-1.5 text-sm bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <Plus size={16} />
+                Create Manual Order
+              </button>
+
+              <button 
+                onClick={() => {
+                  if (demandGridRef.current?.api) {
+                    const api = demandGridRef.current.api;
+                    const nodesToSelect: any[] = [];
+                    api.forEachNodeAfterFilterAndSort((node: any) => {
+                      if (node.data && node.data.shipDate) {
+                        const d = new Date(node.data.shipDate);
+                        if (d.getMonth() === currentMonth.getMonth() && d.getFullYear() === currentMonth.getFullYear()) {
+                          nodesToSelect.push(node);
+                        }
                       }
-                    }
-                  });
-                  nodesToSelect.forEach(node => node.setSelected(true));
-                }
-              }}
-              className="px-3 py-1.5 text-sm bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors font-medium hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <Calendar size={16} className="text-primary" />
-              Ship This Month
-            </button>
+                    });
+                    nodesToSelect.forEach(node => node.setSelected(true));
+                  }
+                }}
+                className="px-3 py-1.5 text-sm bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors font-medium hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <Calendar size={16} className="text-primary" />
+                Ship This Month
+              </button>
+            </div>
           </div>
 
           {isLoadingDemand ? (
@@ -136,8 +155,12 @@ export function MpsDemandModal({
                 }}
                 pagination={true}
                 paginationPageSize={20}
-                rowSelection={{ mode: "multiRow" }}
-                getRowId={(params) => params.data.id || `${params.data.soNumber}_${params.data.lineNumber}_${params.data.itemCode}_${params.data.shipDate}`}
+                rowSelection={{ 
+                  mode: "multiRow",
+                  checkboxes: true,
+                  headerCheckbox: true
+                }}
+                getRowId={(params: any) => params.data.uniqueRowId || params.data.id || `${params.data.category || ''}_${params.data.soNumber}_${params.data.lineNumber}_${params.data.itemCode}_${params.data.shipDate}`}
                 onRowSelected={onRowSelected}
                 onFirstDataRendered={onRowDataUpdated}
                 onRowDataUpdated={onRowDataUpdated}
@@ -148,27 +171,54 @@ export function MpsDemandModal({
           )}
         </div>
         
-        <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex justify-end gap-3">
-          <button 
-            onClick={onClose}
-            className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1"
-          >
-            Close
-          </button>
-          <button 
-            onClick={handleCreateDemand}
-            disabled={isCreatingDemand || demandData.length === 0}
-            className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isCreatingDemand ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            ) : (
-              <ShoppingCart size={18} />
-            )}
-            Create Demand
-          </button>
+        <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex justify-between items-center gap-3">
+          {handleClearDemand ? (
+            <button 
+              onClick={handleClearDemand}
+              disabled={isClearingDemand || isCreatingDemand}
+              className="px-4 py-2 bg-white text-red-600 border border-red-200 font-medium rounded-lg hover:bg-red-50 shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-red-200"
+            >
+              {isClearingDemand ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+              ) : (
+                <Trash2 size={16} />
+              )}
+              Clear Demand
+            </button>
+          ) : <div />}
+
+          <div className="flex gap-3">
+            <button 
+              onClick={onClose}
+              disabled={isClearingDemand || isCreatingDemand}
+              className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 disabled:opacity-50"
+            >
+              Close
+            </button>
+            <button 
+              onClick={handleCreateDemand}
+              disabled={isCreatingDemand || isClearingDemand || demandData.length === 0}
+              className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isCreatingDemand ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <ShoppingCart size={18} />
+              )}
+              Create Demand
+            </button>
+          </div>
         </div>
       </div>
+
+      <ManualOrderModal
+        isOpen={isManualModalOpen}
+        onClose={() => setIsManualModalOpen(false)}
+        partName={partName}
+        onSuccess={() => {
+          onRefreshDemand?.();
+        }}
+      />
     </div>
   );
 }

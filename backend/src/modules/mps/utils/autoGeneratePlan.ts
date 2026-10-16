@@ -1,5 +1,9 @@
 import { format, subDays, isSameMonth, addDays, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
 import prisma from '../../../lib/prisma';
+import { isICutItem } from './icutCapacity';
+
+// Capacity constants for I-Cut: 2 machines × 2 shifts × 9.25 hrs/shift = 37.0 hrs/day
+const MAX_ICUT_HOURS_PER_DAY = 37.0;
 
 export async function generateAutoPlanOnServer(
   partName: string,
@@ -23,7 +27,8 @@ export async function generateAutoPlanOnServer(
     weeklyRecords,
     monthlyRecords,
     monthlyPlans,
-    flowBoards
+    flowBoards,
+    externalSupplies
   ] = await Promise.all([
     // getMpsSupply equivalent
     prisma.mpsSupply.findMany({
@@ -64,6 +69,10 @@ export async function generateAutoPlanOnServer(
         nodes: true,
         edges: true
       }
+    }),
+    // external RM supplies
+    prisma.externalRmSupply.findMany({
+      where: { partName, date: { gte: monthStart, lte: monthEnd } }
     })
   ]);
 
@@ -200,11 +209,37 @@ export async function generateAutoPlanOnServer(
       }];
     }
 
+    // Append External RM supplies for this day
+    const dayExtSupplies = (externalSupplies || []).filter((es: any) => {
+      const esDate = format(new Date(es.date), 'yyyy-MM-dd');
+      return esDate === dateStr;
+    });
+
+    for (const es of dayExtSupplies) {
+      const esQty = Number(es.quantityKg);
+      if (esQty <= 0) continue;
+      const szName = es.rmSizeName || 'Unsize';
+      dayBuckets.push({
+        id: es.partRmSizeId ? es.partRmSizeId.toString() : szName,
+        name: szName,
+        minSize: 0,
+        percent: 0,
+        remaining: esQty,
+        isExternal: true,
+        supplierName: es.supplierName,
+        poNumber: es.poNumber
+      });
+    }
+
     dailySupplyState[dateStr] = dayBuckets;
     d = addDays(d, 1);
   }
-  // 1.5 Build Co-Product Map from FlowBoard
-  const mainToCoProductMap: Record<string, { itemCode: string, yieldPercent: number }[]> = {};
+  // 1.5 Build Co-Product & By-Product Shared Pools from FlowBoard
+  // We pool capacity per RM Output Node (poolId) so multiple itemCodes attached to the same output share physical capacity.
+  const rmPools: Record<string, { id: string; name: string; yieldPercent: number; type: string; itemCodes: Set<string> }> = {};
+  const itemToPoolsMap: Record<string, string[]> = {};
+  const mainToPoolMap: Record<string, { poolId: string; yieldPercent: number }[]> = {};
+
   if (flowBoards.length > 0) {
     let board = flowBoards.find(b => b.name === `Master Production Flow - ${partName}`) ||
                 flowBoards.find(b => b.name?.includes(partName)) ||
@@ -246,7 +281,7 @@ export async function generateAutoPlanOnServer(
       if (!chosenProcessNode) continue;
 
       const processOutgoing = findOutgoingEdges(chosenProcessNode.id);
-      const generatedItems: any[] = [];
+      const generatedPools: { poolId: string; yieldPercent: number }[] = [];
 
       for (const outEdge of processOutgoing) {
         if (outEdge.sourceHandle === 'coproduct' || outEdge.sourceHandle === 'byproduct') {
@@ -259,6 +294,17 @@ export async function generateAutoPlanOnServer(
             } catch(e){}
 
             if (rmYieldPercent > 0) {
+              const poolKey = targetRmNode.name?.trim() || targetRmNode.id;
+              if (!rmPools[poolKey]) {
+                rmPools[poolKey] = {
+                  id: poolKey,
+                  name: targetRmNode.name,
+                  yieldPercent: rmYieldPercent,
+                  type: outEdge.sourceHandle === 'coproduct' ? 'Co-Product' : 'By-Product',
+                  itemCodes: new Set()
+                };
+              }
+
               const rmOutgoing = findOutgoingEdges(targetRmNode.id);
               for (const outEdge2 of rmOutgoing) {
                 const coItemNode = nodes.find((n: any) => n.id === outEdge2.target);
@@ -267,13 +313,18 @@ export async function generateAutoPlanOnServer(
                   try { coData = JSON.parse(coItemNode.data || '{}'); } catch(e) { continue; }
                   if (coData.Items && Array.isArray(coData.Items)) {
                     for (const coItem of coData.Items) {
-                      generatedItems.push({
-                        itemCode: coItem.erpItemCode,
-                        yieldPercent: rmYieldPercent
-                      });
+                      rmPools[poolKey].itemCodes.add(coItem.erpItemCode);
+                      if (!itemToPoolsMap[coItem.erpItemCode]) itemToPoolsMap[coItem.erpItemCode] = [];
+                      if (!itemToPoolsMap[coItem.erpItemCode].includes(poolKey)) {
+                        itemToPoolsMap[coItem.erpItemCode].push(poolKey);
+                      }
                     }
                   }
                 }
+              }
+
+              if (!generatedPools.some(p => p.poolId === poolKey)) {
+                generatedPools.push({ poolId: poolKey, yieldPercent: rmYieldPercent });
               }
             }
           }
@@ -282,17 +333,21 @@ export async function generateAutoPlanOnServer(
 
       if (data.Items && Array.isArray(data.Items)) {
         for (const mainItem of data.Items) {
-          if (!mainToCoProductMap[mainItem.erpItemCode]) {
-              mainToCoProductMap[mainItem.erpItemCode] = [];
+          if (!mainToPoolMap[mainItem.erpItemCode]) {
+            mainToPoolMap[mainItem.erpItemCode] = [];
           }
-          mainToCoProductMap[mainItem.erpItemCode].push(...generatedItems);
+          for (const gp of generatedPools) {
+            if (!mainToPoolMap[mainItem.erpItemCode].some(p => p.poolId === gp.poolId)) {
+              mainToPoolMap[mainItem.erpItemCode].push(gp);
+            }
+          }
         }
       }
     }
   }
 
   // 1.6 Discover byproducts generated directly from Machine nodes (e.g. Toridas Machine TRD-01)
-  const machineByProducts: { itemCode: string; yieldPercent: number }[] = [];
+  const machinePools: { poolId: string; yieldPercent: number }[] = [];
   if (flowBoards.length > 0) {
     let board = flowBoards.find(b => b.name === `Master Production Flow - ${partName}`) ||
                 flowBoards.find(b => b.name?.includes(partName)) ||
@@ -310,7 +365,21 @@ export async function generateAutoPlanOnServer(
         const rmNode = nodes.find((n: any) => n.id === oe.target);
         let rmYield = 0;
         try { rmYield = Number(JSON.parse(rmNode?.data || '{}')['Yield Percent']) || 0; } catch(e){}
-        if (rmYield > 0) {
+        if (rmNode && rmYield > 0) {
+          const poolKey = rmNode.name?.trim() || rmNode.id;
+          if (!rmPools[poolKey]) {
+            rmPools[poolKey] = {
+              id: poolKey,
+              name: rmNode.name,
+              yieldPercent: rmYield,
+              type: oe.sourceHandle === 'coproduct' ? 'Co-Product' : 'By-Product',
+              itemCodes: new Set()
+            };
+          }
+          if (!machinePools.some(mp => mp.poolId === poolKey)) {
+            machinePools.push({ poolId: poolKey, yieldPercent: rmYield });
+          }
+
           const rmOut = edges.filter((e: any) => e.source === rmNode?.id);
           for (const ro of rmOut) {
             const itemNode = nodes.find((n: any) => n.id === ro.target);
@@ -318,10 +387,11 @@ export async function generateAutoPlanOnServer(
             try { itemData = JSON.parse(itemNode?.data || '{}'); } catch(e){}
             if (itemData.Items && Array.isArray(itemData.Items)) {
               for (const item of itemData.Items) {
-                machineByProducts.push({
-                  itemCode: item.erpItemCode,
-                  yieldPercent: rmYield
-                });
+                rmPools[poolKey].itemCodes.add(item.erpItemCode);
+                if (!itemToPoolsMap[item.erpItemCode]) itemToPoolsMap[item.erpItemCode] = [];
+                if (!itemToPoolsMap[item.erpItemCode].includes(poolKey)) {
+                  itemToPoolsMap[item.erpItemCode].push(poolKey);
+                }
               }
             }
           }
@@ -330,19 +400,19 @@ export async function generateAutoPlanOnServer(
     }
   }
 
-  // dailyCoProductSupply[dateStr][itemCode] = available qty
-  const dailyCoProductSupply: Record<string, Record<string, number>> = {};
+  // dailyPoolSupply[dateStr][poolId] = available shared pool weight
+  const dailyPoolSupply: Record<string, Record<string, number>> = {};
 
-  // Initialize CoProduct supply from machine byproducts (e.g. Toridas meat deboning)
+  // Initialize shared pool supply from machine byproducts (e.g. Toridas meat deboning)
   for (const [dateStr, totalDayWeight] of Object.entries(calculatedSupply)) {
-    if (!dailyCoProductSupply[dateStr]) dailyCoProductSupply[dateStr] = {};
-    for (const mb of machineByProducts) {
-      const bpQty = totalDayWeight * (mb.yieldPercent / 100);
-      dailyCoProductSupply[dateStr][mb.itemCode] = (dailyCoProductSupply[dateStr][mb.itemCode] || 0) + bpQty;
+    if (!dailyPoolSupply[dateStr]) dailyPoolSupply[dateStr] = {};
+    for (const mp of machinePools) {
+      const bpQty = totalDayWeight * (mp.yieldPercent / 100);
+      dailyPoolSupply[dateStr][mp.poolId] = (dailyPoolSupply[dateStr][mp.poolId] || 0) + bpQty;
     }
   }
 
-  // Deduct already existing monthlyPlans from dailySupplyState
+  // Deduct already existing monthlyPlans from dailySupplyState and shared pools
   for (const plan of monthlyPlans) {
     const spec = specs[plan.itemCode];
     if (!spec) continue;
@@ -358,22 +428,26 @@ export async function generateAutoPlanOnServer(
         if (bucket) {
           bucket.remaining = Math.max(0, bucket.remaining - requiredRM);
           
-          // Generate CoProducts for existing plans!
-          if (mainToCoProductMap[plan.itemCode]) {
-            for (const co of mainToCoProductMap[plan.itemCode]) {
-              const coWeight = requiredRM * (co.yieldPercent / 100);
-              if (!dailyCoProductSupply[dateStr]) dailyCoProductSupply[dateStr] = {};
-              if (!dailyCoProductSupply[dateStr][co.itemCode]) dailyCoProductSupply[dateStr][co.itemCode] = 0;
-              dailyCoProductSupply[dateStr][co.itemCode] += coWeight;
+          // Generate shared pool weights for existing plans
+          if (mainToPoolMap[plan.itemCode]) {
+            for (const gp of mainToPoolMap[plan.itemCode]) {
+              const poolWeight = requiredRM * (gp.yieldPercent / 100);
+              if (!dailyPoolSupply[dateStr]) dailyPoolSupply[dateStr] = {};
+              if (!dailyPoolSupply[dateStr][gp.poolId]) dailyPoolSupply[dateStr][gp.poolId] = 0;
+              dailyPoolSupply[dateStr][gp.poolId] += poolWeight;
             }
           }
         }
       }
     } else if (spec.itemCategory !== 'product') {
-       // Deduct existing CoProduct plans from the supply
-       if (!dailyCoProductSupply[dateStr]) dailyCoProductSupply[dateStr] = {};
-       if (!dailyCoProductSupply[dateStr][plan.itemCode]) dailyCoProductSupply[dateStr][plan.itemCode] = 0;
-       dailyCoProductSupply[dateStr][plan.itemCode] -= Number(plan.plannedQty);
+       // Deduct existing non-product plans from the shared pool
+       const candidatePools = itemToPoolsMap[plan.itemCode] || [];
+       for (const pId of candidatePools) {
+         if (dailyPoolSupply[dateStr] && (dailyPoolSupply[dateStr][pId] || 0) > 0) {
+           dailyPoolSupply[dateStr][pId] = Math.max(0, dailyPoolSupply[dateStr][pId] - Number(plan.plannedQty));
+           break;
+         }
+       }
     }
   }
 
@@ -389,6 +463,12 @@ export async function generateAutoPlanOnServer(
     const orderB = catMap[specB?.itemCategory] || 99;
     
     if (orderA !== orderB) return orderA - orderB;
+    // For co-products / by-products, prioritize specific items (attached to fewer pools) over multi-pool trimmings
+    if (orderA > 1) {
+      const poolsCountA = (itemToPoolsMap[a.itemCode] || []).length;
+      const poolsCountB = (itemToPoolsMap[b.itemCode] || []).length;
+      if (poolsCountA !== poolsCountB) return poolsCountA - poolsCountB;
+    }
     return Number(a.priority || 999) - Number(b.priority || 999);
   });
 
@@ -401,9 +481,20 @@ export async function generateAutoPlanOnServer(
 
   // Pre-calculate existing monthly plans per SO+Item to avoid O(N^2) bottleneck
   const monthlyPlansMap = new Map<string, number>();
+  // Track daily I-Cut hours used (capped at 37.0h = 2 machines × 2 shifts × 9.25h)
+  const dailyICutHoursUsed: Record<string, number> = {};
+
   for (const p of monthlyPlans) {
     const key = `${p.soNumber}_${p.itemCode}`;
     monthlyPlansMap.set(key, (monthlyPlansMap.get(key) || 0) + Number(p.plannedQty || 0));
+
+    const dateStr = format(new Date(p.planDate), 'yyyy-MM-dd');
+    const pSpec = specs[p.itemCode];
+    if (isICutItem(p.itemCode, pSpec)) {
+      const speed = (pSpec?.iCutSpeed && Number(pSpec.iCutSpeed) > 0) ? Number(pSpec.iCutSpeed) : 500;
+      const hrs = Number(p.plannedQty || 0) / speed;
+      dailyICutHoursUsed[dateStr] = (dailyICutHoursUsed[dateStr] || 0) + hrs;
+    }
   }
   const newlyPlannedMap = new Map<string, number>();
 
@@ -429,8 +520,22 @@ export async function generateAutoPlanOnServer(
       continue;
     }
 
+    const isICut = isICutItem(demand.itemCode, spec);
+    const iCutSpeed = (spec.iCutSpeed && Number(spec.iCutSpeed) > 0) ? Number(spec.iCutSpeed) : 500;
+
     const leadMinDays = spec.leadMinDays || 1;
-    const leadMaxDays = spec.leadMaxDays || 3;
+    let leadMaxDays = spec.leadMaxDays || 3;
+
+    // If item requires I-Cut and cutting hours needed exceed a single day's capacity (37h),
+    // automatically extend leadMaxDays so there are sufficient production days before shipDate.
+    if (isICut && iCutSpeed > 0) {
+      const estimatedHours = remainingPlanQty / iCutSpeed;
+      const daysNeededForICut = Math.ceil(estimatedHours / MAX_ICUT_HOURS_PER_DAY);
+      if (daysNeededForICut > 1) {
+        leadMaxDays = Math.max(leadMaxDays, daysNeededForICut + leadMinDays);
+      }
+    }
+
     const targetStartDate = subDays(shipDate, leadMaxDays);
     const targetEndDate = subDays(shipDate, leadMinDays);
 
@@ -471,15 +576,21 @@ export async function generateAutoPlanOnServer(
       if (!buckets && isProduct) continue; 
 
       if (!isProduct) {
+        const candidatePools = itemToPoolsMap[demand.itemCode] || [];
         let availableCoProduct = 0;
-        if (dailyCoProductSupply[dateStr] && dailyCoProductSupply[dateStr][demand.itemCode]) {
-          availableCoProduct = dailyCoProductSupply[dateStr][demand.itemCode];
+        let chosenPoolId: string | null = null;
+        for (const pId of candidatePools) {
+          const avail = dailyPoolSupply[dateStr]?.[pId] || 0;
+          if (avail > availableCoProduct) {
+            availableCoProduct = avail;
+            chosenPoolId = pId;
+          }
         }
 
-        if (availableCoProduct <= 0.01) continue;
+        if (availableCoProduct <= 0.01 || !chosenPoolId) continue;
 
         const planForToday = Math.min(remainingPlanQty, availableCoProduct);
-        dailyCoProductSupply[dateStr][demand.itemCode] -= planForToday;
+        dailyPoolSupply[dateStr][chosenPoolId] -= planForToday;
         
         const keyForTracker = `${dateStr}_${demand.soNumber}_${demand.itemCode}`;
         const nextIndex = (splitIndexTracker[keyForTracker] !== undefined ? splitIndexTracker[keyForTracker] : -1) + 1;
@@ -530,6 +641,13 @@ export async function generateAutoPlanOnServer(
       const matchedBucketsWithYield: { bucket: any; specificYield: number; priority: number }[] = [];
       for (const b of buckets) {
         if (b.remaining <= 0) continue;
+
+        // CRITICAL REQUIREMENT:
+        // External RM can ONLY be consumed by items with Allow External RM (spec.isExternalRm === true)
+        if (b.isExternal && !spec.isExternalRm) {
+          continue;
+        }
+
         const bNameWithoutG = b.name.replace(/g$/i, '').trim();
         const bIdStr = String(b.id);
 
@@ -560,17 +678,41 @@ export async function generateAutoPlanOnServer(
       for (const item of matchedBucketsWithYield) {
         if (remainingPlanQty <= 0.01) break;
 
+        // Check I-Cut machine capacity on this date
+        if (isICut) {
+          const usedHours = dailyICutHoursUsed[dateStr] || 0;
+          const availHours = Math.max(0, MAX_ICUT_HOURS_PER_DAY - usedHours);
+          if (availHours <= 0.01) {
+            // I-Cut is fully booked on this day (37.0h reached), stop taking from today
+            break;
+          }
+        }
+
         const bucket = item.bucket;
         const currentYield = item.specificYield || yieldPercent;
         const availableRM = bucket.remaining;
         const reqForRemaining = remainingPlanQty / (currentYield / 100);
-        const rmToTake = Math.min(reqForRemaining, availableRM);
+
+        let maxRmByICut = Infinity;
+        if (isICut) {
+          const usedHours = dailyICutHoursUsed[dateStr] || 0;
+          const availHours = Math.max(0, MAX_ICUT_HOURS_PER_DAY - usedHours);
+          const maxKgByICut = availHours * iCutSpeed;
+          maxRmByICut = maxKgByICut / (currentYield / 100);
+        }
+
+        const rmToTake = Math.min(reqForRemaining, availableRM, maxRmByICut);
         const qtyProduced = rmToTake * (currentYield / 100);
 
-        if (rmToTake <= 0) continue;
+        if (rmToTake <= 0.01 || qtyProduced <= 0.01) continue;
 
         bucket.remaining -= rmToTake;
         remainingPlanQty -= qtyProduced;
+
+        if (isICut) {
+          const hrs = qtyProduced / iCutSpeed;
+          dailyICutHoursUsed[dateStr] = (dailyICutHoursUsed[dateStr] || 0) + hrs;
+        }
 
         const keyForTracker = `${dateStr}_${demand.soNumber}_${demand.itemCode}`;
         const nextIndex = (splitIndexTracker[keyForTracker] !== undefined ? splitIndexTracker[keyForTracker] : -1) + 1;
@@ -589,12 +731,12 @@ export async function generateAutoPlanOnServer(
         
         newlyPlannedMap.set(key, (newlyPlannedMap.get(key) || 0) + qtyFinal);
         
-        if (mainToCoProductMap[demand.itemCode]) {
-          for (const co of mainToCoProductMap[demand.itemCode]) {
-            const coWeight = rmToTake * (co.yieldPercent / 100);
-            if (!dailyCoProductSupply[dateStr]) dailyCoProductSupply[dateStr] = {};
-            if (!dailyCoProductSupply[dateStr][co.itemCode]) dailyCoProductSupply[dateStr][co.itemCode] = 0;
-            dailyCoProductSupply[dateStr][co.itemCode] += coWeight;
+        if (mainToPoolMap[demand.itemCode]) {
+          for (const gp of mainToPoolMap[demand.itemCode]) {
+            const poolWeight = rmToTake * (gp.yieldPercent / 100);
+            if (!dailyPoolSupply[dateStr]) dailyPoolSupply[dateStr] = {};
+            if (!dailyPoolSupply[dateStr][gp.poolId]) dailyPoolSupply[dateStr][gp.poolId] = 0;
+            dailyPoolSupply[dateStr][gp.poolId] += poolWeight;
           }
         }
 

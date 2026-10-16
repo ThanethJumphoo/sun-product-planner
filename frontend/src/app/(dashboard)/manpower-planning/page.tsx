@@ -1,0 +1,99 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
+import api from '@/lib/api';
+import { Users, Package } from 'lucide-react';
+import { ManpowerTable } from './components/ManpowerTable';
+
+export default function ManpowerPlanningPage() {
+  const [parts, setParts] = useState<string[]>([]);
+  const [selectedPart, setSelectedPart] = useState<string | null>(null);
+  const [isLoadingParts, setIsLoadingParts] = useState(true);
+
+  useEffect(() => {
+    fetchParts();
+  }, []);
+
+  const fetchParts = async () => {
+    setIsLoadingParts(true);
+    try {
+      const res = await api.get('/api/v1/simulator/boards/menu');
+      const fetchedParts = res.data.map((p: any) => p.name);
+      setParts(fetchedParts);
+
+      // Auto-select Fillet or first part
+      if (fetchedParts.length > 0) {
+        if (fetchedParts.includes('Fillet')) {
+          setSelectedPart('Fillet');
+        } else {
+          setSelectedPart(fetchedParts[0]);
+        }
+      }
+    } catch (err) {
+      toast.error('Failed to fetch parts list');
+    } finally {
+      setIsLoadingParts(false);
+    }
+  };
+
+  if (isLoadingParts) {
+    return (
+      <div className="flex h-full items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sm font-medium text-slate-600 animate-pulse">กำลังโหลดรายการชิ้นส่วน...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col md:flex-row h-full bg-slate-50 overflow-hidden">
+      {/* Left Sidebar for Parts List */}
+      <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-border flex flex-col shrink-0 md:h-full max-h-[300px] md:max-h-none overflow-y-auto">
+        <div className="p-4 pb-2 border-b border-border bg-slate-50 shrink-0">
+          <div className="flex items-center gap-1.5">
+            <Users size={15} className="text-primary" />
+            <h2 className="font-bold text-slate-900 text-xs uppercase tracking-wider">ชิ้นส่วน (Parts)</h2>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5">เลือกชิ้นส่วนเพื่อวางแผนกำลังคน</p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          {parts.length === 0 ? (
+            <div className="text-sm text-center py-4 text-muted-foreground">ไม่พบรายการชิ้นส่วน</div>
+          ) : (
+            parts.map((part) => (
+              <button
+                key={part}
+                onClick={() => setSelectedPart(part)}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectedPart === part
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Package size={15} />
+                  <span>{part}</span>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-y-auto bg-slate-50/50 p-4 md:p-6">
+        {selectedPart ? (
+          <ManpowerTable partName={selectedPart} />
+        ) : (
+          <div className="flex h-full items-center justify-center text-slate-500">
+            กรุณาเลือกชิ้นส่วนจากเมนูด้านซ้ายเพื่อดูแผนกำลังคน
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

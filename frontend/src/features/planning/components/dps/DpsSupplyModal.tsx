@@ -93,7 +93,7 @@ export const DpsSupplyModal: React.FC<DpsSupplyModalProps> = ({
                   resizable: true,
                 }}
                 rowSelection={{ mode: "multiRow" }}
-                getRowId={(params) => params.data.id}
+                getRowId={(params: any) => params.data.id || `${params.data.lotNo || params.data.itemCode || ''}`}
                 onGridReady={onGridReady}
                 onSelectionChanged={onSelectionChanged}
                 animateRows={true}

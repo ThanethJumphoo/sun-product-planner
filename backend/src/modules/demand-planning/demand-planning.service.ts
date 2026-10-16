@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { Prisma } from '@prisma/client';
 import { ProductSpecService } from '../master-data/product-spec/product-spec.service';
 import prisma from '../../lib/prisma';
 
@@ -117,8 +119,10 @@ export class DemandPlanningService {
         const itemCode = line.erpItemCode;
         const key = `${soNumber}_${lineNumber}_${itemCode}_${this.toDateKey(line.scheduleShipDate)}`;
         const saved = savedPlansMap.get(key);
+        const isManual = line.header.erpOrderType === 'MANUAL';
         
         return {
+          id: line.id,
           priority: saved?.priority ?? (index + 1),
           soNumber,
           lineNumber, 
@@ -131,6 +135,8 @@ export class DemandPlanningService {
           planDate: null,
           status: null,
           isSelected: !!saved,
+          isManual,
+          customerName: line.header.erpCustomerName || (isManual ? 'Manual Order' : '-'),
         };
       });
 
@@ -157,6 +163,176 @@ export class DemandPlanningService {
     } catch {
       return 'no-date';
     }
+  }
+
+  async clearDemandPlans(partName: string) {
+    const result = await prisma.demandPlanLine.deleteMany({
+      where: { partName },
+    });
+    return { success: true, count: result.count };
+  }
+
+  async createManualOrder(partName: string, payload: {
+    soNumber?: string;
+    customerName?: string;
+    customerGrade?: string;
+    shipDate: string;
+    items: Array<{
+      itemCode: string;
+      orderedQuantity: number;
+      priority?: number;
+      planQty?: number;
+      lineNumber?: string;
+    }>;
+  }) {
+    if (!payload.items || !Array.isArray(payload.items) || payload.items.length === 0) {
+      throw new BadRequestException('At least one order item is required.');
+    }
+    if (!payload.shipDate) {
+      throw new BadRequestException('Ship date is required.');
+    }
+
+    const shipDate = new Date(payload.shipDate);
+    if (isNaN(shipDate.getTime())) {
+      throw new BadRequestException('Invalid ship date.');
+    }
+
+    // Generate or validate SO Number
+    let soNumber = payload.soNumber?.trim();
+    if (soNumber) {
+      const existingHeader = await prisma.erpSaleOrderHeader.findUnique({
+        where: { erpOrderNumber: soNumber }
+      });
+      if (existingHeader) {
+        throw new BadRequestException(`Order number "${soNumber}" already exists.`);
+      }
+    } else {
+      const ymd = shipDate.toISOString().slice(2, 10).replace(/-/g, '');
+      const randomDigits = Math.floor(100 + Math.random() * 900);
+      soNumber = `MO-${partName}-${ymd}-${randomDigits}`;
+    }
+
+    const customerName = payload.customerName?.trim() || 'Manual Order';
+    const customerGrade = payload.customerGrade?.trim() || 'A';
+
+    return prisma.$transaction(async (tx) => {
+      const headerId = randomUUID();
+      const header = await tx.erpSaleOrderHeader.create({
+        data: {
+          id: headerId,
+          erpOrderHeaderId: `MANUAL_${headerId}`,
+          erpOrgId: 'MANUAL',
+          erpOrderDate: new Date(),
+          erpOrderNumber: soNumber,
+          erpOrderType: 'MANUAL',
+          erpCustomerNumber: 'MANUAL',
+          erpCustomerName: customerName,
+          erpCustomerGrade: customerGrade,
+          erpCreationDate: new Date(),
+          erpLastUpdateDate: new Date(),
+          erpOrderStatus: 'BOOKED',
+          lastSyncedAt: new Date(),
+        }
+      });
+
+      // Find highest existing priority for this part
+      const existingPlans = await tx.demandPlanLine.findMany({
+        where: { partName },
+        orderBy: { priority: 'desc' },
+        take: 1
+      });
+      let nextPriority = (existingPlans[0]?.priority || 0) + 1;
+
+      const createdLines: any[] = [];
+      for (let idx = 0; idx < payload.items.length; idx++) {
+        const item = payload.items[idx];
+        const lineId = randomUUID();
+        const lineNum = item.lineNumber?.trim() || String(idx + 1);
+        const qty = Number(item.orderedQuantity);
+        if (isNaN(qty) || qty <= 0) {
+          throw new BadRequestException(`Item ${item.itemCode} has invalid quantity: ${item.orderedQuantity}`);
+        }
+
+        const soLine = await tx.erpSaleOrderLine.create({
+          data: {
+            id: lineId,
+            erpOrderLineId: `MANUAL_${lineId}`,
+            headerId: header.id,
+            erpItemId: item.itemCode,
+            erpItemCode: item.itemCode,
+            orderedQuantity: new Prisma.Decimal(qty),
+            orderQuantityUom: 'KG',
+            unitSellingPrice: new Prisma.Decimal(0),
+            scheduleShipDate: shipDate,
+            erpCreationDate: new Date(),
+            erpLastUpdateDate: new Date(),
+            lastSyncedAt: new Date(),
+            erpLineNumber: lineNum,
+          }
+        });
+
+        const planQty = item.planQty !== undefined && item.planQty !== null ? Number(item.planQty) : qty;
+        const priority = item.priority || nextPriority++;
+
+        const planLine = await tx.demandPlanLine.create({
+          data: {
+            partName,
+            soNumber,
+            lineNumber: lineNum,
+            itemCode: item.itemCode,
+            shipDate,
+            priority,
+            planQty: new Prisma.Decimal(planQty),
+          }
+        });
+
+        createdLines.push({ soLine, planLine });
+      }
+
+      return {
+        success: true,
+        soNumber,
+        headerId: header.id,
+        linesCount: createdLines.length
+      };
+    });
+  }
+
+  async deleteManualOrder(partName: string, soNumber: string) {
+    const header = await prisma.erpSaleOrderHeader.findFirst({
+      where: {
+        erpOrderNumber: soNumber,
+        erpOrderType: 'MANUAL',
+      }
+    });
+
+    if (!header) {
+      throw new NotFoundException(`Manual order "${soNumber}" not found or is not a manual order.`);
+    }
+
+    return prisma.$transaction(async (tx) => {
+      // 1. Delete demandPlanLine
+      await tx.demandPlanLine.deleteMany({
+        where: { partName, soNumber }
+      });
+
+      // 2. Delete mpsProductionTransaction if any were planned from this manual order
+      await tx.mpsProductionTransaction.deleteMany({
+        where: { partName, soNumber }
+      });
+
+      // 3. Delete erpSaleOrderLine
+      await tx.erpSaleOrderLine.deleteMany({
+        where: { headerId: header.id }
+      });
+
+      // 4. Delete erpSaleOrderHeader
+      await tx.erpSaleOrderHeader.delete({
+        where: { id: header.id }
+      });
+
+      return { success: true, soNumber };
+    });
   }
 
   async saveDemandPlans(partName: string, payload: { soNumber: string; lineNumber: string; itemCode: string; shipDate: string; priority: number; planQty: number | null }[]) {

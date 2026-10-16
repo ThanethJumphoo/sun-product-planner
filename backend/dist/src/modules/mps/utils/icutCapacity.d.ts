@@ -1,7 +1,8 @@
 export interface ICutConfig {
-    defaultSpeedKgH?: number;
-    effectiveHoursPerShift?: number;
+    machinesCount?: number;
+    hoursPerShift?: number;
     maxShifts?: number;
+    defaultSpeedKgH?: number;
 }
 export interface ICutItemDetail {
     itemCode: string;

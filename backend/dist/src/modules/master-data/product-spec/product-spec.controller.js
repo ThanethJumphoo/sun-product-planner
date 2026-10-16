@@ -21,10 +21,10 @@ let ProductSpecController = class ProductSpecController {
     constructor(productSpecService) {
         this.productSpecService = productSpecService;
     }
-    getItemsForPart(partName) {
+    getItemsForPart(partName, onlyIcut) {
         if (!partName)
             return [];
-        return this.productSpecService.getItemsForPart(partName);
+        return this.productSpecService.getItemsForPart(partName, onlyIcut === 'true');
     }
     getSpec(itemCode) {
         return this.productSpecService.getSpec(itemCode);
@@ -37,8 +37,9 @@ exports.ProductSpecController = ProductSpecController;
 __decorate([
     (0, common_1.Get)('items'),
     __param(0, (0, common_1.Query)('partName')),
+    __param(1, (0, common_1.Query)('onlyIcut')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], ProductSpecController.prototype, "getItemsForPart", null);
 __decorate([

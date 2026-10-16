@@ -65,6 +65,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   const [isDemandModalOpen, setIsDemandModalOpen] = useState(false);
   const [isLoadingDemand, setIsLoadingDemand] = useState(false);
   const [isCreatingDemand, setIsCreatingDemand] = useState(false);
+  const [isClearingDemand, setIsClearingDemand] = useState(false);
   
   // Planned Demand (Right Panel) State
   const [plannedDemands, setPlannedDemands] = useState<any[]>([]);
@@ -427,6 +428,38 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
     }
   };
 
+  const handleClearDemand = async () => {
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการล้าง Demand ทั้งหมดของ ${partName}?`)) {
+      return;
+    }
+
+    setIsClearingDemand(true);
+    const toastId = toast.loading('Clearing demand...');
+    try {
+      await api.delete(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders`);
+      
+      // Deselect all nodes in grid
+      if (demandGridRef.current?.api) {
+        demandGridRef.current.api.deselectAll();
+      }
+      
+      // Update local state demandData so isSelected is false
+      setDemandData(prev => prev.map(item => ({ ...item, isSelected: false })));
+
+      toast.dismiss(toastId);
+      toast.success("Demand cleared successfully");
+      
+      // Refresh planned demands on the main screen (sidebar Demand tab)
+      await fetchPlannedDemands();
+    } catch (error: any) {
+      console.error("Failed to clear demand:", error);
+      toast.dismiss(toastId);
+      toast.error(`Failed to clear demand: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsClearingDemand(false);
+    }
+  };
+
   const onRowSelected = (e: any) => {
     if (e.node.data) {
       e.node.data.isSelected = e.node.isSelected();
@@ -467,9 +500,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
       field: "priority", 
       headerName: "Priority", 
       sortable: true, 
-      width: 140,
-      checkboxSelection: true,
-      headerCheckboxSelection: true
+      width: 100
     },
     { field: "shipDate", headerName: "Ship Date", sortable: true, filter: true, valueFormatter: (p) => p.value ? format(new Date(p.value), 'dd/MM/yyyy') : '-' },
     { field: "productType", headerName: "Product Type", sortable: true, filter: true, width: 130 },
@@ -710,9 +741,21 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
       ]);
       const { product = [], coproduct = [], byproduct = [] } = res.data || {};
       const all = [
-        ...product.map((p: any) => ({ ...p, category: 'product' })),
-        ...coproduct.map((p: any) => ({ ...p, category: 'coproduct' })),
-        ...byproduct.map((p: any) => ({ ...p, category: 'byproduct' }))
+        ...product.map((p: any, idx: number) => ({
+          ...p,
+          uniqueRowId: `product_${p.id || `${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate}`}_${idx}`,
+          category: 'product'
+        })),
+        ...coproduct.map((p: any, idx: number) => ({
+          ...p,
+          uniqueRowId: `coproduct_${p.id || `${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate}`}_${idx}`,
+          category: 'coproduct'
+        })),
+        ...byproduct.map((p: any, idx: number) => ({
+          ...p,
+          uniqueRowId: `byproduct_${p.id || `${p.soNumber}_${p.lineNumber}_${p.itemCode}_${p.shipDate}`}_${idx}`,
+          category: 'byproduct'
+        }))
       ];
       
       setDemandData(all);
@@ -1224,6 +1267,12 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         onRowDataUpdated={onRowDataUpdated}
         handleCreateDemand={handleCreateDemand}
         isCreatingDemand={isCreatingDemand}
+        handleClearDemand={handleClearDemand}
+        isClearingDemand={isClearingDemand}
+        onRefreshDemand={async () => {
+          await openDemandModal();
+          await fetchPlannedDemands();
+        }}
       />
 
       {/* Generate Plan Modal */}
