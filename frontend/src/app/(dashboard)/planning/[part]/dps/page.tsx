@@ -267,6 +267,27 @@ export default function DPSPage() {
     }
   };
 
+  const handleClearDemands = async () => {
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการล้าง Production Demands ทั้งหมดของวันที่ ${format(currentDay, 'dd/MM/yyyy')}?`)) {
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const dateString = format(currentDay, 'yyyy-MM-dd');
+      await api.delete(`/api/v1/dps/${encodeURIComponent(partName)}/demands`, {
+        params: { date: dateString }
+      });
+      toast.success('Production Demands cleared successfully');
+      setIsModalOpen(false);
+      refetchAll();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(`Failed to clear demands: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleConfirmSupplies = async (selectedData: any[]) => {
     setIsSaving(true);
     try {
@@ -285,6 +306,27 @@ export default function DPSPage() {
     } catch (error) {
       console.error(error);
       toast.error('Failed to save supplies');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleClearSupplies = async () => {
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการล้างข้อมูล Supply ของวันที่ ${format(currentDay, 'dd/MM/yyyy')}?`)) {
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const dateString = format(currentDay, 'yyyy-MM-dd');
+      await api.post(`/api/v1/dps/${partName}/supplies`, [], {
+        params: { date: dateString }
+      });
+      toast.success('Supply cleared successfully');
+      setIsSupplyModalOpen(false);
+      refetchAll();
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to clear supply');
     } finally {
       setIsSaving(false);
     }
@@ -687,6 +729,7 @@ export default function DPSPage() {
         mpsDemands={mpsDemands}
         isFetchingDemands={isFetchingDemands}
         onConfirm={handleConfirmDemands}
+        onClear={handleClearDemands}
         isSaving={isSaving}
         activeDemandTab={activeDemandTab}
         setActiveDemandTab={setActiveDemandTab}
@@ -699,6 +742,7 @@ export default function DPSPage() {
         mpsSupplies={mpsSupplies}
         isFetchingSupplies={isFetchingSupplies}
         onConfirm={handleConfirmSupplies}
+        onClear={handleClearSupplies}
         isSaving={isSaving}
       />
     </div>

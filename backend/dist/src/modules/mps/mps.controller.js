@@ -39,6 +39,9 @@ let MpsController = class MpsController {
     async clearPlans(partName, startDate, endDate) {
         return this.mpsService.clearPlans(partName, startDate, endDate);
     }
+    async clearSupply(partName, startDate, endDate) {
+        return this.mpsService.clearSupply(partName, startDate, endDate);
+    }
 };
 exports.MpsController = MpsController;
 __decorate([
@@ -91,6 +94,15 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], MpsController.prototype, "clearPlans", null);
+__decorate([
+    (0, common_1.Delete)(':partName/supply'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Query)('startDate')),
+    __param(2, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], MpsController.prototype, "clearSupply", null);
 exports.MpsController = MpsController = __decorate([
     (0, common_1.Controller)('api/v1/mps'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

@@ -22,7 +22,10 @@ export declare class MpsController {
             speedPerMachineHr: number;
             machinesPerLine: number;
             totalLines: number;
+            hoursPerShift: number;
             workersPerLine: number;
+            deboningYieldPercent: number;
+            legQuarterRatioPercent: number;
         };
         summary: {
             totalDays: number;
@@ -35,7 +38,7 @@ export declare class MpsController {
     }>;
     getICutMetrics(partName: string, currentMonth: string): Promise<{
         machineCode: string;
-        config: {};
+        config: any;
         summary: {
             totalActiveDays: number;
             totalPlannedKg: number;
@@ -47,6 +50,10 @@ export declare class MpsController {
         daily: Record<string, import("./utils/icutCapacity").ICutDailyResult>;
     }>;
     clearPlans(partName: string, startDate: string, endDate: string): Promise<{
+        success: boolean;
+        deletedCount: number;
+    }>;
+    clearSupply(partName: string, startDate?: string, endDate?: string): Promise<{
         success: boolean;
         deletedCount: number;
     }>;

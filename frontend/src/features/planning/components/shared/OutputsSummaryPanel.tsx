@@ -3,6 +3,33 @@ import { Layers, Box, Workflow } from 'lucide-react';
 import { format } from 'date-fns';
 import api from '@/lib/api';
 
+const isItemNode = (n: any) => {
+  if (!n) return false;
+  const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
+  return code === 'ITEM' || n.nodeTypeId === 3002 || n.nodeTypeId === 3001;
+};
+
+const isRmNode = (n: any) => {
+  if (!n) return false;
+  const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
+  return code === 'RM' || code === 'RAW_MATERIAL' || n.nodeTypeId === 2002 || n.nodeTypeId === 2001;
+};
+
+const isProcessOrMachineNode = (n: any) => {
+  if (!n) return false;
+  const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
+  return (
+    code === 'PROCESS' ||
+    code === 'MACHINE' ||
+    n.nodeTypeId === 1004 ||
+    n.nodeTypeId === 1001 ||
+    n.nodeTypeId === 2004 ||
+    n.nodeTypeId === 1003 ||
+    n.name?.toLowerCase().includes('machine') ||
+    n.name?.toLowerCase().includes('icut')
+  );
+};
+
 export default function OutputsSummaryPanel({ 
   selectedDate, 
   partName, 
@@ -95,7 +122,7 @@ export default function OutputsSummaryPanel({
 
         // 1. Find ITEM node that contains this itemCode as "product"
         const itemNodes = nodes.filter((n: any) => {
-          if (n.nodeTypeId !== 3002 && n.nodeTypeId !== 3001) return false;
+          if (!isItemNode(n)) return false;
           try {
             const data = JSON.parse(n.data || '{}');
             if (data.itemCategory !== 'product') return false;
@@ -113,18 +140,11 @@ export default function OutputsSummaryPanel({
           const itemIncoming = findIncomingEdges(itemNode.id);
           for (const edge1 of itemIncoming) {
             const rmNode = nodes.find((n: any) => n.id === edge1.source);
-            if (rmNode && (rmNode.nodeTypeId === 2002 || rmNode.nodeTypeId === 2001)) { // RM node
+            if (rmNode && isRmNode(rmNode)) { // RM node
               const rmIncoming = findIncomingEdges(rmNode.id);
               for (const edge2 of rmIncoming) {
                 const processNode = nodes.find((n: any) => n.id === edge2.source);
-                const isProcessOrMachine = processNode && (
-                  processNode.nodeTypeId === 1004 || 
-                  processNode.nodeTypeId === 1001 ||
-                  processNode.nodeTypeId === 2004 ||
-                  processNode.nodeTypeId === 1003 ||
-                  processNode.name?.toLowerCase().includes('machine') ||
-                  processNode.name?.toLowerCase().includes('icut')
-                );
+                const isProcessOrMachine = processNode && isProcessOrMachineNode(processNode);
                 if (isProcessOrMachine) {
                   try {
                     const pData = JSON.parse(processNode.data || '{}');
@@ -172,7 +192,7 @@ export default function OutputsSummaryPanel({
                 const rmOutgoing = findOutgoingEdges(targetRmNode.id);
                 const linkedItemNodes = rmOutgoing
                   .map((e: any) => nodes.find((n: any) => n.id === e.target))
-                  .filter((n: any) => n && (n.nodeTypeId === 3002 || n.nodeTypeId === 3001));
+                  .filter((n: any) => n && isItemNode(n));
                 
                 const existingLinked = generatedOutputs[rmName].linkedItems || [];
                 const itemsMap = new Map();
@@ -215,7 +235,7 @@ export default function OutputsSummaryPanel({
         if (nodes.length > 0 && edges.length > 0) {
           // Find RM node matching bp.name or itemCode
           const rmNode = nodes.find((n: any) => 
-            (n.nodeTypeId === 2002 || n.nodeTypeId === 2001) && (
+            isRmNode(n) && (
               n.name?.trim().toLowerCase() === bp.name?.trim().toLowerCase() ||
               (bp.name.includes('เอ็น') && (n.name?.toLowerCase().includes('tendon') || n.name?.toLowerCase().includes('เอ็น'))) ||
               (bp.name.includes('ข้อเต็ม') && n.name?.includes('ข้อเต็ม')) ||
@@ -227,7 +247,7 @@ export default function OutputsSummaryPanel({
             const rmOutgoing = findOutgoingEdges(rmNode.id);
             const linkedItemNodes = rmOutgoing
               .map((e: any) => nodes.find((n: any) => n.id === e.target))
-              .filter((n: any) => n && (n.nodeTypeId === 3002 || n.nodeTypeId === 3001));
+              .filter((n: any) => n && isItemNode(n));
 
             const itemsMap = new Map();
             for (const iNode of linkedItemNodes) {

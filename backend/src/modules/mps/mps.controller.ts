@@ -56,4 +56,13 @@ export class MpsController {
   ) {
     return this.mpsService.clearPlans(partName, startDate, endDate);
   }
+
+  @Delete(':partName/supply')
+  async clearSupply(
+    @Param('partName') partName: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.mpsService.clearSupply(partName, startDate, endDate);
+  }
 }

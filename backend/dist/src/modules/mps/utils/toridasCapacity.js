@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DEFAULT_TORIDAS_CONFIG = void 0;
+exports.DEFAULT_TORIDAS_BYPRODUCTS = exports.DEFAULT_TORIDAS_CONFIG = void 0;
 exports.calculateToridasCapacity = calculateToridasCapacity;
 exports.DEFAULT_TORIDAS_CONFIG = {
     speedPerMachineHr: 1500,
@@ -9,14 +9,38 @@ exports.DEFAULT_TORIDAS_CONFIG = {
     effectiveHoursPerShift: 9.58,
     workersPerLine: 5,
     deboningYieldPercent: 80,
+    legQuarterRatioPercent: 25,
 };
+exports.DEFAULT_TORIDAS_BYPRODUCTS = [
+    {
+        name: 'กระดูกน่องสะโพกติดข้อเต็ม',
+        itemCode: '111119187',
+        yieldPercent: 20.6,
+    },
+    {
+        name: 'หนังติดมันเกรด A',
+        itemCode: '111119118',
+        yieldPercent: 2.8,
+    },
+    {
+        name: 'เศษ BL No.2',
+        itemCode: '111119140',
+        yieldPercent: 0.4,
+    },
+    {
+        name: 'เอ็นข้อไก่ (Knee Tendon)',
+        itemCode: '111118201',
+        yieldPercent: 0.8,
+    },
+];
 function calculateToridasCapacity(offeredWeightKg, avgWeightKg, config = {}, dateStr = '') {
     const cfg = { ...exports.DEFAULT_TORIDAS_CONFIG, ...config };
     const capPerLinePerShift = cfg.speedPerMachineHr * cfg.machinesPerLine * cfg.effectiveHoursPerShift;
     const max1ShiftPcs = capPerLinePerShift * cfg.totalLines;
     const max2ShiftPcs = max1ShiftPcs * 2;
     const safeAvgWeight = avgWeightKg > 0 ? avgWeightKg : 2.8;
-    const pieceWeightKg = Math.max(0.1, (safeAvgWeight * 0.25) / 2);
+    const legRatio = (cfg.legQuarterRatioPercent || 25) / 100;
+    const pieceWeightKg = Math.max(0.1, (safeAvgWeight * legRatio) / 2);
     const offeredPieces = Math.round(offeredWeightKg / pieceWeightKg);
     const chickenCount = Math.round(offeredPieces / 2);
     const shiftsNeeded = offeredPieces > max1ShiftPcs ? 2 : 1;
@@ -33,32 +57,13 @@ function calculateToridasCapacity(offeredWeightKg, avgWeightKg, config = {}, dat
     const toridasInputKg = Number((acceptedPieces * pieceWeightKg).toFixed(2));
     const overflowBoneInKg = Number((overflowPieces * pieceWeightKg).toFixed(2));
     const bonelessOutputKg = Number((toridasInputKg * (cfg.deboningYieldPercent / 100)).toFixed(2));
-    const byProducts = [
-        {
-            name: 'กระดูกน่องสะโพกติดข้อเต็ม',
-            itemCode: '111119187',
-            yieldPercent: 20.6,
-            weightKg: Number((toridasInputKg * 0.206).toFixed(2)),
-        },
-        {
-            name: 'หนังติดมันเกรด A',
-            itemCode: '111119118',
-            yieldPercent: 2.8,
-            weightKg: Number((toridasInputKg * 0.028).toFixed(2)),
-        },
-        {
-            name: 'เศษ BL No.2',
-            itemCode: '111119140',
-            yieldPercent: 0.4,
-            weightKg: Number((toridasInputKg * 0.004).toFixed(2)),
-        },
-        {
-            name: 'เอ็นข้อไก่ (Knee Tendon)',
-            itemCode: '111118201',
-            yieldPercent: 0.8,
-            weightKg: Number((toridasInputKg * 0.008).toFixed(2)),
-        },
-    ];
+    const templateByProducts = (cfg.byProducts && cfg.byProducts.length > 0) ? cfg.byProducts : exports.DEFAULT_TORIDAS_BYPRODUCTS;
+    const byProducts = templateByProducts.map(bp => ({
+        name: bp.name,
+        itemCode: bp.itemCode,
+        yieldPercent: bp.yieldPercent,
+        weightKg: Number((toridasInputKg * (bp.yieldPercent / 100)).toFixed(2)),
+    }));
     return {
         dateStr,
         chickenCount,

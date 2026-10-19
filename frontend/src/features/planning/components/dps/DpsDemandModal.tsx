@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { ShoppingCart, X } from 'lucide-react';
+import { ShoppingCart, X, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, themeAlpine } from 'ag-grid-community';
@@ -12,6 +12,7 @@ interface DpsDemandModalProps {
   mpsDemands: any[];
   isFetchingDemands: boolean;
   onConfirm: (selectedData: any[]) => void;
+  onClear?: () => void;
   isSaving: boolean;
   activeDemandTab: 'product' | 'coproduct' | 'byproduct';
   setActiveDemandTab: (tab: 'product' | 'coproduct' | 'byproduct') => void;
@@ -25,6 +26,7 @@ export const DpsDemandModal: React.FC<DpsDemandModalProps> = ({
   mpsDemands,
   isFetchingDemands,
   onConfirm,
+  onClear,
   isSaving,
   activeDemandTab,
   setActiveDemandTab
@@ -173,25 +175,43 @@ export const DpsDemandModal: React.FC<DpsDemandModalProps> = ({
           )}
         </div>
 
-        <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex justify-end gap-3">
-          <button 
-            onClick={onClose}
-            className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1"
-          >
-            Close
-          </button>
-          <button 
-            onClick={handleConfirm}
-            disabled={isSaving || selectedCount === 0}
-            className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isSaving ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            ) : (
-              <ShoppingCart size={18} />
-            )}
-            Create Demand {selectedCount > 0 && `(${selectedCount})`}
-          </button>
+        <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex justify-between items-center gap-3">
+          {onClear ? (
+            <button 
+              onClick={onClear}
+              disabled={isSaving}
+              className="px-4 py-2 bg-white text-red-600 border border-red-200 font-medium rounded-lg hover:bg-red-50 shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-red-200"
+            >
+              {isSaving ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+              ) : (
+                <Trash2 size={16} />
+              )}
+              Clear Demand
+            </button>
+          ) : <div />}
+
+          <div className="flex gap-3">
+            <button 
+              onClick={onClose}
+              disabled={isSaving}
+              className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 disabled:opacity-50"
+            >
+              Close
+            </button>
+            <button 
+              onClick={handleConfirm}
+              disabled={isSaving || selectedCount === 0}
+              className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isSaving ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <ShoppingCart size={18} />
+              )}
+              Create Demand {selectedCount > 0 && `(${selectedCount})`}
+            </button>
+          </div>
         </div>
       </div>
     </div>

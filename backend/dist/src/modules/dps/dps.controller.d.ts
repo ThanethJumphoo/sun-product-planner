@@ -19,6 +19,10 @@ export declare class DpsController {
     saveDpsDemands(partName: string, date: string, sublot: string, demands: any[]): Promise<{
         success: boolean;
     }>;
+    clearDpsDemands(partName: string, date: string, sublot?: string): Promise<{
+        success: boolean;
+        count: number;
+    }>;
     getDailyOrders(partName: string, date: string, sublot: string): Promise<{
         plannedQty: number;
         location: string;

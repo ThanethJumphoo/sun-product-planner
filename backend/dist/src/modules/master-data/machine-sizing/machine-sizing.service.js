@@ -110,15 +110,16 @@ exports.DEFAULT_BELT_GATE_BL_GROUPS = [
         ],
     },
 ];
-function sanitizeGroupsWithWd(groups) {
+function sanitizeGroupsWithWd(groups, customMap) {
     if (!Array.isArray(groups))
         return [];
+    const map = customMap && Object.keys(customMap).length > 0 ? customMap : exports.EXCEL_TO_WD_SIZE_MAP;
     return groups.map((g) => ({
         ...g,
         rules: Array.isArray(g.rules)
             ? g.rules.map((r) => ({
                 ...r,
-                rmSize: exports.EXCEL_TO_WD_SIZE_MAP[r.rmSize] || r.rmSize,
+                rmSize: map[r.rmSize] || r.rmSize,
             }))
             : [],
     }));
@@ -129,20 +130,31 @@ let MachineSizingService = class MachineSizingService {
     }
     async getConfigs(machineId, partName) {
         const key = this.getSettingKey(machineId, partName);
-        const setting = await prisma_1.default.systemSetting.findUnique({
-            where: { key },
-        });
+        const [setting, mappingSetting] = await Promise.all([
+            prisma_1.default.systemSetting.findUnique({ where: { key } }),
+            prisma_1.default.systemSetting.findUnique({ where: { key: 'sizing_rule_excel_mapping' } }),
+        ]);
+        let customSizeMap;
+        if (mappingSetting?.value) {
+            try {
+                const parsedMap = JSON.parse(mappingSetting.value);
+                if (typeof parsedMap === 'object' && parsedMap !== null) {
+                    customSizeMap = { ...exports.EXCEL_TO_WD_SIZE_MAP, ...parsedMap };
+                }
+            }
+            catch (e) { }
+        }
         if (setting && setting.value) {
             try {
                 const parsed = JSON.parse(setting.value);
-                return sanitizeGroupsWithWd(parsed);
+                return sanitizeGroupsWithWd(parsed, customSizeMap);
             }
             catch (e) {
                 console.error('Failed to parse machine sizing config JSON', e);
             }
         }
         if (machineId.toLowerCase() === 'belt-gate' && partName.toUpperCase() === 'BL') {
-            return exports.DEFAULT_BELT_GATE_BL_GROUPS;
+            return sanitizeGroupsWithWd(exports.DEFAULT_BELT_GATE_BL_GROUPS, customSizeMap);
         }
         return [];
     }

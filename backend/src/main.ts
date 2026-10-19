@@ -11,9 +11,17 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: process.env.CORS_ORIGIN
-      ? process.env.CORS_ORIGIN.split(',')
-      : 'http://localhost:3000',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (curl, mobile) or reflect origin for credentials
+      if (!origin) return callback(null, true);
+      if (process.env.CORS_ORIGIN) {
+        const allowed = process.env.CORS_ORIGIN.split(',').map((o) => o.trim());
+        if (allowed.includes(origin) || allowed.includes('*')) {
+          return callback(null, true);
+        }
+      }
+      return callback(null, true);
+    },
     credentials: true,
   });
 

@@ -236,6 +236,17 @@ let DpsService = class DpsService {
         });
         return { success: true };
     }
+    async clearDpsDemands(partName, dateStr, sublot) {
+        const planDate = new Date(dateStr);
+        const whereClause = { partName, planDate };
+        if (sublot && sublot !== 'ALL') {
+            whereClause.sublot = sublot;
+        }
+        const result = await prisma_1.default.dpsDemandTransaction.deleteMany({
+            where: whereClause,
+        });
+        return { success: true, count: result.count };
+    }
     async getSavedDpsDemands(partName, dateStr, sublot) {
         const planDate = new Date(dateStr);
         const whereClause = { partName, planDate };

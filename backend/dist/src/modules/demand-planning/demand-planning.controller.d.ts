@@ -64,6 +64,7 @@ export declare class DemandPlanningController {
         planQty: number | null;
     }[]): Promise<{
         success: boolean;
+        count: number;
     }>;
     clearDemandPlans(partName: string): Promise<{
         success: boolean;

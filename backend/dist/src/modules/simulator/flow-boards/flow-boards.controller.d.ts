@@ -13,7 +13,15 @@ export declare class FlowBoardsController {
         isLocked: boolean;
     }[]>;
     findOne(id: number): Promise<{
-        nodes: {
+        nodes: ({
+            nodeType: {
+                id: number;
+                typeCode: string;
+                typeName: string;
+                createdAt: Date;
+                updatedAt: Date;
+            };
+        } & {
             id: string;
             name: string;
             data: string;
@@ -21,7 +29,7 @@ export declare class FlowBoardsController {
             boardId: number;
             positionX: number;
             positionY: number;
-        }[];
+        })[];
         edges: {
             id: string;
             boardId: number;
@@ -71,7 +79,15 @@ export declare class FlowBoardsController {
         nodes: any[];
         edges: any[];
     }): Promise<{
-        nodes: {
+        nodes: ({
+            nodeType: {
+                id: number;
+                typeCode: string;
+                typeName: string;
+                createdAt: Date;
+                updatedAt: Date;
+            };
+        } & {
             id: string;
             name: string;
             data: string;
@@ -79,7 +95,7 @@ export declare class FlowBoardsController {
             boardId: number;
             positionX: number;
             positionY: number;
-        }[];
+        })[];
         edges: {
             id: string;
             boardId: number;

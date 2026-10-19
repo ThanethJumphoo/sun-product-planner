@@ -35,7 +35,9 @@ export class FlowBoardsService {
     let board = await prisma.flowBoard.findUnique({
       where: { id },
       include: {
-        nodes: true,
+        nodes: {
+          include: { nodeType: true },
+        },
         edges: true,
       },
     });
@@ -46,7 +48,9 @@ export class FlowBoardsService {
       board = await prisma.flowBoard.findUnique({
         where: { id },
         include: {
-          nodes: true,
+          nodes: {
+            include: { nodeType: true },
+          },
           edges: true,
         },
       });

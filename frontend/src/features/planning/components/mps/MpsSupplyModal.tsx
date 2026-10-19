@@ -1,6 +1,6 @@
 import React from "react";
 import { format } from "date-fns";
-import { Package, X } from "lucide-react";
+import { Package, X, Trash2 } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import { themeAlpine } from 'ag-grid-community';
 
@@ -13,6 +13,8 @@ interface MpsSupplyModalProps {
   supplyColDefs: any[];
   isCalculating: boolean;
   handleCreateSupply: () => void;
+  handleClearSupply?: () => void;
+  isClearingSupply?: boolean;
 }
 
 export function MpsSupplyModal({
@@ -23,7 +25,9 @@ export function MpsSupplyModal({
   supplyData,
   supplyColDefs,
   isCalculating,
-  handleCreateSupply
+  handleCreateSupply,
+  handleClearSupply,
+  isClearingSupply
 }: MpsSupplyModalProps) {
   if (!isOpen) return null;
 
@@ -74,25 +78,43 @@ export function MpsSupplyModal({
           )}
         </div>
         
-        <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex justify-end gap-3">
-          <button 
-            onClick={onClose}
-            className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1"
-          >
-            Close
-          </button>
-          <button 
-            onClick={handleCreateSupply}
-            disabled={isCalculating || supplyData.length === 0}
-            className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isCalculating ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            ) : (
-              <Package size={18} />
-            )}
-            Create Supply
-          </button>
+        <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex justify-between items-center gap-3">
+          {handleClearSupply ? (
+            <button 
+              onClick={handleClearSupply}
+              disabled={isClearingSupply || isCalculating}
+              className="px-4 py-2 bg-white text-red-600 border border-red-200 font-medium rounded-lg hover:bg-red-50 shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-red-200"
+            >
+              {isClearingSupply ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+              ) : (
+                <Trash2 size={16} />
+              )}
+              Clear Supply
+            </button>
+          ) : <div />}
+
+          <div className="flex gap-3">
+            <button 
+              onClick={onClose}
+              disabled={isClearingSupply || isCalculating}
+              className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 disabled:opacity-50"
+            >
+              Close
+            </button>
+            <button 
+              onClick={handleCreateSupply}
+              disabled={isCalculating || isClearingSupply || supplyData.length === 0}
+              className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isCalculating ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <Package size={18} />
+              )}
+              Create Supply
+            </button>
+          </div>
         </div>
       </div>
     </div>

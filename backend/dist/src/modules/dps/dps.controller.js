@@ -46,6 +46,11 @@ let DpsController = class DpsController {
             throw new Error('Date is required');
         return this.dpsService.saveDpsDemands(partName, date, demands, sublot);
     }
+    async clearDpsDemands(partName, date, sublot) {
+        if (!date)
+            throw new Error('Date is required');
+        return this.dpsService.clearDpsDemands(partName, date, sublot);
+    }
     async getDailyOrders(partName, date, sublot) {
         if (!date) {
             throw new Error('Date is required for fetching daily orders');
@@ -110,6 +115,15 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String, Array]),
     __metadata("design:returntype", Promise)
 ], DpsController.prototype, "saveDpsDemands", null);
+__decorate([
+    (0, common_1.Delete)(':partName/demands'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Query)('date')),
+    __param(2, (0, common_1.Query)('sublot')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], DpsController.prototype, "clearDpsDemands", null);
 __decorate([
     (0, common_1.Get)(':partName/orders'),
     __param(0, (0, common_1.Param)('partName')),

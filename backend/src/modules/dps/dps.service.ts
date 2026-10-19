@@ -264,6 +264,19 @@ export class DpsService {
     return { success: true };
   }
 
+  // Clear Saved DPS Demands
+  async clearDpsDemands(partName: string, dateStr: string, sublot?: string) {
+    const planDate = new Date(dateStr);
+    const whereClause: any = { partName, planDate };
+    if (sublot && sublot !== 'ALL') {
+      whereClause.sublot = sublot;
+    }
+    const result = await prisma.dpsDemandTransaction.deleteMany({
+      where: whereClause,
+    });
+    return { success: true, count: result.count };
+  }
+
   // 3. Fetch Saved DPS Demands (for the DPS page)
   async getSavedDpsDemands(partName: string, dateStr: string, sublot?: string) {
     const planDate = new Date(dateStr);

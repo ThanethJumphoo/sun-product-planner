@@ -5,13 +5,15 @@ export interface ToridasConfig {
   effectiveHoursPerShift?: number;
   workersPerLine?: number;
   deboningYieldPercent?: number;
+  legQuarterRatioPercent?: number;
+  byProducts?: ToridasByProduct[];
 }
 
 export interface ToridasByProduct {
   name: string;
   itemCode?: string;
   yieldPercent: number;
-  weightKg: number;
+  weightKg?: number;
 }
 
 export interface ToridasDailyResult {
@@ -32,14 +34,38 @@ export interface ToridasDailyResult {
   byProducts: ToridasByProduct[];
 }
 
-export const DEFAULT_TORIDAS_CONFIG: Required<ToridasConfig> = {
+export const DEFAULT_TORIDAS_CONFIG: Required<Omit<ToridasConfig, 'byProducts'>> & { byProducts?: ToridasByProduct[] } = {
   speedPerMachineHr: 1500,
   machinesPerLine: 4,
   totalLines: 3,
   effectiveHoursPerShift: 9.58,
   workersPerLine: 5,
   deboningYieldPercent: 80,
+  legQuarterRatioPercent: 25,
 };
+
+export const DEFAULT_TORIDAS_BYPRODUCTS: ToridasByProduct[] = [
+  {
+    name: 'กระดูกน่องสะโพกติดข้อเต็ม',
+    itemCode: '111119187',
+    yieldPercent: 20.6,
+  },
+  {
+    name: 'หนังติดมันเกรด A',
+    itemCode: '111119118',
+    yieldPercent: 2.8,
+  },
+  {
+    name: 'เศษ BL No.2',
+    itemCode: '111119140',
+    yieldPercent: 0.4,
+  },
+  {
+    name: 'เอ็นข้อไก่ (Knee Tendon)',
+    itemCode: '111118201',
+    yieldPercent: 0.8,
+  },
+];
 
 /**
  * Calculates Toridas deboning machine line capacity, manpower, and output.
@@ -57,9 +83,10 @@ export function calculateToridasCapacity(
   const max2ShiftPcs = max1ShiftPcs * 2; // 344,880 pcs
 
   // Weight of one bone-in leg piece:
-  // Typically leg quarter is ~25% of bird weight / 2 legs = ~12.5% of bird weight
+  // Leg quarter ratio configurable (default ~25% of bird weight / 2 legs = ~12.5% of bird weight)
   const safeAvgWeight = avgWeightKg > 0 ? avgWeightKg : 2.8;
-  const pieceWeightKg = Math.max(0.1, (safeAvgWeight * 0.25) / 2);
+  const legRatio = (cfg.legQuarterRatioPercent || 25) / 100;
+  const pieceWeightKg = Math.max(0.1, (safeAvgWeight * legRatio) / 2);
 
   // Convert offered weight to pieces
   const offeredPieces = Math.round(offeredWeightKg / pieceWeightKg);
@@ -87,33 +114,14 @@ export function calculateToridasCapacity(
   const overflowBoneInKg = Number((overflowPieces * pieceWeightKg).toFixed(2));
   const bonelessOutputKg = Number((toridasInputKg * (cfg.deboningYieldPercent / 100)).toFixed(2));
 
-  // By-products generated from Toridas deboning
-  const byProducts: ToridasByProduct[] = [
-    {
-      name: 'กระดูกน่องสะโพกติดข้อเต็ม',
-      itemCode: '111119187',
-      yieldPercent: 20.6,
-      weightKg: Number((toridasInputKg * 0.206).toFixed(2)),
-    },
-    {
-      name: 'หนังติดมันเกรด A',
-      itemCode: '111119118',
-      yieldPercent: 2.8,
-      weightKg: Number((toridasInputKg * 0.028).toFixed(2)),
-    },
-    {
-      name: 'เศษ BL No.2',
-      itemCode: '111119140',
-      yieldPercent: 0.4,
-      weightKg: Number((toridasInputKg * 0.004).toFixed(2)),
-    },
-    {
-      name: 'เอ็นข้อไก่ (Knee Tendon)',
-      itemCode: '111118201',
-      yieldPercent: 0.8,
-      weightKg: Number((toridasInputKg * 0.008).toFixed(2)),
-    },
-  ];
+  // By-products generated from Toridas deboning (configurable or default)
+  const templateByProducts = (cfg.byProducts && cfg.byProducts.length > 0) ? cfg.byProducts : DEFAULT_TORIDAS_BYPRODUCTS;
+  const byProducts: ToridasByProduct[] = templateByProducts.map(bp => ({
+    name: bp.name,
+    itemCode: bp.itemCode,
+    yieldPercent: bp.yieldPercent,
+    weightKg: Number((toridasInputKg * (bp.yieldPercent / 100)).toFixed(2)),
+  }));
 
   return {
     dateStr,

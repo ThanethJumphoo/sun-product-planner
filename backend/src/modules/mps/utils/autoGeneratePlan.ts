@@ -5,6 +5,30 @@ import { isICutItem } from './icutCapacity';
 // Capacity constants for I-Cut: 2 machines × 2 shifts × 9.25 hrs/shift = 37.0 hrs/day
 const MAX_ICUT_HOURS_PER_DAY = 37.0;
 
+export function isItemNode(n: any): boolean {
+  if (!n) return false;
+  const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
+  return code === 'ITEM' || n.nodeTypeId === 3002 || n.nodeTypeId === 3001;
+}
+
+export function isRmNode(n: any): boolean {
+  if (!n) return false;
+  const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
+  return code === 'RM' || code === 'RAW_MATERIAL' || n.nodeTypeId === 2002 || n.nodeTypeId === 2001;
+}
+
+export function isProcessNode(n: any): boolean {
+  if (!n) return false;
+  const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
+  return code === 'PROCESS' || n.nodeTypeId === 1004 || n.nodeTypeId === 1001;
+}
+
+export function isMachineNode(n: any): boolean {
+  if (!n) return false;
+  const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
+  return code === 'MACHINE' || n.nodeTypeId === 1003 || n.nodeTypeId === 2004 || n.name?.toLowerCase().includes('machine') || n.name?.toLowerCase().includes('icut');
+}
+
 export async function generateAutoPlanOnServer(
   partName: string,
   currentMonthStr: string
@@ -66,7 +90,9 @@ export async function generateAutoPlanOnServer(
         ]
       },
       include: {
-        nodes: true,
+        nodes: {
+          include: { nodeType: true }
+        },
         edges: true
       }
     }),
@@ -251,7 +277,7 @@ export async function generateAutoPlanOnServer(
     const findIncomingEdges = (nodeId: string) => edges.filter((e: any) => e.target === nodeId);
     const findOutgoingEdges = (nodeId: string) => edges.filter((e: any) => e.source === nodeId);
 
-    const itemNodes = nodes.filter((n: any) => n.nodeTypeId === 3002 || n.nodeTypeId === 3001);
+    const itemNodes = nodes.filter((n: any) => isItemNode(n));
     for (const itemNode of itemNodes) {
       let data: any;
       try { data = JSON.parse(itemNode.data || '{}'); } catch(e) { continue; }
@@ -262,10 +288,10 @@ export async function generateAutoPlanOnServer(
       
       for (const edge1 of findIncomingEdges(itemNode.id)) {
         const rmNode = nodes.find((n: any) => n.id === edge1.source);
-        if (rmNode && (rmNode.nodeTypeId === 2002 || rmNode.nodeTypeId === 2001)) {
+        if (rmNode && isRmNode(rmNode)) {
           for (const edge2 of findIncomingEdges(rmNode.id)) {
             const processNode = nodes.find((n: any) => n.id === edge2.source);
-            if (processNode && (processNode.nodeTypeId === 1004 || processNode.nodeTypeId === 1001)) {
+            if (processNode && isProcessNode(processNode)) {
               let pData: any;
               try { pData = JSON.parse(processNode.data || '{}'); } catch(e) { continue; }
               const pNum = Number(pData.Process) || 999;
@@ -308,7 +334,7 @@ export async function generateAutoPlanOnServer(
               const rmOutgoing = findOutgoingEdges(targetRmNode.id);
               for (const outEdge2 of rmOutgoing) {
                 const coItemNode = nodes.find((n: any) => n.id === outEdge2.target);
-                if (coItemNode && (coItemNode.nodeTypeId === 3002 || coItemNode.nodeTypeId === 3001)) {
+                if (coItemNode && isItemNode(coItemNode)) {
                   let coData: any;
                   try { coData = JSON.parse(coItemNode.data || '{}'); } catch(e) { continue; }
                   if (coData.Items && Array.isArray(coData.Items)) {
@@ -357,7 +383,7 @@ export async function generateAutoPlanOnServer(
     const edges = board.edges || [];
 
     const machineNodes = nodes.filter(
-      (n: any) => n.nodeTypeId === 1003 || n.nodeTypeId === 2004 || n.name?.toLowerCase().includes('machine'),
+      (n: any) => isMachineNode(n)
     );
     for (const mNode of machineNodes) {
       const outEdges = edges.filter((e: any) => e.source === mNode.id && (e.sourceHandle === 'byproduct' || e.sourceHandle === 'coproduct'));

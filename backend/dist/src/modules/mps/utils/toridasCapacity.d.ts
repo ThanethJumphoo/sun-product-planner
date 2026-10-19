@@ -5,12 +5,14 @@ export interface ToridasConfig {
     effectiveHoursPerShift?: number;
     workersPerLine?: number;
     deboningYieldPercent?: number;
+    legQuarterRatioPercent?: number;
+    byProducts?: ToridasByProduct[];
 }
 export interface ToridasByProduct {
     name: string;
     itemCode?: string;
     yieldPercent: number;
-    weightKg: number;
+    weightKg?: number;
 }
 export interface ToridasDailyResult {
     dateStr: string;
@@ -29,5 +31,8 @@ export interface ToridasDailyResult {
     overflowBoneInKg: number;
     byProducts: ToridasByProduct[];
 }
-export declare const DEFAULT_TORIDAS_CONFIG: Required<ToridasConfig>;
+export declare const DEFAULT_TORIDAS_CONFIG: Required<Omit<ToridasConfig, 'byProducts'>> & {
+    byProducts?: ToridasByProduct[];
+};
+export declare const DEFAULT_TORIDAS_BYPRODUCTS: ToridasByProduct[];
 export declare function calculateToridasCapacity(offeredWeightKg: number, avgWeightKg: number, config?: ToridasConfig, dateStr?: string): ToridasDailyResult;

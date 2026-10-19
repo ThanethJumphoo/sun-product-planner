@@ -34,6 +34,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   // Supply Modal State
   const [isSupplyModalOpen, setIsSupplyModalOpen] = useState(false);
   const [isLoadingSupply, setIsLoadingSupply] = useState(false);
+  const [isClearingSupply, setIsClearingSupply] = useState(false);
   const [supplyData, setSupplyData] = useState<any[]>([]);
   const [supplyColDefs] = useState<any[]>([
     {
@@ -600,10 +601,14 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
       const mainTypeId = nodeTypes.find((t: any) => t.typeCode === 'MAIN')?.id;
       const partTypeId = nodeTypes.find((t: any) => t.typeCode === 'PART')?.id;
       
-      // Find board for this part
-      const board = boards.find((b: any) => 
-        b.name === `Master Production Flow - ${partName}` || b.name?.includes(partName)
-      );
+      // Find board for this part (prioritize exact match)
+      const exactBoardName = `Master Production Flow - ${partName}`.toLowerCase();
+      const board = 
+        boards.find((b: any) => b.name?.trim().toLowerCase() === exactBoardName) ||
+        boards.find((b: any) => b.name?.trim().toLowerCase() === partName.toLowerCase()) ||
+        boards.find((b: any) => b.name?.trim().toLowerCase().split(' - ').pop() === partName.toLowerCase()) ||
+        boards.find((b: any) => b.name?.toLowerCase().includes(partName.toLowerCase()) && !b.name?.toLowerCase().includes(` - ${partName.toLowerCase()} - `)) ||
+        boards.find((b: any) => b.name === 'Master Production Flow');
       
       if (!board) {
         toast.error(`Production flow board for ${partName} not found.`);
@@ -615,12 +620,12 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
       const boardDetails = boardDetailsRes.data?.data || boardDetailsRes.data;
       const nodes = boardDetails?.nodes || [];
       
-      // 3. Find MAIN node and PART node
+      // 3. Find MAIN node and PART node (prioritize exact name match for PART)
       const mainNode = nodes.find((n: any) => n.nodeTypeId === mainTypeId || n.name?.toLowerCase() === 'chicken');
-      const partNode = nodes.find((n: any) => 
-        (n.nodeTypeId === partTypeId) && 
-        (n.name?.toLowerCase() === partName.toLowerCase() || n.name?.toLowerCase().includes(partName.toLowerCase()))
-      ) || nodes.find((n: any) => n.nodeTypeId === partTypeId);
+      const partNode = 
+        nodes.find((n: any) => n.nodeTypeId === partTypeId && n.name?.trim().toLowerCase() === partName.toLowerCase()) ||
+        nodes.find((n: any) => n.nodeTypeId === partTypeId && n.name?.toLowerCase().includes(partName.toLowerCase())) ||
+        nodes.find((n: any) => n.nodeTypeId === partTypeId);
       
       if (!mainNode || !partNode) {
         toast.error(`Required nodes (MAIN/PART) not found in the flow board.`);
@@ -655,11 +660,19 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         }
       });
       
-      setCalculatedSupply(newMpsSupply);
-      
       if (updatedCount > 0) {
-        toast.success(`Successfully calculated supply for ${updatedCount} days!`);
+        // Auto-save to database immediately
+        const payload = Object.keys(newMpsSupply).map(date => ({
+          date,
+          weight: newMpsSupply[date]
+        }));
+
+        await api.post(`/api/v1/mps/${encodeURIComponent(partName)}/supply`, payload);
+
+        setCalculatedSupply(newMpsSupply);
+        toast.success(`คำนวณและบันทึก Supply สำเร็จ ${updatedCount} วัน!`);
         setIsSupplyModalOpen(false); // Close modal on success
+        fetchCalendarData();
       } else {
         toast.error("No valid supply weight found to calculate. (Hint: Ensure Chicken Receiving data exists)");
       }
@@ -728,6 +741,46 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
       toast.error("Failed to load Supply data");
     } finally {
       setIsLoadingSupply(false);
+    }
+  };
+
+  const handleClearSupply = async () => {
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการล้างข้อมูล Supply ทั้งหมดในเดือนนี้ของ ${partName}?`)) {
+      return;
+    }
+
+    setIsClearingSupply(true);
+    const toastId = toast.loading('Clearing supply...');
+    try {
+      const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
+      const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+
+      await api.delete(`/api/v1/mps/${encodeURIComponent(partName)}/supply`, {
+        params: { startDate: monthStart, endDate: monthEnd }
+      });
+
+      // Clear local calculatedSupply state for this month
+      setCalculatedSupply(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(dateStr => {
+          const d = new Date(dateStr);
+          if (isSameMonth(d, currentMonth)) {
+            delete next[dateStr];
+          }
+        });
+        return next;
+      });
+
+      toast.dismiss(toastId);
+      toast.success("Supply cleared successfully");
+      setIsSupplyModalOpen(false);
+      await fetchCalendarData();
+    } catch (error: any) {
+      console.error("Failed to clear supply:", error);
+      toast.dismiss(toastId);
+      toast.error(`Failed to clear supply: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsClearingSupply(false);
     }
   };
 
@@ -1247,6 +1300,8 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         supplyColDefs={supplyColDefs}
         isCalculating={isCalculating}
         handleCreateSupply={handleCreateSupply}
+        handleClearSupply={handleClearSupply}
+        isClearingSupply={isClearingSupply}
       />
 
       {/* Demand Modal */}

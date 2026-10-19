@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { DpsService } from './dps.service';
 import { JwtAuthGuard } from '../../core/guards/jwt-auth.guard';
 
@@ -53,6 +53,16 @@ export class DpsController {
   ) {
     if (!date) throw new Error('Date is required');
     return this.dpsService.saveDpsDemands(partName, date, demands, sublot);
+  }
+
+  @Delete(':partName/demands')
+  async clearDpsDemands(
+    @Param('partName') partName: string,
+    @Query('date') date: string,
+    @Query('sublot') sublot?: string,
+  ) {
+    if (!date) throw new Error('Date is required');
+    return this.dpsService.clearDpsDemands(partName, date, sublot);
   }
 
   @Get(':partName/orders')

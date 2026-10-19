@@ -7,6 +7,10 @@ export declare class DpsService {
     saveDpsDemands(partName: string, dateStr: string, demands: any[], sublot?: string): Promise<{
         success: boolean;
     }>;
+    clearDpsDemands(partName: string, dateStr: string, sublot?: string): Promise<{
+        success: boolean;
+        count: number;
+    }>;
     getSavedDpsDemands(partName: string, dateStr: string, sublot?: string): Promise<{
         plannedQty: number;
         location: string;

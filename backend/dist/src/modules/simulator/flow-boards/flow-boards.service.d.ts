@@ -10,7 +10,15 @@ export declare class FlowBoardsService {
         name: string;
     }[]>;
     findOne(id: number): Promise<{
-        nodes: {
+        nodes: ({
+            nodeType: {
+                id: number;
+                typeCode: string;
+                typeName: string;
+                createdAt: Date;
+                updatedAt: Date;
+            };
+        } & {
             id: string;
             name: string;
             data: string;
@@ -18,7 +26,7 @@ export declare class FlowBoardsService {
             boardId: number;
             positionX: number;
             positionY: number;
-        }[];
+        })[];
         edges: {
             id: string;
             boardId: number;
@@ -72,7 +80,15 @@ export declare class FlowBoardsService {
         nodes: any[];
         edges: any[];
     }): Promise<{
-        nodes: {
+        nodes: ({
+            nodeType: {
+                id: number;
+                typeCode: string;
+                typeName: string;
+                createdAt: Date;
+                updatedAt: Date;
+            };
+        } & {
             id: string;
             name: string;
             data: string;
@@ -80,7 +96,7 @@ export declare class FlowBoardsService {
             boardId: number;
             positionX: number;
             positionY: number;
-        }[];
+        })[];
         edges: {
             id: string;
             boardId: number;

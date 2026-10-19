@@ -13,9 +13,17 @@ async function bootstrap() {
     app.use((0, express_1.urlencoded)({ extended: true, limit: '50mb' }));
     app.use((0, cookie_parser_1.default)());
     app.enableCors({
-        origin: process.env.CORS_ORIGIN
-            ? process.env.CORS_ORIGIN.split(',')
-            : 'http://localhost:3000',
+        origin: (origin, callback) => {
+            if (!origin)
+                return callback(null, true);
+            if (process.env.CORS_ORIGIN) {
+                const allowed = process.env.CORS_ORIGIN.split(',').map((o) => o.trim());
+                if (allowed.includes(origin) || allowed.includes('*')) {
+                    return callback(null, true);
+                }
+            }
+            return callback(null, true);
+        },
         credentials: true,
     });
     await app.listen(process.env.PORT ?? 3001);

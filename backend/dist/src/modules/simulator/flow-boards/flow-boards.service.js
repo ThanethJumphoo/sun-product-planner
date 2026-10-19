@@ -37,7 +37,9 @@ let FlowBoardsService = class FlowBoardsService {
         let board = await prisma_1.default.flowBoard.findUnique({
             where: { id },
             include: {
-                nodes: true,
+                nodes: {
+                    include: { nodeType: true },
+                },
                 edges: true,
             },
         });
@@ -48,7 +50,9 @@ let FlowBoardsService = class FlowBoardsService {
             board = await prisma_1.default.flowBoard.findUnique({
                 where: { id },
                 include: {
-                    nodes: true,
+                    nodes: {
+                        include: { nodeType: true },
+                    },
                     edges: true,
                 },
             });

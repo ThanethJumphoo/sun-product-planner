@@ -139,9 +139,7 @@ let MpsService = class MpsService {
         }
         let childSyncResults = [];
         try {
-            if (partName.toUpperCase() === 'BIL') {
-                childSyncResults = await this.syncChildPartsSupply(partName, currentMonth);
-            }
+            childSyncResults = await this.syncChildPartsSupply(partName, currentMonth);
         }
         catch (syncErr) {
             console.error('Error during child part supply sync:', syncErr);
@@ -153,23 +151,63 @@ let MpsService = class MpsService {
             childSyncResults,
         };
     }
+    async getCapacitySettings() {
+        const settings = await prisma_1.default.systemSetting.findMany({
+            where: { category: 'CAPACITY' },
+        });
+        const map = new Map();
+        settings.forEach((s) => map.set(s.key, s.value));
+        const getNum = (key, defVal) => {
+            const v = map.get(key);
+            if (v !== undefined && v.trim() !== '') {
+                const n = Number(v);
+                if (!isNaN(n))
+                    return n;
+            }
+            return defVal;
+        };
+        return {
+            toridas: {
+                speedPerMachineHr: getNum('toridas_speed_pcs_hr', 1500),
+                machinesPerLine: getNum('toridas_machines_per_line', 4),
+                totalLines: getNum('toridas_total_lines', 3),
+                hoursPerShift: getNum('toridas_hours_per_shift', 9.58),
+                workersPerLine: getNum('toridas_workers_per_line', 5),
+                deboningYieldPercent: getNum('toridas_yield_percent', 80),
+                legQuarterRatioPercent: getNum('toridas_leg_quarter_ratio', 25),
+            },
+            icut: {
+                machinesCount: getNum('icut_machines_count', 2),
+                hoursPerShift: getNum('icut_hours_per_shift', 9.25),
+                maxShifts: getNum('icut_max_shifts', 2),
+                defaultSpeedKgH: getNum('icut_default_speed_kg_h', 500),
+            },
+        };
+    }
     async syncChildPartsSupply(parentPartName, currentMonth) {
-        if (parentPartName.toUpperCase() !== 'BIL')
-            return [];
         const monthStart = (0, date_fns_1.startOfMonth)(new Date(currentMonth));
         const monthEnd = (0, date_fns_1.endOfMonth)(new Date(currentMonth));
-        const parentBoard = await prisma_1.default.flowBoard.findFirst({
-            where: {
-                OR: [
-                    { name: `Master Production Flow - ${parentPartName}` },
-                    { name: { contains: parentPartName } },
-                ],
-            },
+        let parentBoard = await prisma_1.default.flowBoard.findFirst({
+            where: { name: `Master Production Flow - ${parentPartName}` },
             include: {
                 nodes: { include: { nodeType: true } },
                 edges: true,
             },
         });
+        if (!parentBoard) {
+            parentBoard = await prisma_1.default.flowBoard.findFirst({
+                where: {
+                    OR: [
+                        { name: { contains: parentPartName } },
+                        { name: 'Master Production Flow' },
+                    ],
+                },
+                include: {
+                    nodes: { include: { nodeType: true } },
+                    edges: true,
+                },
+            });
+        }
         if (!parentBoard)
             return [];
         const childNodes = [];
@@ -189,19 +227,24 @@ let MpsService = class MpsService {
         });
         if (childNodes.length === 0)
             return [];
-        const machineNodes = parentBoard.nodes.filter((n) => n.nodeTypeId === 1003 ||
+        const machineNodes = parentBoard.nodes.filter((n) => n.nodeType?.typeCode === 'MACHINE' ||
+            n.nodeTypeId === 1003 ||
+            n.nodeTypeId === 2004 ||
             n.name?.toLowerCase().includes('machine') ||
             n.name?.toLowerCase().includes('toridas'));
-        let toridasCfg = {};
+        const capacityCfg = await this.getCapacitySettings();
+        let toridasCfg = { ...capacityCfg.toridas };
         if (machineNodes.length > 0) {
             try {
                 const mData = JSON.parse(machineNodes[0].data || '{}');
-                toridasCfg = {
-                    speedPerMachineHr: Number(mData['Speed (PCS/HR)']) || 1500,
-                    machinesPerLine: Number(mData['Machines Per Line']) || 4,
-                    totalLines: Number(mData['Lines']) || 3,
-                    workersPerLine: Number(mData['Employee']) || 5,
-                };
+                if (mData['Speed (PCS/HR)'])
+                    toridasCfg.speedPerMachineHr = Number(mData['Speed (PCS/HR)']);
+                if (mData['Machines Per Line'])
+                    toridasCfg.machinesPerLine = Number(mData['Machines Per Line']);
+                if (mData['Lines'])
+                    toridasCfg.totalLines = Number(mData['Lines']);
+                if (mData['Employee'])
+                    toridasCfg.workersPerLine = Number(mData['Employee']);
             }
             catch (e) { }
         }
@@ -250,24 +293,25 @@ let MpsService = class MpsService {
             }
             if (childSuppliesToUpsert.length > 0) {
                 await prisma_1.default.$transaction(async (tx) => {
-                    const upserts = childSuppliesToUpsert.map((item) => tx.mpsSupply.upsert({
-                        where: {
-                            partName_planDate: {
+                    for (const item of childSuppliesToUpsert) {
+                        await tx.mpsSupply.upsert({
+                            where: {
+                                partName_planDate: {
+                                    partName: item.partName,
+                                    planDate: item.planDate,
+                                },
+                            },
+                            update: {
+                                supplyWeight: item.supplyWeight,
+                            },
+                            create: {
                                 partName: item.partName,
                                 planDate: item.planDate,
+                                supplyWeight: item.supplyWeight,
                             },
-                        },
-                        update: {
-                            supplyWeight: item.supplyWeight,
-                        },
-                        create: {
-                            partName: item.partName,
-                            planDate: item.planDate,
-                            supplyWeight: item.supplyWeight,
-                        },
-                    }));
-                    await Promise.all(upserts);
-                });
+                        });
+                    }
+                }, { timeout: 30000 });
             }
             syncResults.push({
                 childPartName,
@@ -289,11 +333,24 @@ let MpsService = class MpsService {
         });
         return { success: true, deletedCount: result.count };
     }
+    async clearSupply(partName, startDate, endDate) {
+        const whereClause = { partName };
+        if (startDate && endDate) {
+            whereClause.planDate = {
+                gte: new Date(startDate),
+                lte: new Date(endDate),
+            };
+        }
+        const result = await prisma_1.default.mpsSupply.deleteMany({
+            where: whereClause,
+        });
+        return { success: true, deletedCount: result.count };
+    }
     async getToridasMetrics(partName, currentMonth) {
-        const parentPartName = partName.toUpperCase() === 'BL' ? 'BIL' : partName;
+        let parentPartName = partName;
         const monthStart = (0, date_fns_1.startOfMonth)(new Date(currentMonth));
         const monthEnd = (0, date_fns_1.endOfMonth)(new Date(currentMonth));
-        const parentBoard = await prisma_1.default.flowBoard.findFirst({
+        let parentBoard = await prisma_1.default.flowBoard.findFirst({
             where: {
                 OR: [
                     { name: `Master Production Flow - ${parentPartName}` },
@@ -304,24 +361,61 @@ let MpsService = class MpsService {
                 nodes: { include: { nodeType: true } },
             },
         });
-        const machineNodes = parentBoard?.nodes.filter((n) => n.nodeTypeId === 1003 ||
+        let hasToridas = parentBoard?.nodes.some((n) => n.nodeType?.typeCode === 'MACHINE' ||
+            n.nodeTypeId === 1003 ||
+            n.name?.toLowerCase().includes('toridas'));
+        if (!hasToridas) {
+            const parentCandidate = await prisma_1.default.flowNode.findFirst({
+                where: {
+                    name: partName,
+                    data: { contains: 'subBoardId' },
+                },
+                include: {
+                    board: {
+                        include: { nodes: { include: { nodeType: true } } },
+                    },
+                },
+            });
+            if (parentCandidate?.board) {
+                parentBoard = parentCandidate.board;
+                parentPartName = parentCandidate.board.name.replace('Master Production Flow - ', '').trim();
+            }
+            else if (partName.toUpperCase() === 'BL') {
+                parentPartName = 'BIL';
+                parentBoard = await prisma_1.default.flowBoard.findFirst({
+                    where: { name: `Master Production Flow - BIL` },
+                    include: {
+                        nodes: { include: { nodeType: true } },
+                    },
+                });
+                if (!parentBoard) {
+                    parentBoard = await prisma_1.default.flowBoard.findFirst({
+                        where: { name: { contains: 'BIL' } },
+                        include: {
+                            nodes: { include: { nodeType: true } },
+                        },
+                    });
+                }
+            }
+        }
+        const machineNodes = parentBoard?.nodes.filter((n) => n.nodeType?.typeCode === 'MACHINE' ||
+            n.nodeTypeId === 1003 ||
+            n.nodeTypeId === 2004 ||
             n.name?.toLowerCase().includes('machine') ||
             n.name?.toLowerCase().includes('toridas')) || [];
-        let toridasCfg = {
-            speedPerMachineHr: 1500,
-            machinesPerLine: 4,
-            totalLines: 3,
-            workersPerLine: 5,
-        };
+        const capacityCfg = await this.getCapacitySettings();
+        let toridasCfg = { ...capacityCfg.toridas };
         if (machineNodes.length > 0) {
             try {
                 const mData = JSON.parse(machineNodes[0].data || '{}');
-                toridasCfg = {
-                    speedPerMachineHr: Number(mData['Speed (PCS/HR)']) || 1500,
-                    machinesPerLine: Number(mData['Machines Per Line']) || 4,
-                    totalLines: Number(mData['Lines']) || 3,
-                    workersPerLine: Number(mData['Employee']) || 5,
-                };
+                if (mData['Speed (PCS/HR)'])
+                    toridasCfg.speedPerMachineHr = Number(mData['Speed (PCS/HR)']);
+                if (mData['Machines Per Line'])
+                    toridasCfg.machinesPerLine = Number(mData['Machines Per Line']);
+                if (mData['Lines'])
+                    toridasCfg.totalLines = Number(mData['Lines']);
+                if (mData['Employee'])
+                    toridasCfg.workersPerLine = Number(mData['Employee']);
             }
             catch (e) { }
         }
@@ -378,10 +472,10 @@ let MpsService = class MpsService {
         };
     }
     async getICutMetrics(partName, currentMonth) {
-        const targetPart = partName.toUpperCase() === 'BIL' ? 'BL' : partName;
+        let targetPart = partName;
         const monthStart = (0, date_fns_1.startOfMonth)(new Date(currentMonth));
         const monthEnd = (0, date_fns_1.endOfMonth)(new Date(currentMonth));
-        const blBoard = await prisma_1.default.flowBoard.findFirst({
+        let blBoard = await prisma_1.default.flowBoard.findFirst({
             where: {
                 OR: [
                     { name: `Master Production Flow - ${targetPart}` },
@@ -389,22 +483,72 @@ let MpsService = class MpsService {
                 ],
             },
             include: {
-                nodes: true,
+                nodes: { include: { nodeType: true } },
                 edges: true,
             },
         });
+        let hasIcutNode = blBoard?.nodes.some((n) => n.nodeType?.typeCode === 'MACHINE' ||
+            n.name?.toLowerCase().includes('icut') ||
+            n.name?.toLowerCase().includes('i-cut'));
+        if (!hasIcutNode && blBoard) {
+            const childSubBoardNode = blBoard.nodes.find((n) => {
+                try {
+                    const d = JSON.parse(n.data || '{}');
+                    return !!d.subBoardId;
+                }
+                catch (e) {
+                    return false;
+                }
+            });
+            if (childSubBoardNode) {
+                targetPart = childSubBoardNode.name;
+                blBoard = await prisma_1.default.flowBoard.findFirst({
+                    where: {
+                        OR: [
+                            { name: `Master Production Flow - ${targetPart}` },
+                            { name: { contains: targetPart } },
+                        ],
+                    },
+                    include: {
+                        nodes: { include: { nodeType: true } },
+                        edges: true,
+                    },
+                });
+            }
+            else if (partName.toUpperCase() === 'BIL') {
+                targetPart = 'BL';
+                blBoard = await prisma_1.default.flowBoard.findFirst({
+                    where: {
+                        OR: [
+                            { name: `Master Production Flow - BL` },
+                            { name: { contains: 'BL' } },
+                        ],
+                    },
+                    include: {
+                        nodes: { include: { nodeType: true } },
+                        edges: true,
+                    },
+                });
+            }
+        }
         const icutItemSet = new Set();
-        let icutNodeConfig = {};
+        const capacityCfg = await this.getCapacitySettings();
+        let icutNodeConfig = { ...capacityCfg.icut };
         if (blBoard) {
-            const icutNode = blBoard.nodes.find((n) => n.name?.toLowerCase().includes('icut') || n.name?.toLowerCase().includes('i-cut'));
+            const icutNode = blBoard.nodes.find((n) => n.nodeType?.typeCode === 'MACHINE' ||
+                n.name?.toLowerCase().includes('icut') ||
+                n.name?.toLowerCase().includes('i-cut'));
             if (icutNode) {
                 try {
                     const mData = JSON.parse(icutNode.data || '{}');
-                    icutNodeConfig = {
-                        machinesCount: Number(mData['Machines']) || 2,
-                        hoursPerShift: Number(mData['Effective Hours']) || 9.25,
-                        maxShifts: 2,
-                    };
+                    if (mData['Machines'])
+                        icutNodeConfig.machinesCount = Number(mData['Machines']);
+                    if (mData['Effective Hours'])
+                        icutNodeConfig.hoursPerShift = Number(mData['Effective Hours']);
+                    if (mData['Max Shifts'])
+                        icutNodeConfig.maxShifts = Number(mData['Max Shifts']);
+                    if (mData['Speed (kg/h)'])
+                        icutNodeConfig.defaultSpeedKgH = Number(mData['Speed (kg/h)']);
                 }
                 catch (e) { }
                 const outEdges = blBoard.edges.filter((e) => e.source === icutNode.id);

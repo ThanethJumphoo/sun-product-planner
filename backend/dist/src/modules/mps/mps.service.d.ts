@@ -15,8 +15,13 @@ export declare class MpsService {
         stats: any;
         childSyncResults: any[];
     }>;
+    private getCapacitySettings;
     syncChildPartsSupply(parentPartName: string, currentMonth: string): Promise<any[]>;
     clearPlans(partName: string, startDate: string, endDate: string): Promise<{
+        success: boolean;
+        deletedCount: number;
+    }>;
+    clearSupply(partName: string, startDate?: string, endDate?: string): Promise<{
         success: boolean;
         deletedCount: number;
     }>;
@@ -26,7 +31,10 @@ export declare class MpsService {
             speedPerMachineHr: number;
             machinesPerLine: number;
             totalLines: number;
+            hoursPerShift: number;
             workersPerLine: number;
+            deboningYieldPercent: number;
+            legQuarterRatioPercent: number;
         };
         summary: {
             totalDays: number;
@@ -39,7 +47,7 @@ export declare class MpsService {
     }>;
     getICutMetrics(partName: string, currentMonth: string): Promise<{
         machineCode: string;
-        config: {};
+        config: any;
         summary: {
             totalActiveDays: number;
             totalPlannedKg: number;

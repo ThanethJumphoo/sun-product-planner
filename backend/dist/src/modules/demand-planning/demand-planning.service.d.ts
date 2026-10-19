@@ -85,13 +85,14 @@ export declare class DemandPlanningService {
     }>;
     saveDemandPlans(partName: string, payload: {
         soNumber: string;
-        lineNumber: string;
+        lineNumber?: string;
         itemCode: string;
-        shipDate: string;
-        priority: number;
-        planQty: number | null;
+        shipDate?: any;
+        priority?: number;
+        planQty?: any;
     }[]): Promise<{
         success: boolean;
+        count: number;
     }>;
     getSplitsForSalesOrder(partName: string, soNumber: string, itemCode: string): Promise<{
         id: string;

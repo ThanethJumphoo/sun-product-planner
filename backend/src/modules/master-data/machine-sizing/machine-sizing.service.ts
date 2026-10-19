@@ -115,14 +115,18 @@ export const DEFAULT_BELT_GATE_BL_GROUPS: SizingGroup[] = [
   },
 ];
 
-export function sanitizeGroupsWithWd(groups: SizingGroup[]): SizingGroup[] {
+export function sanitizeGroupsWithWd(
+  groups: SizingGroup[],
+  customMap?: Record<string, string>,
+): SizingGroup[] {
   if (!Array.isArray(groups)) return [];
+  const map = customMap && Object.keys(customMap).length > 0 ? customMap : EXCEL_TO_WD_SIZE_MAP;
   return groups.map((g) => ({
     ...g,
     rules: Array.isArray(g.rules)
       ? g.rules.map((r) => ({
           ...r,
-          rmSize: EXCEL_TO_WD_SIZE_MAP[r.rmSize] || r.rmSize,
+          rmSize: map[r.rmSize] || r.rmSize,
         }))
       : [],
   }));
@@ -136,14 +140,25 @@ export class MachineSizingService {
 
   async getConfigs(machineId: string, partName: string): Promise<SizingGroup[]> {
     const key = this.getSettingKey(machineId, partName);
-    const setting = await prisma.systemSetting.findUnique({
-      where: { key },
-    });
+    const [setting, mappingSetting] = await Promise.all([
+      prisma.systemSetting.findUnique({ where: { key } }),
+      prisma.systemSetting.findUnique({ where: { key: 'sizing_rule_excel_mapping' } }),
+    ]);
+
+    let customSizeMap: Record<string, string> | undefined;
+    if (mappingSetting?.value) {
+      try {
+        const parsedMap = JSON.parse(mappingSetting.value);
+        if (typeof parsedMap === 'object' && parsedMap !== null) {
+          customSizeMap = { ...EXCEL_TO_WD_SIZE_MAP, ...parsedMap };
+        }
+      } catch (e) {}
+    }
 
     if (setting && setting.value) {
       try {
         const parsed = JSON.parse(setting.value);
-        return sanitizeGroupsWithWd(parsed);
+        return sanitizeGroupsWithWd(parsed, customSizeMap);
       } catch (e) {
         console.error('Failed to parse machine sizing config JSON', e);
       }
@@ -151,7 +166,7 @@ export class MachineSizingService {
 
     // Default seed for Belt Gate + BL
     if (machineId.toLowerCase() === 'belt-gate' && partName.toUpperCase() === 'BL') {
-      return DEFAULT_BELT_GATE_BL_GROUPS;
+      return sanitizeGroupsWithWd(DEFAULT_BELT_GATE_BL_GROUPS, customSizeMap);
     }
 
     return [];
