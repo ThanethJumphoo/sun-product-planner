@@ -30,7 +30,7 @@ const isProcessOrMachineNode = (n: any) => {
   );
 };
 
-export default function OutputsSummaryPanel({ 
+function OutputsSummaryPanelComponent({ 
   selectedDate, 
   partName, 
   dailyPlans = [],
@@ -42,7 +42,7 @@ export default function OutputsSummaryPanel({
   const [internalToridasMetrics, setInternalToridasMetrics] = useState<any>(null);
 
   useEffect(() => {
-    if (!selectedDate || !partName) return;
+    if (!partName) return;
 
     const fetchBoard = async () => {
       setIsLoading(true);
@@ -71,7 +71,7 @@ export default function OutputsSummaryPanel({
     };
 
     fetchBoard();
-  }, [selectedDate, partName]);
+  }, [partName]);
 
   // Fetch Toridas metrics for BIL if not passed as prop
   useEffect(() => {
@@ -536,3 +536,6 @@ export default function OutputsSummaryPanel({
     </div>
   );
 }
+
+const OutputsSummaryPanel = React.memo(OutputsSummaryPanelComponent);
+export default OutputsSummaryPanel;

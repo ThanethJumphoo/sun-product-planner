@@ -18,8 +18,11 @@ interface SO_Line {
   qty: number;
   shipDate: string | null;
   planDate: string | null;
-  status: string | null;
+  planDates?: Array<{ planDate: string; plannedQty: number; allocatedRmSize?: string | null }>;
+  status: 'COMPLETED' | 'PARTIAL' | 'UNPLANNED' | string | null;
   planQty?: number | string | null;
+  totalPlanned?: number;
+  remainingQty?: number;
   isManual?: boolean;
   customerName?: string;
 }
@@ -33,6 +36,7 @@ interface CategorizedLines {
 export function DemandPlanningTable({ partName }: { partName: string }) {
   const [data, setData] = useState<CategorizedLines>({ product: [], coproduct: [], byproduct: [] });
   const [activeTab, setActiveTab] = useState<'product' | 'coproduct' | 'byproduct'>('product');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'INCOMPLETE' | 'UNPLANNED' | 'PARTIAL' | 'COMPLETED'>('ALL');
   const [isLoading, setIsLoading] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
 
@@ -60,10 +64,13 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
     return format(new Date(dateStr), 'dd/MM/yyyy');
   };
 
-  const handleLineChange = (tab: keyof CategorizedLines, index: number, field: string, value: any) => {
+  const handleLineChange = (tab: keyof CategorizedLines, soNumber: string, lineNumber: string, itemCode: string, field: string, value: any) => {
     const newData = { ...data };
-    (newData[tab][index] as any)[field] = value;
-    setData(newData);
+    const target = newData[tab].find(l => l.soNumber === soNumber && l.lineNumber === lineNumber && l.itemCode === itemCode);
+    if (target) {
+      (target as any)[field] = value;
+      setData(newData);
+    }
   };
 
   const handleAutoSort = () => {
@@ -112,7 +119,33 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
     }
   };
 
-  const currentLines = data[activeTab];
+  const currentLines = data[activeTab] || [];
+
+  const statusCounts = React.useMemo(() => {
+    let incomplete = 0;
+    let unplanned = 0;
+    let partial = 0;
+    let completed = 0;
+    currentLines.forEach((l) => {
+      if (l.status === 'COMPLETED') completed++;
+      else if (l.status === 'PARTIAL') {
+        partial++;
+        incomplete++;
+      } else {
+        unplanned++;
+        incomplete++;
+      }
+    });
+    return { all: currentLines.length, incomplete, unplanned, partial, completed };
+  }, [currentLines]);
+
+  const filteredLines = React.useMemo(() => {
+    if (statusFilter === 'ALL') return currentLines;
+    if (statusFilter === 'INCOMPLETE') {
+      return currentLines.filter(l => l.status === 'UNPLANNED' || l.status === 'PARTIAL');
+    }
+    return currentLines.filter(l => l.status === statusFilter);
+  }, [currentLines, statusFilter]);
 
   return (
     <div className="flex flex-col h-full bg-white rounded-lg border border-border overflow-hidden shadow-sm">
@@ -152,7 +185,8 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
         </div>
       </div>
 
-      <div className="border-b border-slate-200 bg-white px-4 pt-2">
+      <div className="border-b border-slate-200 bg-white px-4 pt-2 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Category Tabs */}
         <div className="flex gap-4">
           <button
             onClick={() => setActiveTab('product')}
@@ -185,6 +219,35 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
             By-Product <span className="ml-1 text-xs bg-slate-100 text-slate-600 py-0.5 px-2 rounded-full">{data.byproduct.length}</span>
           </button>
         </div>
+
+        {/* Status Filter Buttons */}
+        <div className="flex items-center gap-1.5 pb-2 flex-wrap">
+          <span className="text-xs text-slate-400 font-medium mr-1">Status:</span>
+          {[
+            { id: 'ALL', label: 'All', count: statusCounts.all },
+            { id: 'INCOMPLETE', label: 'Incomplete', count: statusCounts.incomplete },
+            { id: 'UNPLANNED', label: 'Unplanned', count: statusCounts.unplanned },
+            { id: 'PARTIAL', label: 'Partial', count: statusCounts.partial },
+            { id: 'COMPLETED', label: 'Completed', count: statusCounts.completed },
+          ].map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setStatusFilter(s.id as any)}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 border ${
+                statusFilter === s.id
+                  ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
+                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+              }`}
+            >
+              <span>{s.label}</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                statusFilter === s.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {s.count}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto">
@@ -200,6 +263,8 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">Ship Date</th>
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-right">Order Qty</th>
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">Plan Qty</th>
+              <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-right">Planned</th>
+              <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-right">Remaining</th>
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">Plan Date</th>
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">Status</th>
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">Action</th>
@@ -208,27 +273,27 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={12} className="p-8 text-center text-slate-500">
+                <td colSpan={14} className="p-8 text-center text-slate-500">
                   <div className="flex justify-center mb-2">
                     <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
                   </div>
                   Loading data...
                 </td>
               </tr>
-            ) : currentLines.length === 0 ? (
+            ) : filteredLines.length === 0 ? (
               <tr>
-                <td colSpan={12} className="p-8 text-center text-slate-500 italic bg-slate-50/50">
-                  No Sales Order lines found for the items in {partName} ({activeTab}).
+                <td colSpan={14} className="p-8 text-center text-slate-500 italic bg-slate-50/50">
+                  No Sales Order lines found for the items in {partName} ({activeTab}) matching filter ({statusFilter}).
                 </td>
               </tr>
             ) : (
-              currentLines.map((line, i) => (
-                <tr key={i} className="hover:bg-slate-50 border-b border-slate-100 transition-colors">
+              filteredLines.map((line, i) => (
+                <tr key={`${line.soNumber}_${line.lineNumber}_${line.itemCode}_${i}`} className="hover:bg-slate-50 border-b border-slate-100 transition-colors">
                   <td className="p-3 text-center">
                     <input
                       type="number"
                       value={line.priority}
-                      onChange={(e) => handleLineChange(activeTab, i, 'priority', parseInt(e.target.value) || 0)}
+                      onChange={(e) => handleLineChange(activeTab, line.soNumber, line.lineNumber, line.itemCode, 'priority', parseInt(e.target.value) || 0)}
                       className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-sm outline-none focus:border-primary"
                     />
                   </td>
@@ -265,16 +330,55 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
                     <input
                       type="number"
                       value={line.planQty || ''}
-                      onChange={(e) => handleLineChange(activeTab, i, 'planQty', e.target.value)}
+                      onChange={(e) => handleLineChange(activeTab, line.soNumber, line.lineNumber, line.itemCode, 'planQty', e.target.value)}
                       placeholder="0.00"
                       className="w-24 text-right border border-slate-200 rounded px-2 py-0.5 text-sm outline-none focus:border-primary bg-yellow-50"
                     />
                   </td>
-                  <td className="p-3 text-center text-slate-400 italic">{line.planDate || '-'}</td>
-                  <td className="p-3 text-center text-slate-400 italic">
-                    {line.status ? (
-                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-[10px] uppercase font-bold">{line.status}</span>
-                    ) : '-'}
+                  <td className="p-3 text-right font-medium">
+                    {(line.totalPlanned || 0) > 0 ? (
+                      <span className="text-blue-600 font-semibold">
+                        {(line.totalPlanned || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">-</span>
+                    )}
+                  </td>
+                  <td className="p-3 text-right font-medium">
+                    {(line.remainingQty || 0) > 0 ? (
+                      <span className="text-amber-600 font-semibold">
+                        {(line.remainingQty || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    ) : (
+                      <span className="text-emerald-600 font-semibold">0.00</span>
+                    )}
+                  </td>
+                  <td className="p-3 text-center text-xs text-slate-600 max-w-[220px]" title={line.planDate || undefined}>
+                    {line.planDate ? (
+                      <span className="font-mono text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 line-clamp-1">
+                        {line.planDate}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 italic">-</span>
+                    )}
+                  </td>
+                  <td className="p-3 text-center whitespace-nowrap">
+                    {line.status === 'COMPLETED' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5" />
+                        ผลิตครบแล้ว
+                      </span>
+                    ) : line.status === 'PARTIAL' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5" />
+                        เหลือบางส่วน
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1.5" />
+                        ยังไม่วางแผน
+                      </span>
+                    )}
                   </td>
                   <td className="p-3 text-center">
                     {line.isManual ? (

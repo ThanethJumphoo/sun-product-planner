@@ -272,7 +272,10 @@ export default function SublotProductionAllocation({
         try {
           const parsed = JSON.parse(spec.rmSizesJson);
           if (Array.isArray(parsed) && parsed.length > 0) {
-             availableSizes = parsed.map(p => p.name).sort((a: string, b: string) => getSortValue(a) - getSortValue(b));
+            availableSizes = parsed.map(p => {
+              if (typeof p === 'object' && p !== null) return p.rmSize || p.name || '';
+              return String(p || '');
+            }).filter(Boolean).sort((a: string, b: string) => getSortValue(a) - getSortValue(b));
           }
         } catch (e) {
           console.error("Failed to parse RM sizes for", o.itemCode, e);

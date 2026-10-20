@@ -13,10 +13,17 @@ export declare class DemandPlanningService {
             itemDesc: any;
             productType: string | null;
             qty: number;
-            planQty: any;
+            planQty: number;
+            totalPlanned: number;
+            remainingQty: number;
             shipDate: any;
-            planDate: null;
-            status: null;
+            planDate: string | null;
+            planDates: {
+                planDate: string;
+                plannedQty: number;
+                allocatedRmSize?: string | null;
+            }[];
+            status: "UNPLANNED" | "PARTIAL" | "COMPLETED";
             isSelected: boolean;
             isManual: boolean;
             customerName: any;
@@ -30,10 +37,17 @@ export declare class DemandPlanningService {
             itemDesc: any;
             productType: string | null;
             qty: number;
-            planQty: any;
+            planQty: number;
+            totalPlanned: number;
+            remainingQty: number;
             shipDate: any;
-            planDate: null;
-            status: null;
+            planDate: string | null;
+            planDates: {
+                planDate: string;
+                plannedQty: number;
+                allocatedRmSize?: string | null;
+            }[];
+            status: "UNPLANNED" | "PARTIAL" | "COMPLETED";
             isSelected: boolean;
             isManual: boolean;
             customerName: any;
@@ -47,10 +61,17 @@ export declare class DemandPlanningService {
             itemDesc: any;
             productType: string | null;
             qty: number;
-            planQty: any;
+            planQty: number;
+            totalPlanned: number;
+            remainingQty: number;
             shipDate: any;
-            planDate: null;
-            status: null;
+            planDate: string | null;
+            planDates: {
+                planDate: string;
+                plannedQty: number;
+                allocatedRmSize?: string | null;
+            }[];
+            status: "UNPLANNED" | "PARTIAL" | "COMPLETED";
             isSelected: boolean;
             isManual: boolean;
             customerName: any;

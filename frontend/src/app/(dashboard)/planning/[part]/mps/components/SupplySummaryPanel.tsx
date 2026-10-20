@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { Package, Scale, Calculator, AlertCircle } from 'lucide-react';
 import api from '@/lib/api';
@@ -6,7 +6,7 @@ import OutputsSummaryPanel from '@/features/planning/components/shared/OutputsSu
 import { ToridasStatusCard } from '@/features/planning/components/mps/ToridasStatusCard';
 import { ICutStatusCard } from '@/features/planning/components/mps/ICutStatusCard';
 
-export default function SupplySummaryPanel({ 
+function SupplySummaryPanelComponent({ 
   selectedDate, 
   partName, 
   dailyPlans, 
@@ -18,6 +18,15 @@ export default function SupplySummaryPanel({
   const [chickenData, setChickenData] = useState<any>(null);
   const [wdMatrix, setWdMatrix] = useState<any>(null);
   const [toridasMetrics, setToridasMetrics] = useState<any>(null);
+  const toridasMonthRef = useRef<string>('');
+
+  // Fetch weight distribution once per partName
+  useEffect(() => {
+    if (!partName) return;
+    api.get(`/api/v1/weight-distribution`, { params: { partName } })
+      .then(res => setWdMatrix(res.data))
+      .catch(err => console.error("Failed to fetch weight distribution:", err));
+  }, [partName]);
   
   useEffect(() => {
     if (!selectedDate || !partName) return;
@@ -26,15 +35,30 @@ export default function SupplySummaryPanel({
       setIsLoading(true);
       try {
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        const monthStr = format(selectedDate, 'yyyy-MM');
         
-        // 1. Fetch Chicken Data
-        const [weeklyRes, monthlyRes] = await Promise.all([
+        // 1. Fetch Chicken Data for selectedDate
+        const promises: Promise<any>[] = [
           api.get('/chicken-receiving/weekly', { params: { dateFrom: dateStr, dateTo: dateStr, limit: 1000 } }),
           api.get('/chicken-receiving/monthly', { params: { dateFrom: dateStr, dateTo: dateStr, limit: 1000 } })
-        ]);
+        ];
+
+        // 2. Fetch Toridas Metrics for BIL only (only if month changed or not loaded)
+        const shouldFetchToridas = partName.toUpperCase() === 'BIL' && toridasMonthRef.current !== monthStr;
+        if (shouldFetchToridas) {
+          promises.push(
+            api.get(`/api/v1/mps/BIL/toridas-metrics`, { params: { currentMonth: dateStr } })
+              .catch(e => {
+                console.error("Failed to fetch toridas metrics:", e);
+                return null;
+              })
+          );
+        }
+
+        const [weeklyRes, monthlyRes, toridasRes] = await Promise.all(promises);
         
-        const weekly = weeklyRes.data?.data || weeklyRes.data || [];
-        const monthly = monthlyRes.data?.data || monthlyRes.data || [];
+        const weekly = weeklyRes?.data?.data || weeklyRes?.data || [];
+        const monthly = monthlyRes?.data?.data || monthlyRes?.data || [];
         
         let avgWeight = 0;
         let totalCount = 0;
@@ -52,22 +76,10 @@ export default function SupplySummaryPanel({
         
         setChickenData({ avgWeight, totalCount, totalWeight });
 
-        // 2. Fetch Weight Distribution
-        const wdRes = await api.get(`/api/v1/weight-distribution`, { params: { partName } });
-        setWdMatrix(wdRes.data);
-
-        // 3. Fetch Toridas Metrics for BIL only
-        if (partName.toUpperCase() === 'BIL') {
-          try {
-            const toridasRes = await api.get(`/api/v1/mps/BIL/toridas-metrics`, {
-              params: { currentMonth: dateStr }
-            });
-            setToridasMetrics(toridasRes.data);
-          } catch(e) {
-            console.error("Failed to fetch toridas metrics:", e);
-          }
+        if (toridasRes && toridasRes.data) {
+          toridasMonthRef.current = monthStr;
+          setToridasMetrics(toridasRes.data);
         }
-
       } catch (error) {
         console.error("Failed to fetch supply summary data:", error);
       } finally {
@@ -76,7 +88,7 @@ export default function SupplySummaryPanel({
     };
     
     fetchData();
-  }, [selectedDate, partName, dailyPlans]);
+  }, [selectedDate, partName]);
 
   const totalSupplyRM = selectedDate ? (calculatedSupply[format(selectedDate, 'yyyy-MM-dd')] || 0) : 0;
   
@@ -293,3 +305,6 @@ export default function SupplySummaryPanel({
     </div>
   );
 }
+
+const SupplySummaryPanel = React.memo(SupplySummaryPanelComponent);
+export default SupplySummaryPanel;

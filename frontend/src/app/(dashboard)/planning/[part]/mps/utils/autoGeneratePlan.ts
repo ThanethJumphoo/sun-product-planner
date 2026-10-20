@@ -172,8 +172,14 @@ export const generateAutoPlan = async (params: AutoGenerateParams) => {
     let requiredRM = remainingPlanQty / (yieldPercent / 100);
 
     const isProduct = spec.itemCategory === 'product';
-    let allowedSizes: string[] = [];
-    try { allowedSizes = JSON.parse(spec.rmSizesJson || '[]'); } catch(e){}
+    let allowed: any[] = [];
+    try { allowed = JSON.parse(spec.rmSizesJson || '[]'); } catch(e){}
+    const allowedKeys = Array.isArray(allowed)
+      ? allowed.map((item: any) => {
+          if (typeof item === 'object' && item !== null) return String(item.rmSize || '').trim();
+          return String(item).trim();
+        })
+      : [];
 
     // 4. Allocate across valid target dates
     for (const dateStr of validTargetDates) {
@@ -200,11 +206,13 @@ export const generateAutoPlan = async (params: AutoGenerateParams) => {
         break;
       }
 
-      const isUnsizeAllowed = allowedSizes.length === 0 || allowedSizes.includes('Unsize') || allowedSizes.includes('All');
+      const isUnsizeAllowed = allowedKeys.length === 0 || allowedKeys.includes('Unsize') || allowedKeys.includes('All');
       const eligibleBuckets = buckets.filter(b => {
         if (b.remaining <= 0) return false;
         if (isUnsizeAllowed) return true;
-        return allowedSizes.includes(b.id.toString());
+        const bNameWithoutG = b.name.replace(/g$/i, '').trim();
+        const bIdStr = String(b.id);
+        return allowedKeys.includes(bIdStr) || allowedKeys.includes(b.name) || allowedKeys.includes(bNameWithoutG);
       });
 
       let splitCountForDay = 0;

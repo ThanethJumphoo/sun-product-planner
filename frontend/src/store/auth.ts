@@ -40,6 +40,8 @@ export const useAuthStore = create<AuthState>()(
       logout: async () => {
         try {
           await api.post('/api/v1/auth/logout');
+        } catch (error) {
+          console.warn('Logout API call failed, proceeding with local cleanup:', error);
         } finally {
           setAccessToken(null);
           set({ user: null, isAuthenticated: false });

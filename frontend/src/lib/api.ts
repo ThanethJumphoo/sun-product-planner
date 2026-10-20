@@ -1,8 +1,17 @@
 import axios from 'axios';
 
+const getBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== '/') {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (typeof window !== 'undefined') {
+    return `${window.location.protocol}//${window.location.hostname}:3001`;
+  }
+  return 'http://localhost:3001';
+};
+
 const api = axios.create({
-  // Force using localhost:3001 in development to bypass Next.js if NEXT_PUBLIC_API_URL is misconfigured to "/"
-  baseURL: process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'),
+  baseURL: getBaseUrl(),
   withCredentials: true, // Send cookies (refresh_token) automatically
 });
 
@@ -24,8 +33,13 @@ export function getAccessToken() {
   return null;
 }
 
-// Request interceptor: attach Bearer token
+// Request interceptor: attach Bearer token and adjust baseURL for dynamic host
 api.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined' && (!config.baseURL || config.baseURL === '/' || config.baseURL === 'http://localhost:3001')) {
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      config.baseURL = `${window.location.protocol}//${window.location.hostname}:3001`;
+    }
+  }
   const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -53,8 +67,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Skip refresh for login and refresh endpoints
-    if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
+    // Skip refresh for login, refresh, and logout endpoints
+    if (
+      originalRequest.url?.includes('/auth/login') ||
+      originalRequest.url?.includes('/auth/refresh') ||
+      originalRequest.url?.includes('/auth/logout')
+    ) {
       return Promise.reject(error);
     }
 

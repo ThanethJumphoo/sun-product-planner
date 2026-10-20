@@ -16,6 +16,7 @@ exports.DemandPlanningService = void 0;
 const common_1 = require("@nestjs/common");
 const crypto_1 = require("crypto");
 const client_1 = require("@prisma/client");
+const date_fns_1 = require("date-fns");
 const product_spec_service_1 = require("../master-data/product-spec/product-spec.service");
 const prisma_1 = __importDefault(require("../../lib/prisma"));
 let DemandPlanningService = class DemandPlanningService {
@@ -66,12 +67,16 @@ let DemandPlanningService = class DemandPlanningService {
             const cat = itemCategoryMap.get(line.erpItemCode) || 'product';
             groupedLines[cat].push(line);
         });
-        const [savedPlans, prioritySetting, gradeSetting] = await Promise.all([
+        const [savedPlans, prioritySetting, gradeSetting, productionPlans] = await Promise.all([
             prisma_1.default.demandPlanLine.findMany({
                 where: { partName },
             }),
             prisma_1.default.systemSetting.findUnique({ where: { key: 'demand_planning_priority_order' } }),
             prisma_1.default.systemSetting.findUnique({ where: { key: 'demand_planning_null_grade_fallback' } }),
+            prisma_1.default.mpsProductionTransaction.findMany({
+                where: { partName },
+                orderBy: { planDate: 'asc' },
+            }),
         ]);
         let priorityMap = { chilled: 1, freeze: 2, others: 3 };
         if (prioritySetting?.value) {
@@ -90,6 +95,25 @@ let DemandPlanningService = class DemandPlanningService {
                 priority: p.priority,
                 planQty: p.planQty ? Number(p.planQty) : null
             });
+        });
+        const prodMap = new Map();
+        productionPlans.forEach(p => {
+            const lineNum = p.lineNumber || '-';
+            const keyExact = `${p.soNumber}_${lineNum}_${p.itemCode}`;
+            const qty = Number(p.plannedQty || 0);
+            if (!prodMap.has(keyExact)) {
+                prodMap.set(keyExact, { totalPlanned: 0, dates: [] });
+            }
+            const exactEntry = prodMap.get(keyExact);
+            exactEntry.totalPlanned += qty;
+            const dStr = p.planDate ? (0, date_fns_1.format)(new Date(p.planDate), 'yyyy-MM-dd') : '';
+            if (dStr) {
+                exactEntry.dates.push({
+                    planDate: dStr,
+                    plannedQty: qty,
+                    allocatedRmSize: p.allocatedRmSize,
+                });
+            }
         });
         const processGroup = (group) => {
             group.sort((a, b) => {
@@ -131,6 +155,28 @@ let DemandPlanningService = class DemandPlanningService {
                 const key = `${soNumber}_${lineNumber}_${itemCode}_${this.toDateKey(line.scheduleShipDate)}`;
                 const saved = savedPlansMap.get(key);
                 const isManual = line.header.erpOrderType === 'MANUAL';
+                const planQty = saved?.planQty !== undefined && saved?.planQty !== null ? Number(saved.planQty) : Number(line.orderedQuantity);
+                const prodKey = `${soNumber}_${lineNumber}_${itemCode}`;
+                const prodData = prodMap.get(prodKey) || prodMap.get(`${soNumber}_-_${itemCode}`) || { totalPlanned: 0, dates: [] };
+                const totalPlanned = Number(prodData.totalPlanned.toFixed(2));
+                const remainingQty = Math.max(0, Number((planQty - totalPlanned).toFixed(2)));
+                let status = 'UNPLANNED';
+                if (totalPlanned >= planQty && planQty > 0) {
+                    status = 'COMPLETED';
+                }
+                else if (totalPlanned > 0) {
+                    status = 'PARTIAL';
+                }
+                else {
+                    status = 'UNPLANNED';
+                }
+                const planDateSummary = prodData.dates.length > 0
+                    ? prodData.dates.map(d => {
+                        const dParts = d.planDate.split('-');
+                        const shortDate = dParts.length === 3 ? `${dParts[2]}/${dParts[1]}` : d.planDate;
+                        return `${shortDate} (${d.plannedQty.toLocaleString()})`;
+                    }).join(', ')
+                    : null;
                 return {
                     id: line.id,
                     priority: saved?.priority ?? (index + 1),
@@ -140,10 +186,13 @@ let DemandPlanningService = class DemandPlanningService {
                     itemDesc: itemDescMap.get(itemCode) || 'Unknown',
                     productType: specProductTypeMap.get(itemCode) || null,
                     qty: Number(line.orderedQuantity),
-                    planQty: saved?.planQty ?? Number(line.orderedQuantity),
+                    planQty,
+                    totalPlanned,
+                    remainingQty,
                     shipDate: line.scheduleShipDate,
-                    planDate: null,
-                    status: null,
+                    planDate: planDateSummary,
+                    planDates: prodData.dates,
+                    status,
                     isSelected: !!saved,
                     isManual,
                     customerName: line.header.erpCustomerName || (isManual ? 'Manual Order' : '-'),

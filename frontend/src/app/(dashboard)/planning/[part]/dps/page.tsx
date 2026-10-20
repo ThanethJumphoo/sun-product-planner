@@ -82,9 +82,17 @@ export default function DPSPage() {
           
           const spec = specMap[d.itemCode];
           const isMainProduct = (d.itemCategory || spec?.itemCategory || '').toLowerCase() === 'product';
-          let allowedIds: string[] = [];
+          let allowedKeys: string[] = [];
           if (spec && spec.rmSizesJson) {
-            try { allowedIds = JSON.parse(spec.rmSizesJson).map(String); } catch(e){}
+            try { 
+              const parsed = JSON.parse(spec.rmSizesJson);
+              if (Array.isArray(parsed)) {
+                allowedKeys = parsed.map((item: any) => {
+                  if (typeof item === 'object' && item !== null) return String(item.rmSize || '').trim();
+                  return String(item).trim();
+                });
+              }
+            } catch(e){}
           }
           
           let allSizes: any[] = [];
@@ -95,13 +103,18 @@ export default function DPSPage() {
           let availableSizes = [];
           if (!isMainProduct) {
             availableSizes = ['-'];
-          } else if (allowedIds.length === 0 || allowedIds.includes('Unsize') || allowedIds.includes('All')) {
+          } else if (allowedKeys.length === 0 || allowedKeys.includes('Unsize') || allowedKeys.includes('All')) {
             availableSizes = allSizes.map((s: any) => 
               s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}g` : s.minSize ? `>${s.minSize}g` : s.maxSize ? `<${s.maxSize}g` : 'Unsize'
             );
           } else {
             availableSizes = allSizes
-              .filter((s: any) => allowedIds.includes(s.id.toString()))
+              .filter((s: any) => {
+                const szName = s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}` : s.minSize ? `>${s.minSize}` : s.maxSize ? `<${s.maxSize}` : 'Unsize';
+                const szNameWithG = `${szName}g`;
+                const idStr = s.id ? s.id.toString() : '';
+                return allowedKeys.includes(idStr) || allowedKeys.includes(szName) || allowedKeys.includes(szNameWithG);
+              })
               .map((s: any) => 
                 s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}g` : s.minSize ? `>${s.minSize}g` : s.maxSize ? `<${s.maxSize}g` : 'Unsize'
               );
@@ -435,15 +448,28 @@ export default function DPSPage() {
           let isAnySize = false;
           let fallbackSizeName = '-';
 
-          let allowedIds: string[] = [];
+          let allowedKeys: string[] = [];
           if (spec && spec.rmSizesJson) {
-            try { allowedIds = JSON.parse(spec.rmSizesJson).map(String); } catch(e){}
+            try { 
+              const parsed = JSON.parse(spec.rmSizesJson);
+              if (Array.isArray(parsed)) {
+                allowedKeys = parsed.map((item: any) => {
+                  if (typeof item === 'object' && item !== null) return String(item.rmSize || '').trim();
+                  return String(item).trim();
+                });
+              }
+            } catch(e){}
           }
           
-          if (allowedIds.length === 0 || allowedIds.includes('Unsize') || allowedIds.includes('All')) {
+          if (allowedKeys.length === 0 || allowedKeys.includes('Unsize') || allowedKeys.includes('All')) {
             isAnySize = true;
           } else {
-            const matchedSizes = allRmSizesGlobal.filter(s => allowedIds.includes(s.id.toString()));
+            const matchedSizes = allRmSizesGlobal.filter(s => {
+              const szName = s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}` : s.minSize ? `>${s.minSize}` : s.maxSize ? `<${s.maxSize}` : 'Unsize';
+              const szNameWithG = `${szName}g`;
+              const idStr = s.id ? s.id.toString() : '';
+              return allowedKeys.includes(idStr) || allowedKeys.includes(szName) || allowedKeys.includes(szNameWithG);
+            });
             allowedSizeNames = matchedSizes.map(s => s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}g` : s.minSize ? `>${s.minSize}g` : s.maxSize ? `<${s.maxSize}g` : 'Unsize');
             if (allowedSizeNames.length > 0) fallbackSizeName = allowedSizeNames[0];
           }

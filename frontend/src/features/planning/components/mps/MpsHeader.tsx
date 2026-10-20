@@ -13,7 +13,7 @@ interface MpsHeaderProps {
   setCurrentMonth: (date: Date) => void;
 }
 
-export function MpsHeader({ 
+export const MpsHeader = React.memo(function MpsHeader({ 
   partName, 
   isSaving, 
   openSupplyModal, 
@@ -71,4 +71,4 @@ export function MpsHeader({
       </div>
     </div>
   );
-}
+});

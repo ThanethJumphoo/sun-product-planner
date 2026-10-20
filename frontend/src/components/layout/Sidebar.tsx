@@ -121,8 +121,13 @@ export function Sidebar() {
   const menuSections = [...dynamicMenus, ...staticMenuSections];
 
   const handleLogout = async () => {
-    await logout();
-    router.push("/login"); // Next.js automatically prepends the basePath
+    try {
+      await logout();
+    } catch (err) {
+      console.warn("Logout error:", err);
+    } finally {
+      router.push("/login"); // Next.js automatically prepends the basePath
+    }
   };
 
   const [isMobile, setIsMobile] = React.useState(false);

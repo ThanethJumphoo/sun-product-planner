@@ -83,6 +83,27 @@ export function ProductSpecForm({ partName }: { partName: string }) {
     }
   };
 
+  const formatSizeName = (s: any) => {
+    if (!s) return 'Unsize';
+    return s.minSize && s.maxSize
+      ? `${s.minSize}-${s.maxSize}`
+      : s.minSize
+      ? `>${s.minSize}`
+      : s.maxSize
+      ? `<${s.maxSize}`
+      : 'Unsize';
+  };
+
+  const resolveRmSize = (rawSize: any, partSizes: any[]) => {
+    const str = String(rawSize || '').trim();
+    if (!str) return '';
+    const match = partSizes.find((s: any) => String(s.id) === str);
+    if (match) {
+      return formatSizeName(match);
+    }
+    return str;
+  };
+
   const fetchSpec = async (item: Item) => {
     setSelectedItem(item);
     try {
@@ -96,17 +117,22 @@ export function ProductSpecForm({ partName }: { partName: string }) {
               : res.data.rmSizesJson;
             if (Array.isArray(parsed)) {
               rules = parsed.map((r: any, idx: number) => {
+                let sizeVal = '';
+                let priorityVal = idx + 1;
+                let yieldVal = res.data.yieldPercent || 80.0;
+
                 if (typeof r === 'object' && r !== null) {
-                  return {
-                    priority: r.priority !== undefined ? Number(r.priority) : idx + 1,
-                    rmSize: String(r.rmSize || ''),
-                    yieldPercent: r.yieldPercent !== undefined ? Number(r.yieldPercent) : (res.data.yieldPercent || 80.0)
-                  };
+                  priorityVal = r.priority !== undefined ? Number(r.priority) : idx + 1;
+                  sizeVal = String(r.rmSize || '');
+                  yieldVal = r.yieldPercent !== undefined ? Number(r.yieldPercent) : (res.data.yieldPercent || 80.0);
+                } else {
+                  sizeVal = String(r);
                 }
+
                 return {
-                  priority: idx + 1,
-                  rmSize: String(r),
-                  yieldPercent: res.data.yieldPercent || 80.0
+                  priority: priorityVal,
+                  rmSize: resolveRmSize(sizeVal, rmSizes),
+                  yieldPercent: yieldVal
                 };
               });
             }
@@ -138,10 +164,27 @@ export function ProductSpecForm({ partName }: { partName: string }) {
     }
   };
 
+  // Automatically normalize any remaining ID values in rmSizesJson when rmSizes data loads
+  useEffect(() => {
+    if (!spec || !spec.rmSizesJson || rmSizes.length === 0) return;
+    let changed = false;
+    const updated = spec.rmSizesJson.map(rule => {
+      const resolved = resolveRmSize(rule.rmSize, rmSizes);
+      if (resolved !== rule.rmSize) {
+        changed = true;
+        return { ...rule, rmSize: resolved };
+      }
+      return rule;
+    });
+    if (changed) {
+      setSpec(prev => prev ? { ...prev, rmSizesJson: updated } : null);
+    }
+  }, [rmSizes, spec?.erpItemCode]);
+
   const formattedPartSizes = useMemo(() => {
     const list: string[] = [];
     rmSizes.forEach(s => {
-      const szName = s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}` : s.minSize ? `>${s.minSize}` : s.maxSize ? `<${s.maxSize}` : 'Unsize';
+      const szName = formatSizeName(s);
       if (!list.includes(szName)) list.push(szName);
     });
     const standardSizes = ['220-240', '225-243', '260-280', '270-280', '280-300', '300-320', '300-325', '320-340', '330-340', '340-360', '360-380', 'Unsize'];
@@ -474,7 +517,7 @@ export function ProductSpecForm({ partName }: { partName: string }) {
                                     <option key={sz} value={sz}>{sz}</option>
                                   ))}
                                   {!formattedPartSizes.includes(rule.rmSize) && rule.rmSize && (
-                                    <option value={rule.rmSize}>{rule.rmSize}</option>
+                                    <option value={rule.rmSize}>{resolveRmSize(rule.rmSize, rmSizes)}</option>
                                   )}
                                 </select>
                               </td>

@@ -4,7 +4,7 @@ import { ChevronRight, ChevronDown, Trash2 } from "lucide-react";
 import api from '@/lib/api';
 import { toast } from 'react-hot-toast';
 
-export const MpsDemandCard = ({ 
+export const MpsDemandCard = React.memo(({ 
   demand, 
   selectedDate, 
   partName, 
@@ -14,7 +14,8 @@ export const MpsDemandCard = ({
   fetchDailyPlans, 
   fetchCalendarData, 
   specs, 
-  rmSizes 
+  rmSizes,
+  itemPlans
 }: any) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [splits, setSplits] = useState<any[]>([]);
@@ -46,10 +47,16 @@ export const MpsDemandCard = ({
   }, [monthlyPlans, isExpanded, partName, demand.soNumber, demand.itemCode]);
 
   // Calculate Target/Planned
-  // If expanded, use `splits` which has all splits. If not, use `monthlyPlans` as approximation.
-  const currentSplits = isExpanded ? splits : monthlyPlans.filter((p: any) => p.soNumber === demand.soNumber && p.itemCode === demand.itemCode);
-  const totalPlanned = currentSplits.reduce((sum: number, p: any) => sum + Number(p.plannedQty), 0);
-  const remainingQty = Number(demand.planQty) - totalPlanned;
+  // If expanded, use `splits` which has all splits. If not, use `demand.totalPlanned` if available, or fallback to itemPlans/monthlyPlans.
+  const currentSplits = isExpanded 
+    ? splits 
+    : (itemPlans || (monthlyPlans ? monthlyPlans.filter((p: any) => p.soNumber === demand.soNumber && p.itemCode === demand.itemCode) : []));
+  const totalPlanned = isExpanded
+    ? currentSplits.reduce((sum: number, p: any) => sum + Number(p.plannedQty), 0)
+    : (demand.totalPlanned !== undefined && demand.totalPlanned !== null
+        ? Number(demand.totalPlanned)
+        : currentSplits.reduce((sum: number, p: any) => sum + Number(p.plannedQty), 0));
+  const remainingQty = Math.max(0, Number(demand.planQty) - totalPlanned);
   const shipDateFormatted = demand.shipDate ? format(new Date(demand.shipDate), 'dd/MM/yyyy') : 'N/A';
 
   const handleUpdateQty = async (oldDate: Date, newQtyStr: string) => {
@@ -113,14 +120,26 @@ export const MpsDemandCard = ({
     let defaultRmSize = null;
     if (specs && rmSizes && rmSizes.length > 0) {
       const spec = specs[demand.itemCode];
-      let allowed: string[] = [];
+      let allowed: any[] = [];
       try { allowed = JSON.parse(spec?.rmSizesJson || '[]'); } catch(e){}
       
       let candidateSizes = [];
-      if (allowed.length === 0 || allowed.includes("Unsize") || allowed.includes("All")) {
+      const allowedKeys = Array.isArray(allowed)
+        ? allowed.map((item: any) => {
+            if (typeof item === 'object' && item !== null) return String(item.rmSize || '').trim();
+            return String(item).trim();
+          })
+        : [];
+
+      if (allowedKeys.length === 0 || allowedKeys.includes("Unsize") || allowedKeys.includes("All")) {
         candidateSizes = [...rmSizes];
       } else {
-        candidateSizes = rmSizes.filter((s: any) => allowed.includes(s.id.toString()));
+        candidateSizes = rmSizes.filter((s: any) => {
+          const szName = s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}` : s.minSize ? `>${s.minSize}` : s.maxSize ? `<${s.maxSize}` : 'Unsize';
+          const szNameWithG = `${szName}g`;
+          const idStr = s.id.toString();
+          return allowedKeys.includes(idStr) || allowedKeys.includes(szName) || allowedKeys.includes(szNameWithG);
+        });
       }
       
       if (candidateSizes.length > 0) {
@@ -146,9 +165,12 @@ export const MpsDemandCard = ({
     setSplits(res.data || []);
   };
 
+  const isCompleted = remainingQty <= 0 && totalPlanned > 0;
+  const isPartial = totalPlanned > 0 && !isCompleted;
+
   return (
     <div className="bg-white border-b border-slate-200 flex flex-col relative overflow-hidden transition-all duration-200">
-      <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+      <div className={`absolute top-0 left-0 w-1 h-full ${isCompleted ? 'bg-emerald-500' : isPartial ? 'bg-amber-500' : 'bg-primary'}`} />
       
       {/* Header section (Always visible) */}
       <div className="p-3">
@@ -162,7 +184,22 @@ export const MpsDemandCard = ({
           <div className="flex-1">
             <div className="flex justify-between items-start">
               <div>
-                <p className="font-semibold text-slate-800 text-sm">{demand.soNumber}</p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="font-semibold text-slate-800 text-sm">{demand.soNumber}</p>
+                  {isCompleted ? (
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      ผลิตครบแล้ว
+                    </span>
+                  ) : isPartial ? (
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                      เหลือ {remainingQty.toLocaleString()}
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                      ยังไม่วางแผน
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-500 line-clamp-1" title={demand.itemDesc}>{demand.itemCode} - {demand.itemDesc}</p>
               </div>
               <div className="text-right">
@@ -267,4 +304,4 @@ export const MpsDemandCard = ({
       </div>
     </div>
   );
-};
+});

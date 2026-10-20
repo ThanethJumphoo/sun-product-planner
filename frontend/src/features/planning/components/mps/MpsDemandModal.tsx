@@ -24,6 +24,8 @@ interface MpsDemandModalProps {
   handleClearDemand?: () => void;
   isClearingDemand?: boolean;
   onRefreshDemand?: () => void;
+  hideCompletedDemand?: boolean;
+  setHideCompletedDemand?: (val: boolean) => void;
 }
 
 export function MpsDemandModal({
@@ -45,7 +47,9 @@ export function MpsDemandModal({
   isCreatingDemand,
   handleClearDemand,
   isClearingDemand = false,
-  onRefreshDemand
+  onRefreshDemand,
+  hideCompletedDemand = false,
+  setHideCompletedDemand
 }: MpsDemandModalProps) {
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
 
@@ -76,7 +80,7 @@ export function MpsDemandModal({
         {/* Modal Content */}
         <div className="flex-1 flex flex-col overflow-hidden p-4 bg-slate-50/50 gap-4">
           {/* Tabs */}
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center flex-wrap gap-2">
             <div className="flex gap-2">
               {[
                 { id: 'product', label: 'Product', count: demandData.filter(d => d.category === 'product').length },
@@ -102,6 +106,16 @@ export function MpsDemandModal({
             </div>
 
             <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-xs cursor-pointer select-none hover:bg-slate-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={hideCompletedDemand}
+                  onChange={(e) => setHideCompletedDemand?.(e.target.checked)}
+                  className="rounded border-slate-300 text-primary focus:ring-primary w-3.5 h-3.5 cursor-pointer"
+                />
+                <span>Hide Completed</span>
+              </label>
+
               <button 
                 onClick={() => setIsManualModalOpen(true)}
                 className="px-3 py-1.5 text-sm bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"

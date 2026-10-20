@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
+import { format } from 'date-fns';
 import { ProductSpecService } from '../master-data/product-spec/product-spec.service';
 import prisma from '../../lib/prisma';
 
@@ -61,12 +62,16 @@ export class DemandPlanningService {
       groupedLines[cat as keyof typeof groupedLines].push(line);
     });
 
-    const [savedPlans, prioritySetting, gradeSetting] = await Promise.all([
+    const [savedPlans, prioritySetting, gradeSetting, productionPlans] = await Promise.all([
       prisma.demandPlanLine.findMany({
         where: { partName },
       }),
       prisma.systemSetting.findUnique({ where: { key: 'demand_planning_priority_order' } }),
       prisma.systemSetting.findUnique({ where: { key: 'demand_planning_null_grade_fallback' } }),
+      prisma.mpsProductionTransaction.findMany({
+        where: { partName },
+        orderBy: { planDate: 'asc' },
+      }),
     ]);
 
     let priorityMap: Record<string, number> = { chilled: 1, freeze: 2, others: 3 };
@@ -86,6 +91,28 @@ export class DemandPlanningService {
         priority: p.priority,
         planQty: p.planQty ? Number(p.planQty) : null
       });
+    });
+
+    // Aggregate production transactions by soNumber_lineNumber_itemCode and soNumber_itemCode
+    const prodMap = new Map<string, { totalPlanned: number; dates: Array<{ planDate: string; plannedQty: number; allocatedRmSize?: string | null }> }>();
+    productionPlans.forEach(p => {
+      const lineNum = p.lineNumber || '-';
+      const keyExact = `${p.soNumber}_${lineNum}_${p.itemCode}`;
+      const qty = Number(p.plannedQty || 0);
+
+      if (!prodMap.has(keyExact)) {
+        prodMap.set(keyExact, { totalPlanned: 0, dates: [] });
+      }
+      const exactEntry = prodMap.get(keyExact)!;
+      exactEntry.totalPlanned += qty;
+      const dStr = p.planDate ? format(new Date(p.planDate), 'yyyy-MM-dd') : '';
+      if (dStr) {
+        exactEntry.dates.push({
+          planDate: dStr,
+          plannedQty: qty,
+          allocatedRmSize: p.allocatedRmSize,
+        });
+      }
     });
 
     // 4. Sort and map function
@@ -136,6 +163,33 @@ export class DemandPlanningService {
         const saved = savedPlansMap.get(key);
         const isManual = line.header.erpOrderType === 'MANUAL';
         
+        const planQty = saved?.planQty !== undefined && saved?.planQty !== null ? Number(saved.planQty) : Number(line.orderedQuantity);
+
+        // Fetch production progress from prodMap
+        const prodKey = `${soNumber}_${lineNumber}_${itemCode}`;
+        const prodData = prodMap.get(prodKey) || prodMap.get(`${soNumber}_-_${itemCode}`) || { totalPlanned: 0, dates: [] };
+        const totalPlanned = Number(prodData.totalPlanned.toFixed(2));
+        const remainingQty = Math.max(0, Number((planQty - totalPlanned).toFixed(2)));
+
+        // Determine Status
+        let status: 'UNPLANNED' | 'PARTIAL' | 'COMPLETED' = 'UNPLANNED';
+        if (totalPlanned >= planQty && planQty > 0) {
+          status = 'COMPLETED';
+        } else if (totalPlanned > 0) {
+          status = 'PARTIAL';
+        } else {
+          status = 'UNPLANNED';
+        }
+
+        // Summary string of dates: e.g. "15/10 (500), 16/10 (300)"
+        const planDateSummary = prodData.dates.length > 0
+          ? prodData.dates.map(d => {
+              const dParts = d.planDate.split('-');
+              const shortDate = dParts.length === 3 ? `${dParts[2]}/${dParts[1]}` : d.planDate;
+              return `${shortDate} (${d.plannedQty.toLocaleString()})`;
+            }).join(', ')
+          : null;
+
         return {
           id: line.id,
           priority: saved?.priority ?? (index + 1),
@@ -145,10 +199,13 @@ export class DemandPlanningService {
           itemDesc: itemDescMap.get(itemCode) || 'Unknown',
           productType: specProductTypeMap.get(itemCode) || null,
           qty: Number(line.orderedQuantity),
-          planQty: saved?.planQty ?? Number(line.orderedQuantity),
+          planQty,
+          totalPlanned,
+          remainingQty,
           shipDate: line.scheduleShipDate,
-          planDate: null,
-          status: null,
+          planDate: planDateSummary,
+          planDates: prodData.dates,
+          status,
           isSelected: !!saved,
           isManual,
           customerName: line.header.erpCustomerName || (isManual ? 'Manual Order' : '-'),
