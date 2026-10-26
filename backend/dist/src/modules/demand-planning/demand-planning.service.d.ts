@@ -3,7 +3,7 @@ import { ProductSpecService } from '../master-data/product-spec/product-spec.ser
 export declare class DemandPlanningService {
     private readonly productSpecService;
     constructor(productSpecService: ProductSpecService);
-    getSalesOrdersForPart(partName: string): Promise<{
+    getSalesOrdersForPart(partName: string, startDate?: string, endDate?: string): Promise<{
         product: {
             id: any;
             priority: any;
@@ -23,9 +23,15 @@ export declare class DemandPlanningService {
                 plannedQty: number;
                 allocatedRmSize?: string | null;
             }[];
+            planDateStart: string | null;
+            planDateEnd: string | null;
+            planDurationDays: number;
+            isLate: boolean;
+            leadDaysBuffer: number | null;
             status: "UNPLANNED" | "PARTIAL" | "COMPLETED";
             isSelected: boolean;
             isManual: boolean;
+            orderType: any;
             customerName: any;
         }[];
         coproduct: {
@@ -47,9 +53,15 @@ export declare class DemandPlanningService {
                 plannedQty: number;
                 allocatedRmSize?: string | null;
             }[];
+            planDateStart: string | null;
+            planDateEnd: string | null;
+            planDurationDays: number;
+            isLate: boolean;
+            leadDaysBuffer: number | null;
             status: "UNPLANNED" | "PARTIAL" | "COMPLETED";
             isSelected: boolean;
             isManual: boolean;
+            orderType: any;
             customerName: any;
         }[];
         byproduct: {
@@ -71,9 +83,15 @@ export declare class DemandPlanningService {
                 plannedQty: number;
                 allocatedRmSize?: string | null;
             }[];
+            planDateStart: string | null;
+            planDateEnd: string | null;
+            planDurationDays: number;
+            isLate: boolean;
+            leadDaysBuffer: number | null;
             status: "UNPLANNED" | "PARTIAL" | "COMPLETED";
             isSelected: boolean;
             isManual: boolean;
+            orderType: any;
             customerName: any;
         }[];
     }>;
@@ -100,6 +118,34 @@ export declare class DemandPlanningService {
         headerId: string;
         linesCount: number;
     }>;
+    getSystemItemsWithParts(): Promise<{
+        itemCode: string;
+        itemDesc: string;
+        partName: string;
+    }[]>;
+    batchImportExcelOrders(partName: string, payload: {
+        customerName?: string;
+        customerGrade?: string;
+        overwriteExisting?: boolean;
+        orders: Array<{
+            soNumber?: string;
+            shipDate: string;
+            items: Array<{
+                itemCode: string;
+                orderedQuantity: number;
+                partName?: string;
+                priority?: number;
+                planQty?: number;
+                lineNumber?: string;
+            }>;
+        }>;
+    }): Promise<{
+        success: boolean;
+        createdOrdersCount: number;
+        totalLinesCount: number;
+        totalQuantity: number;
+        soNumbers: string[];
+    }>;
     deleteManualOrder(partName: string, soNumber: string): Promise<{
         success: boolean;
         soNumber: string;
@@ -120,6 +166,7 @@ export declare class DemandPlanningService {
         createdAt: Date;
         updatedAt: Date;
         partName: string;
+        isLocked: boolean;
         itemCode: string;
         soNumber: string;
         lineNumber: string;
@@ -127,12 +174,15 @@ export declare class DemandPlanningService {
         plannedQty: Prisma.Decimal;
         allocatedRmSize: string | null;
         splitIndex: number;
+        lockedAt: Date | null;
+        lockedBy: number | null;
     }[]>;
     getDailyProductionPlans(partName: string, startDate: string, endDate: string): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
         partName: string;
+        isLocked: boolean;
         itemCode: string;
         soNumber: string;
         lineNumber: string;
@@ -140,6 +190,8 @@ export declare class DemandPlanningService {
         plannedQty: Prisma.Decimal;
         allocatedRmSize: string | null;
         splitIndex: number;
+        lockedAt: Date | null;
+        lockedBy: number | null;
     }[]>;
     saveDailyProductionPlan(partName: string, payload: {
         planDate: string;

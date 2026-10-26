@@ -24,7 +24,7 @@ let DemandPlanningService = class DemandPlanningService {
     constructor(productSpecService) {
         this.productSpecService = productSpecService;
     }
-    async getSalesOrdersForPart(partName) {
+    async getSalesOrdersForPart(partName, startDate, endDate) {
         const items = await this.productSpecService.getItemsForPart(partName);
         const itemCodes = items.map((i) => i.erpItemCode);
         if (itemCodes.length === 0) {
@@ -39,7 +39,9 @@ let DemandPlanningService = class DemandPlanningService {
         const itemCategoryMap = new Map();
         items.forEach((i) => {
             itemDescMap.set(i.erpItemCode, i.erpItemDesc);
-            const cat = (specMap.get(i.erpItemCode) || i.defaultItemCategory || 'product').toLowerCase();
+            const cat = (specMap.get(i.erpItemCode) ||
+                i.defaultItemCategory ||
+                'product').toLowerCase();
             if (cat.includes('co-product') || cat.includes('coproduct')) {
                 itemCategoryMap.set(i.erpItemCode, 'coproduct');
             }
@@ -50,10 +52,21 @@ let DemandPlanningService = class DemandPlanningService {
                 itemCategoryMap.set(i.erpItemCode, 'product');
             }
         });
+        const soLineWhere = {
+            erpItemCode: { in: itemCodes },
+        };
+        if (startDate && endDate) {
+            const s = new Date(startDate);
+            s.setHours(0, 0, 0, 0);
+            const e = new Date(endDate);
+            e.setHours(23, 59, 59, 999);
+            soLineWhere.scheduleShipDate = {
+                gte: s,
+                lte: e,
+            };
+        }
         const soLines = await prisma_1.default.erpSaleOrderLine.findMany({
-            where: {
-                erpItemCode: { in: itemCodes },
-            },
+            where: soLineWhere,
             include: {
                 header: true,
             },
@@ -71,14 +84,22 @@ let DemandPlanningService = class DemandPlanningService {
             prisma_1.default.demandPlanLine.findMany({
                 where: { partName },
             }),
-            prisma_1.default.systemSetting.findUnique({ where: { key: 'demand_planning_priority_order' } }),
-            prisma_1.default.systemSetting.findUnique({ where: { key: 'demand_planning_null_grade_fallback' } }),
+            prisma_1.default.systemSetting.findUnique({
+                where: { key: 'demand_planning_priority_order' },
+            }),
+            prisma_1.default.systemSetting.findUnique({
+                where: { key: 'demand_planning_null_grade_fallback' },
+            }),
             prisma_1.default.mpsProductionTransaction.findMany({
                 where: { partName },
                 orderBy: { planDate: 'asc' },
             }),
         ]);
-        let priorityMap = { chilled: 1, freeze: 2, others: 3 };
+        let priorityMap = {
+            chilled: 1,
+            freeze: 2,
+            others: 3,
+        };
         if (prioritySetting?.value) {
             try {
                 const parsed = JSON.parse(prioritySetting.value);
@@ -90,14 +111,14 @@ let DemandPlanningService = class DemandPlanningService {
         }
         const nullGradeFallback = gradeSetting?.value?.trim() || 'Z';
         const savedPlansMap = new Map();
-        savedPlans.forEach(p => {
+        savedPlans.forEach((p) => {
             savedPlansMap.set(`${p.soNumber}_${p.lineNumber}_${p.itemCode}_${this.toDateKey(p.shipDate)}`, {
                 priority: p.priority,
-                planQty: p.planQty ? Number(p.planQty) : null
+                planQty: p.planQty ? Number(p.planQty) : null,
             });
         });
         const prodMap = new Map();
-        productionPlans.forEach(p => {
+        productionPlans.forEach((p) => {
             const lineNum = p.lineNumber || '-';
             const keyExact = `${p.soNumber}_${lineNum}_${p.itemCode}`;
             const qty = Number(p.plannedQty || 0);
@@ -117,8 +138,12 @@ let DemandPlanningService = class DemandPlanningService {
         });
         const processGroup = (group) => {
             group.sort((a, b) => {
-                const dateA = a.scheduleShipDate ? new Date(a.scheduleShipDate).setHours(0, 0, 0, 0) : 0;
-                const dateB = b.scheduleShipDate ? new Date(b.scheduleShipDate).setHours(0, 0, 0, 0) : 0;
+                const dateA = a.scheduleShipDate
+                    ? new Date(a.scheduleShipDate).setHours(0, 0, 0, 0)
+                    : 0;
+                const dateB = b.scheduleShipDate
+                    ? new Date(b.scheduleShipDate).setHours(0, 0, 0, 0)
+                    : 0;
                 if (dateA !== dateB) {
                     if (dateA === 0)
                         return 1;
@@ -142,8 +167,12 @@ let DemandPlanningService = class DemandPlanningService {
                 const gradeCompare = gradeA.localeCompare(gradeB);
                 if (gradeCompare !== 0)
                     return gradeCompare;
-                const orderDateA = a.header.erpOrderDate ? new Date(a.header.erpOrderDate).getTime() : 0;
-                const orderDateB = b.header.erpOrderDate ? new Date(b.header.erpOrderDate).getTime() : 0;
+                const orderDateA = a.header.erpOrderDate
+                    ? new Date(a.header.erpOrderDate).getTime()
+                    : 0;
+                const orderDateB = b.header.erpOrderDate
+                    ? new Date(b.header.erpOrderDate).getTime()
+                    : 0;
                 if (orderDateA !== orderDateB)
                     return orderDateA - orderDateB;
                 return a.header.erpOrderNumber.localeCompare(b.header.erpOrderNumber);
@@ -154,10 +183,17 @@ let DemandPlanningService = class DemandPlanningService {
                 const itemCode = line.erpItemCode;
                 const key = `${soNumber}_${lineNumber}_${itemCode}_${this.toDateKey(line.scheduleShipDate)}`;
                 const saved = savedPlansMap.get(key);
-                const isManual = line.header.erpOrderType === 'MANUAL';
-                const planQty = saved?.planQty !== undefined && saved?.planQty !== null ? Number(saved.planQty) : Number(line.orderedQuantity);
+                const orderType = line.header.erpOrderType || 'ERP';
+                const isManual = orderType === 'MANUAL' || orderType === 'EXCEL';
+                const planQty = saved?.planQty !== undefined && saved?.planQty !== null
+                    ? Number(saved.planQty)
+                    : Number(line.orderedQuantity);
                 const prodKey = `${soNumber}_${lineNumber}_${itemCode}`;
-                const prodData = prodMap.get(prodKey) || prodMap.get(`${soNumber}_-_${itemCode}`) || { totalPlanned: 0, dates: [] };
+                const prodData = prodMap.get(prodKey) ||
+                    prodMap.get(`${soNumber}_-_${itemCode}`) || {
+                    totalPlanned: 0,
+                    dates: [],
+                };
                 const totalPlanned = Number(prodData.totalPlanned.toFixed(2));
                 const remainingQty = Math.max(0, Number((planQty - totalPlanned).toFixed(2)));
                 let status = 'UNPLANNED';
@@ -171,15 +207,42 @@ let DemandPlanningService = class DemandPlanningService {
                     status = 'UNPLANNED';
                 }
                 const planDateSummary = prodData.dates.length > 0
-                    ? prodData.dates.map(d => {
+                    ? prodData.dates
+                        .map((d) => {
                         const dParts = d.planDate.split('-');
-                        const shortDate = dParts.length === 3 ? `${dParts[2]}/${dParts[1]}` : d.planDate;
+                        const shortDate = dParts.length === 3
+                            ? `${dParts[2]}/${dParts[1]}`
+                            : d.planDate;
                         return `${shortDate} (${d.plannedQty.toLocaleString()})`;
-                    }).join(', ')
+                    })
+                        .join(', ')
                     : null;
+                const validDates = prodData.dates
+                    .filter((d) => !!d.planDate)
+                    .map((d) => d.planDate)
+                    .sort();
+                const planDateStart = validDates.length > 0 ? validDates[0] : null;
+                const planDateEnd = validDates.length > 0 ? validDates[validDates.length - 1] : null;
+                let planDurationDays = 0;
+                let isLate = false;
+                let leadDaysBuffer = null;
+                if (planDateStart && planDateEnd) {
+                    const startDateObj = new Date(planDateStart);
+                    const endDateObj = new Date(planDateEnd);
+                    const diffTime = endDateObj.getTime() - startDateObj.getTime();
+                    planDurationDays = Math.round(diffTime / (1000 * 3600 * 24)) + 1;
+                    if (line.scheduleShipDate) {
+                        const shipDateObj = new Date(line.scheduleShipDate);
+                        shipDateObj.setHours(0, 0, 0, 0);
+                        endDateObj.setHours(0, 0, 0, 0);
+                        isLate = endDateObj.getTime() > shipDateObj.getTime();
+                        leadDaysBuffer = Math.round((shipDateObj.getTime() - endDateObj.getTime()) /
+                            (1000 * 3600 * 24));
+                    }
+                }
                 return {
                     id: line.id,
-                    priority: saved?.priority ?? (index + 1),
+                    priority: saved?.priority ?? index + 1,
                     soNumber,
                     lineNumber,
                     itemCode,
@@ -192,10 +255,21 @@ let DemandPlanningService = class DemandPlanningService {
                     shipDate: line.scheduleShipDate,
                     planDate: planDateSummary,
                     planDates: prodData.dates,
+                    planDateStart,
+                    planDateEnd,
+                    planDurationDays,
+                    isLate,
+                    leadDaysBuffer,
                     status,
                     isSelected: !!saved,
                     isManual,
-                    customerName: line.header.erpCustomerName || (isManual ? 'Manual Order' : '-'),
+                    orderType,
+                    customerName: line.header.erpCustomerName ||
+                        (orderType === 'EXCEL'
+                            ? 'Excel Import'
+                            : isManual
+                                ? 'Manual Order'
+                                : '-'),
                 };
             });
             mappedGroup.sort((a, b) => a.priority - b.priority);
@@ -228,7 +302,9 @@ let DemandPlanningService = class DemandPlanningService {
         return { success: true, count: result.count };
     }
     async createManualOrder(partName, payload) {
-        if (!payload.items || !Array.isArray(payload.items) || payload.items.length === 0) {
+        if (!payload.items ||
+            !Array.isArray(payload.items) ||
+            payload.items.length === 0) {
             throw new common_1.BadRequestException('At least one order item is required.');
         }
         if (!payload.shipDate) {
@@ -241,7 +317,7 @@ let DemandPlanningService = class DemandPlanningService {
         let soNumber = payload.soNumber?.trim();
         if (soNumber) {
             const existingHeader = await prisma_1.default.erpSaleOrderHeader.findUnique({
-                where: { erpOrderNumber: soNumber }
+                where: { erpOrderNumber: soNumber },
             });
             if (existingHeader) {
                 throw new common_1.BadRequestException(`Order number "${soNumber}" already exists.`);
@@ -271,12 +347,12 @@ let DemandPlanningService = class DemandPlanningService {
                     erpLastUpdateDate: new Date(),
                     erpOrderStatus: 'BOOKED',
                     lastSyncedAt: new Date(),
-                }
+                },
             });
             const existingPlans = await tx.demandPlanLine.findMany({
                 where: { partName },
                 orderBy: { priority: 'desc' },
-                take: 1
+                take: 1,
             });
             let nextPriority = (existingPlans[0]?.priority || 0) + 1;
             const createdLines = [];
@@ -303,9 +379,11 @@ let DemandPlanningService = class DemandPlanningService {
                         erpLastUpdateDate: new Date(),
                         lastSyncedAt: new Date(),
                         erpLineNumber: lineNum,
-                    }
+                    },
                 });
-                const planQty = item.planQty !== undefined && item.planQty !== null ? Number(item.planQty) : qty;
+                const planQty = item.planQty !== undefined && item.planQty !== null
+                    ? Number(item.planQty)
+                    : qty;
                 const priority = item.priority || nextPriority++;
                 const planLine = await tx.demandPlanLine.create({
                     data: {
@@ -316,7 +394,7 @@ let DemandPlanningService = class DemandPlanningService {
                         shipDate,
                         priority,
                         planQty: new client_1.Prisma.Decimal(planQty),
-                    }
+                    },
                 });
                 createdLines.push({ soLine, planLine });
             }
@@ -324,7 +402,187 @@ let DemandPlanningService = class DemandPlanningService {
                 success: true,
                 soNumber,
                 headerId: header.id,
-                linesCount: createdLines.length
+                linesCount: createdLines.length,
+            };
+        });
+    }
+    async getSystemItemsWithParts() {
+        const { partToItems } = await this.productSpecService.getAssignedItemsByPart();
+        const itemToPartMap = new Map();
+        for (const [part, items] of Object.entries(partToItems)) {
+            for (const item of items) {
+                itemToPartMap.set(item.code, part);
+            }
+        }
+        const allErpItems = await prisma_1.default.erpItemMaster.findMany({
+            select: { erpItemCode: true, erpItemDesc: true },
+            orderBy: { erpItemCode: 'asc' },
+        });
+        return allErpItems.map((item) => ({
+            itemCode: item.erpItemCode,
+            itemDesc: item.erpItemDesc,
+            partName: itemToPartMap.get(item.erpItemCode) || 'Item Unassigned',
+        }));
+    }
+    async batchImportExcelOrders(partName, payload) {
+        if (!payload.orders ||
+            !Array.isArray(payload.orders) ||
+            payload.orders.length === 0) {
+            throw new common_1.BadRequestException('No orders provided for import.');
+        }
+        const customerName = payload.customerName?.trim() || 'Excel Import';
+        const customerGrade = payload.customerGrade?.trim() || 'A';
+        const { partToItems } = await this.productSpecService.getAssignedItemsByPart();
+        const itemToPartMap = new Map();
+        for (const [pName, items] of Object.entries(partToItems)) {
+            for (const item of items) {
+                itemToPartMap.set(item.code, pName);
+            }
+        }
+        return prisma_1.default.$transaction(async (tx) => {
+            if (payload.overwriteExisting) {
+                const targetDates = payload.orders.map((o) => new Date(o.shipDate));
+                const existingLines = await tx.erpSaleOrderLine.findMany({
+                    where: {
+                        scheduleShipDate: { in: targetDates },
+                        header: {
+                            erpOrderType: 'EXCEL',
+                        },
+                    },
+                    select: {
+                        headerId: true,
+                        header: { select: { erpOrderNumber: true } },
+                    },
+                });
+                const headerIdsToDelete = Array.from(new Set(existingLines.map((l) => l.headerId)));
+                const soNumbersToDelete = Array.from(new Set(existingLines.map((l) => l.header.erpOrderNumber)));
+                if (soNumbersToDelete.length > 0) {
+                    await tx.demandPlanLine.deleteMany({
+                        where: {
+                            soNumber: { in: soNumbersToDelete },
+                        },
+                    });
+                    await tx.mpsProductionTransaction.deleteMany({
+                        where: {
+                            soNumber: { in: soNumbersToDelete },
+                        },
+                    });
+                    await tx.erpSaleOrderLine.deleteMany({
+                        where: {
+                            headerId: { in: headerIdsToDelete },
+                        },
+                    });
+                    await tx.erpSaleOrderHeader.deleteMany({
+                        where: {
+                            id: { in: headerIdsToDelete },
+                        },
+                    });
+                }
+            }
+            const priorityTracker = new Map();
+            const getNextPriority = async (targetPart) => {
+                if (!priorityTracker.has(targetPart)) {
+                    const existingPlans = await tx.demandPlanLine.findMany({
+                        where: { partName: targetPart },
+                        orderBy: { priority: 'desc' },
+                        take: 1,
+                    });
+                    priorityTracker.set(targetPart, (existingPlans[0]?.priority || 0) + 1);
+                }
+                const curr = priorityTracker.get(targetPart);
+                priorityTracker.set(targetPart, curr + 1);
+                return curr;
+            };
+            let createdOrdersCount = 0;
+            let totalLinesCount = 0;
+            let totalQuantity = 0;
+            const createdSoNumbers = [];
+            for (let oIdx = 0; oIdx < payload.orders.length; oIdx++) {
+                const orderData = payload.orders[oIdx];
+                if (!orderData.items || orderData.items.length === 0)
+                    continue;
+                const shipDate = new Date(orderData.shipDate);
+                if (isNaN(shipDate.getTime())) {
+                    throw new common_1.BadRequestException(`Invalid ship date: ${orderData.shipDate}`);
+                }
+                const ymd = shipDate.toISOString().slice(2, 10).replace(/-/g, '');
+                const seq = String(oIdx + 1).padStart(2, '0');
+                const rand = Math.floor(100 + Math.random() * 900);
+                const defaultPartPrefix = partName && partName !== 'All' ? partName : 'PLAN';
+                const soNumber = orderData.soNumber?.trim() ||
+                    `MO-EXCEL-${defaultPartPrefix}-${ymd}-${seq}${rand}`;
+                const headerId = (0, crypto_1.randomUUID)();
+                await tx.erpSaleOrderHeader.create({
+                    data: {
+                        id: headerId,
+                        erpOrderHeaderId: `EXCEL_${headerId}`,
+                        erpOrgId: 'EXCEL',
+                        erpOrderDate: new Date(),
+                        erpOrderNumber: soNumber,
+                        erpOrderType: 'EXCEL',
+                        erpCustomerNumber: 'EXCEL',
+                        erpCustomerName: customerName,
+                        erpCustomerGrade: customerGrade,
+                        erpCreationDate: new Date(),
+                        erpLastUpdateDate: new Date(),
+                        erpOrderStatus: 'BOOKED',
+                        lastSyncedAt: new Date(),
+                    },
+                });
+                createdSoNumbers.push(soNumber);
+                createdOrdersCount++;
+                for (let lIdx = 0; lIdx < orderData.items.length; lIdx++) {
+                    const item = orderData.items[lIdx];
+                    const lineId = (0, crypto_1.randomUUID)();
+                    const lineNum = item.lineNumber?.trim() || String(lIdx + 1);
+                    const qty = Number(item.orderedQuantity);
+                    if (isNaN(qty) || qty <= 0)
+                        continue;
+                    await tx.erpSaleOrderLine.create({
+                        data: {
+                            id: lineId,
+                            erpOrderLineId: `EXCEL_${lineId}`,
+                            headerId: headerId,
+                            erpItemId: item.itemCode,
+                            erpItemCode: item.itemCode,
+                            orderedQuantity: new client_1.Prisma.Decimal(qty),
+                            orderQuantityUom: 'KG',
+                            unitSellingPrice: new client_1.Prisma.Decimal(0),
+                            scheduleShipDate: shipDate,
+                            erpCreationDate: new Date(),
+                            erpLastUpdateDate: new Date(),
+                            lastSyncedAt: new Date(),
+                            erpLineNumber: lineNum,
+                        },
+                    });
+                    const resolvedPart = item.partName ||
+                        itemToPartMap.get(item.itemCode) ||
+                        (partName && partName !== 'All' ? partName : 'Item Unassigned');
+                    const planQty = item.planQty !== undefined && item.planQty !== null
+                        ? Number(item.planQty)
+                        : qty;
+                    const priority = item.priority || (await getNextPriority(resolvedPart));
+                    await tx.demandPlanLine.create({
+                        data: {
+                            partName: resolvedPart,
+                            soNumber,
+                            lineNumber: lineNum,
+                            itemCode: item.itemCode,
+                            shipDate,
+                            priority,
+                            planQty: new client_1.Prisma.Decimal(planQty),
+                        },
+                    });
+                    totalLinesCount++;
+                    totalQuantity += qty;
+                }
+            }
+            return {
+                success: true,
+                createdOrdersCount,
+                totalLinesCount,
+                totalQuantity,
+                soNumbers: createdSoNumbers,
             };
         });
     }
@@ -332,24 +590,24 @@ let DemandPlanningService = class DemandPlanningService {
         const header = await prisma_1.default.erpSaleOrderHeader.findFirst({
             where: {
                 erpOrderNumber: soNumber,
-                erpOrderType: 'MANUAL',
-            }
+                erpOrderType: { in: ['MANUAL', 'EXCEL'] },
+            },
         });
         if (!header) {
-            throw new common_1.NotFoundException(`Manual order "${soNumber}" not found or is not a manual order.`);
+            throw new common_1.NotFoundException(`Order "${soNumber}" not found or is not a manual/excel order.`);
         }
         return prisma_1.default.$transaction(async (tx) => {
             await tx.demandPlanLine.deleteMany({
-                where: { partName, soNumber }
+                where: { partName, soNumber },
             });
             await tx.mpsProductionTransaction.deleteMany({
-                where: { partName, soNumber }
+                where: { partName, soNumber },
             });
             await tx.erpSaleOrderLine.deleteMany({
-                where: { headerId: header.id }
+                where: { headerId: header.id },
             });
             await tx.erpSaleOrderHeader.delete({
-                where: { id: header.id }
+                where: { id: header.id },
             });
             return { success: true, soNumber };
         });
@@ -360,7 +618,9 @@ let DemandPlanningService = class DemandPlanningService {
         }
         try {
             return await prisma_1.default.$transaction(async (tx) => {
-                const existing = await tx.demandPlanLine.findMany({ where: { partName } });
+                const existing = await tx.demandPlanLine.findMany({
+                    where: { partName },
+                });
                 const normalizeDate = (d) => {
                     if (!d) {
                         const now = new Date();
@@ -391,11 +651,17 @@ let DemandPlanningService = class DemandPlanningService {
                         return;
                     seenKeys.add(key);
                     let cleanPlanQty = null;
-                    if (p.planQty !== null && p.planQty !== undefined && p.planQty !== '') {
-                        const parsed = typeof p.planQty === 'number' ? p.planQty : parseFloat(String(p.planQty).replace(/,/g, ''));
+                    if (p.planQty !== null &&
+                        p.planQty !== undefined &&
+                        p.planQty !== '') {
+                        const parsed = typeof p.planQty === 'number'
+                            ? p.planQty
+                            : parseFloat(String(p.planQty).replace(/,/g, ''));
                         cleanPlanQty = isNaN(parsed) ? null : parsed;
                     }
-                    const priority = typeof p.priority === 'number' && !isNaN(p.priority) ? p.priority : index + 1;
+                    const priority = typeof p.priority === 'number' && !isNaN(p.priority)
+                        ? p.priority
+                        : index + 1;
                     cleanedPayload.push({
                         soNumber: String(p.soNumber),
                         lineNumber,
@@ -405,13 +671,13 @@ let DemandPlanningService = class DemandPlanningService {
                         planQty: cleanPlanQty,
                     });
                 });
-                const toDelete = existing.filter(e => {
+                const toDelete = existing.filter((e) => {
                     const eKey = toKey(e.soNumber, e.lineNumber, e.itemCode, normalizeDate(e.shipDate));
                     return !seenKeys.has(eKey);
                 });
                 if (toDelete.length > 0) {
                     await tx.demandPlanLine.deleteMany({
-                        where: { id: { in: toDelete.map(d => d.id) } },
+                        where: { id: { in: toDelete.map((d) => d.id) } },
                     });
                 }
                 for (const line of cleanedPayload) {
@@ -427,7 +693,9 @@ let DemandPlanningService = class DemandPlanningService {
                         },
                         update: {
                             priority: line.priority,
-                            planQty: line.planQty !== null ? new client_1.Prisma.Decimal(line.planQty) : null,
+                            planQty: line.planQty !== null
+                                ? new client_1.Prisma.Decimal(line.planQty)
+                                : null,
                         },
                         create: {
                             partName,
@@ -436,7 +704,9 @@ let DemandPlanningService = class DemandPlanningService {
                             itemCode: line.itemCode,
                             shipDate: line.shipDate,
                             priority: line.priority,
-                            planQty: line.planQty !== null ? new client_1.Prisma.Decimal(line.planQty) : null,
+                            planQty: line.planQty !== null
+                                ? new client_1.Prisma.Decimal(line.planQty)
+                                : null,
                         },
                     });
                 }
@@ -456,11 +726,11 @@ let DemandPlanningService = class DemandPlanningService {
             where: {
                 partName,
                 soNumber,
-                itemCode
+                itemCode,
             },
             orderBy: {
-                planDate: 'asc'
-            }
+                planDate: 'asc',
+            },
         });
     }
     async getDailyProductionPlans(partName, startDate, endDate) {
@@ -472,14 +742,48 @@ let DemandPlanningService = class DemandPlanningService {
                 planDate: {
                     gte: start,
                     lte: end,
-                }
-            }
+                },
+            },
         });
         return transactions;
     }
     async saveDailyProductionPlan(partName, payload) {
         return prisma_1.default.$transaction(async (tx) => {
-            const upserts = payload.map(line => {
+            const dateStrings = Array.from(new Set(payload.map((line) => line.planDate.split('T')[0])));
+            const dateLocks = await tx.mpsDateLock.findMany({
+                where: {
+                    partName,
+                    planDate: { in: dateStrings.map((d) => new Date(d)) },
+                    isLocked: true,
+                },
+            });
+            if (dateLocks.length > 0) {
+                const lockedDates = dateLocks
+                    .map((d) => d.planDate.toISOString().split('T')[0])
+                    .join(', ');
+                throw new common_1.BadRequestException(`วันที่ ${lockedDates} ถูกล็อกแผนการผลิตไว้แล้ว ไม่สามารถแก้ไขได้`);
+            }
+            for (const line of payload) {
+                const planDate = new Date(line.planDate);
+                const existing = await tx.mpsProductionTransaction.findUnique({
+                    where: {
+                        unique_plan_line: {
+                            partName,
+                            planDate,
+                            soNumber: line.soNumber,
+                            lineNumber: line.lineNumber,
+                            itemCode: line.itemCode,
+                            splitIndex: line.splitIndex || 0,
+                        },
+                    },
+                });
+                if (existing?.isLocked &&
+                    (Number(existing.plannedQty) !== Number(line.plannedQty) ||
+                        existing.allocatedRmSize !== (line.allocatedRmSize || null))) {
+                    throw new common_1.BadRequestException(`รายการ SO ${line.soNumber} (${line.itemCode}) ถูกล็อกไว้ ไม่สามารถแก้ไขได้`);
+                }
+            }
+            const upserts = payload.map((line) => {
                 const planDate = new Date(line.planDate);
                 return tx.mpsProductionTransaction.upsert({
                     where: {
@@ -490,7 +794,7 @@ let DemandPlanningService = class DemandPlanningService {
                             lineNumber: line.lineNumber,
                             itemCode: line.itemCode,
                             splitIndex: line.splitIndex || 0,
-                        }
+                        },
                     },
                     update: {
                         plannedQty: line.plannedQty,
@@ -505,15 +809,16 @@ let DemandPlanningService = class DemandPlanningService {
                         splitIndex: line.splitIndex || 0,
                         plannedQty: line.plannedQty,
                         allocatedRmSize: line.allocatedRmSize || null,
-                    }
+                    },
                 });
             });
             await Promise.all(upserts);
             await tx.mpsProductionTransaction.deleteMany({
                 where: {
                     partName,
-                    plannedQty: { lte: 0 }
-                }
+                    plannedQty: { lte: 0 },
+                    isLocked: false,
+                },
             });
             return { success: true };
         });

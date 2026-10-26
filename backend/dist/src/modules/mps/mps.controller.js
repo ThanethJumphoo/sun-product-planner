@@ -36,6 +36,18 @@ let MpsController = class MpsController {
     async getICutMetrics(partName, currentMonth) {
         return this.mpsService.getICutMetrics(partName, currentMonth);
     }
+    async getLockedDates(partName, startDate, endDate) {
+        return this.mpsService.getLockedDates(partName, startDate, endDate);
+    }
+    async toggleDateLock(partName, payload) {
+        return this.mpsService.toggleDateLock(partName, payload);
+    }
+    async toggleTransactionLock(partName, id, isLocked) {
+        return this.mpsService.toggleTransactionLock(partName, id, isLocked);
+    }
+    async batchLockTransactions(partName, payload) {
+        return this.mpsService.batchLockTransactions(partName, payload);
+    }
     async clearPlans(partName, startDate, endDate) {
         return this.mpsService.clearPlans(partName, startDate, endDate);
     }
@@ -85,6 +97,40 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], MpsController.prototype, "getICutMetrics", null);
+__decorate([
+    (0, common_1.Get)(':partName/locks'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Query)('startDate')),
+    __param(2, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], MpsController.prototype, "getLockedDates", null);
+__decorate([
+    (0, common_1.Post)(':partName/lock-date'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], MpsController.prototype, "toggleDateLock", null);
+__decorate([
+    (0, common_1.Post)(':partName/transactions/:id/lock'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)('isLocked')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Boolean]),
+    __metadata("design:returntype", Promise)
+], MpsController.prototype, "toggleTransactionLock", null);
+__decorate([
+    (0, common_1.Post)(':partName/batch-lock-transactions'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], MpsController.prototype, "batchLockTransactions", null);
 __decorate([
     (0, common_1.Delete)(':partName/plans'),
     __param(0, (0, common_1.Param)('partName')),

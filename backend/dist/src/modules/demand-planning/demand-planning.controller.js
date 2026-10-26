@@ -21,8 +21,14 @@ let DemandPlanningController = class DemandPlanningController {
     constructor(service) {
         this.service = service;
     }
-    async getSalesOrdersForPart(partName) {
-        return this.service.getSalesOrdersForPart(partName);
+    async getSystemItemsWithParts() {
+        return this.service.getSystemItemsWithParts();
+    }
+    async batchImportExcelOrdersGlobal(payload) {
+        return this.service.batchImportExcelOrders('All', payload);
+    }
+    async getSalesOrdersForPart(partName, startDate, endDate) {
+        return this.service.getSalesOrdersForPart(partName, startDate, endDate);
     }
     async saveDemandPlans(partName, payload) {
         return this.service.saveDemandPlans(partName, payload);
@@ -32,6 +38,9 @@ let DemandPlanningController = class DemandPlanningController {
     }
     async createManualOrder(partName, payload) {
         return this.service.createManualOrder(partName, payload);
+    }
+    async batchImportExcelOrders(partName, payload) {
+        return this.service.batchImportExcelOrders(partName, payload);
     }
     async deleteManualOrder(partName, soNumber) {
         return this.service.deleteManualOrder(partName, soNumber);
@@ -48,10 +57,25 @@ let DemandPlanningController = class DemandPlanningController {
 };
 exports.DemandPlanningController = DemandPlanningController;
 __decorate([
+    (0, common_1.Get)('system-items'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DemandPlanningController.prototype, "getSystemItemsWithParts", null);
+__decorate([
+    (0, common_1.Post)('manual-orders/batch-import'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], DemandPlanningController.prototype, "batchImportExcelOrdersGlobal", null);
+__decorate([
     (0, common_1.Get)(':partName/sales-orders'),
     __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Query)('startDate')),
+    __param(2, (0, common_1.Query)('endDate')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], DemandPlanningController.prototype, "getSalesOrdersForPart", null);
 __decorate([
@@ -77,6 +101,14 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], DemandPlanningController.prototype, "createManualOrder", null);
+__decorate([
+    (0, common_1.Post)(':partName/manual-orders/batch-import'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], DemandPlanningController.prototype, "batchImportExcelOrders", null);
 __decorate([
     (0, common_1.Delete)(':partName/manual-orders/:soNumber'),
     __param(0, (0, common_1.Param)('partName')),

@@ -7,9 +7,23 @@ import { JwtAuthGuard } from '../../core/guards/jwt-auth.guard';
 export class DemandPlanningController {
   constructor(private readonly service: DemandPlanningService) {}
 
+  @Get('system-items')
+  async getSystemItemsWithParts() {
+    return this.service.getSystemItemsWithParts();
+  }
+
+  @Post('manual-orders/batch-import')
+  async batchImportExcelOrdersGlobal(@Body() payload: any) {
+    return this.service.batchImportExcelOrders('All', payload);
+  }
+
   @Get(':partName/sales-orders')
-  async getSalesOrdersForPart(@Param('partName') partName: string) {
-    return this.service.getSalesOrdersForPart(partName);
+  async getSalesOrdersForPart(
+    @Param('partName') partName: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.service.getSalesOrdersForPart(partName, startDate, endDate);
   }
 
   @Post(':partName/sales-orders')
@@ -31,6 +45,14 @@ export class DemandPlanningController {
     @Body() payload: any
   ) {
     return this.service.createManualOrder(partName, payload);
+  }
+
+  @Post(':partName/manual-orders/batch-import')
+  async batchImportExcelOrders(
+    @Param('partName') partName: string,
+    @Body() payload: any
+  ) {
+    return this.service.batchImportExcelOrders(partName, payload);
   }
 
   @Delete(':partName/manual-orders/:soNumber')

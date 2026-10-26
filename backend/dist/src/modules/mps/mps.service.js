@@ -20,10 +20,10 @@ let MpsService = class MpsService {
     async saveMpsSupply(partName, payload) {
         if (payload.length === 0)
             return { success: true, count: 0 };
-        const dates = payload.map(p => new Date(p.date));
-        const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
-        const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
-        const payloadDateStrings = payload.map(p => new Date(p.date).toISOString().split('T')[0]);
+        const dates = payload.map((p) => new Date(p.date));
+        const minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
+        const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
+        const payloadDateStrings = payload.map((p) => new Date(p.date).toISOString().split('T')[0]);
         const result = await prisma_1.default.$transaction(async (tx) => {
             const existing = await tx.mpsSupply.findMany({
                 where: {
@@ -31,16 +31,16 @@ let MpsService = class MpsService {
                     planDate: {
                         gte: minDate,
                         lte: maxDate,
-                    }
-                }
+                    },
+                },
             });
-            const toDelete = existing.filter(e => {
+            const toDelete = existing.filter((e) => {
                 const dStr = e.planDate.toISOString().split('T')[0];
                 return !payloadDateStrings.includes(dStr);
             });
             if (toDelete.length > 0) {
                 await tx.mpsSupply.deleteMany({
-                    where: { id: { in: toDelete.map(d => d.id) } }
+                    where: { id: { in: toDelete.map((d) => d.id) } },
                 });
             }
             const upserts = payload.map((item) => tx.mpsSupply.upsert({
@@ -83,13 +83,26 @@ let MpsService = class MpsService {
     async autoGeneratePlan(partName, currentMonth) {
         const monthStart = (0, date_fns_1.startOfMonth)(new Date(currentMonth));
         const monthEnd = (0, date_fns_1.endOfMonth)(new Date(currentMonth));
-        await prisma_1.default.mpsProductionTransaction.deleteMany({
+        const dateLocks = await prisma_1.default.mpsDateLock.findMany({
             where: {
                 partName,
                 planDate: {
                     gte: monthStart,
                     lte: monthEnd,
                 },
+                isLocked: true,
+            },
+        });
+        const lockedPlanDates = dateLocks.map((d) => d.planDate);
+        await prisma_1.default.mpsProductionTransaction.deleteMany({
+            where: {
+                partName,
+                planDate: {
+                    gte: monthStart,
+                    lte: monthEnd,
+                    notIn: lockedPlanDates,
+                },
+                isLocked: false,
             },
         });
         const { generatedTransactions, stats } = await (0, autoGeneratePlan_1.generateAutoPlanOnServer)(partName, currentMonth);
@@ -106,7 +119,7 @@ let MpsService = class MpsService {
                                 lineNumber: line.lineNumber,
                                 itemCode: line.itemCode,
                                 splitIndex: line.splitIndex || 0,
-                            }
+                            },
                         },
                         update: {
                             plannedQty: line.plannedQty,
@@ -121,7 +134,8 @@ let MpsService = class MpsService {
                             splitIndex: line.splitIndex || 0,
                             plannedQty: line.plannedQty,
                             allocatedRmSize: line.allocatedRmSize || null,
-                        }
+                            isLocked: false,
+                        },
                     });
                 });
                 await Promise.all(upserts);
@@ -132,8 +146,9 @@ let MpsService = class MpsService {
                             gte: monthStart,
                             lte: monthEnd,
                         },
-                        plannedQty: { lte: 0 }
-                    }
+                        plannedQty: { lte: 0 },
+                        isLocked: false,
+                    },
                 });
             });
         }
@@ -233,7 +248,7 @@ let MpsService = class MpsService {
             n.name?.toLowerCase().includes('machine') ||
             n.name?.toLowerCase().includes('toridas'));
         const capacityCfg = await this.getCapacitySettings();
-        let toridasCfg = { ...capacityCfg.toridas };
+        const toridasCfg = { ...capacityCfg.toridas };
         if (machineNodes.length > 0) {
             try {
                 const mData = JSON.parse(machineNodes[0].data || '{}');
@@ -250,7 +265,10 @@ let MpsService = class MpsService {
         }
         const [parentSupplies, monthlyRecs, weeklyRecs] = await Promise.all([
             prisma_1.default.mpsSupply.findMany({
-                where: { partName: parentPartName, planDate: { gte: monthStart, lte: monthEnd } },
+                where: {
+                    partName: parentPartName,
+                    planDate: { gte: monthStart, lte: monthEnd },
+                },
                 orderBy: { planDate: 'asc' },
             }),
             prisma_1.default.monthlyChickenReceiving.findMany({
@@ -321,14 +339,133 @@ let MpsService = class MpsService {
         }
         return syncResults;
     }
+    async getLockedDates(partName, startDate, endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const locks = await prisma_1.default.mpsDateLock.findMany({
+            where: {
+                partName,
+                planDate: {
+                    gte: start,
+                    lte: end,
+                },
+                isLocked: true,
+            },
+        });
+        const lockedTransactions = await prisma_1.default.mpsProductionTransaction.findMany({
+            where: {
+                partName,
+                planDate: {
+                    gte: start,
+                    lte: end,
+                },
+                isLocked: true,
+            },
+            select: {
+                planDate: true,
+            },
+        });
+        const dateLockStrings = new Set();
+        locks.forEach((l) => {
+            dateLockStrings.add(l.planDate.toISOString().split('T')[0]);
+        });
+        const transactionLockCountByDate = {};
+        lockedTransactions.forEach((t) => {
+            const dStr = t.planDate.toISOString().split('T')[0];
+            transactionLockCountByDate[dStr] =
+                (transactionLockCountByDate[dStr] || 0) + 1;
+        });
+        return {
+            lockedDates: Array.from(dateLockStrings),
+            transactionLockCountByDate,
+        };
+    }
+    async toggleDateLock(partName, payload) {
+        const planDate = new Date(payload.date);
+        const result = await prisma_1.default.mpsDateLock.upsert({
+            where: {
+                unique_part_date_lock: {
+                    partName,
+                    planDate,
+                },
+            },
+            update: {
+                isLocked: payload.isLocked,
+            },
+            create: {
+                partName,
+                planDate,
+                isLocked: payload.isLocked,
+            },
+        });
+        if (payload.lockAllTransactions) {
+            await prisma_1.default.mpsProductionTransaction.updateMany({
+                where: {
+                    partName,
+                    planDate,
+                },
+                data: {
+                    isLocked: payload.isLocked,
+                    lockedAt: payload.isLocked ? new Date() : null,
+                },
+            });
+        }
+        return {
+            success: true,
+            date: payload.date,
+            isLocked: payload.isLocked,
+        };
+    }
+    async toggleTransactionLock(partName, id, isLocked) {
+        const tx = await prisma_1.default.mpsProductionTransaction.findFirst({
+            where: { id, partName },
+        });
+        if (!tx) {
+            throw new common_1.NotFoundException(`Transaction with id ${id} not found.`);
+        }
+        const updated = await prisma_1.default.mpsProductionTransaction.update({
+            where: { id },
+            data: {
+                isLocked,
+                lockedAt: isLocked ? new Date() : null,
+            },
+        });
+        return { success: true, transaction: updated };
+    }
+    async batchLockTransactions(partName, payload) {
+        const planDate = new Date(payload.date);
+        const result = await prisma_1.default.mpsProductionTransaction.updateMany({
+            where: {
+                partName,
+                planDate,
+            },
+            data: {
+                isLocked: payload.isLocked,
+                lockedAt: payload.isLocked ? new Date() : null,
+            },
+        });
+        return { success: true, count: result.count, isLocked: payload.isLocked };
+    }
     async clearPlans(partName, startDate, endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const dateLocks = await prisma_1.default.mpsDateLock.findMany({
+            where: {
+                partName,
+                planDate: { gte: start, lte: end },
+                isLocked: true,
+            },
+        });
+        const lockedDates = dateLocks.map((d) => d.planDate);
         const result = await prisma_1.default.mpsProductionTransaction.deleteMany({
             where: {
                 partName,
                 planDate: {
-                    gte: new Date(startDate),
-                    lte: new Date(endDate),
+                    gte: start,
+                    lte: end,
+                    notIn: lockedDates,
                 },
+                isLocked: false,
             },
         });
         return { success: true, deletedCount: result.count };
@@ -340,6 +477,18 @@ let MpsService = class MpsService {
                 gte: new Date(startDate),
                 lte: new Date(endDate),
             };
+        }
+        const lockedPlansCount = await prisma_1.default.mpsProductionTransaction.count({
+            where: {
+                partName,
+                isLocked: true,
+                ...(startDate && endDate
+                    ? { planDate: { gte: new Date(startDate), lte: new Date(endDate) } }
+                    : {}),
+            },
+        });
+        if (lockedPlansCount > 0) {
+            throw new common_1.BadRequestException(`ไม่สามารถล้างข้อมูล Supply ได้ เนื่องจากมีรายการผลิตที่ถูกล็อกไว้ ${lockedPlansCount} รายการในช่วงวันที่นี้`);
         }
         const result = await prisma_1.default.mpsSupply.deleteMany({
             where: whereClause,
@@ -361,7 +510,7 @@ let MpsService = class MpsService {
                 nodes: { include: { nodeType: true } },
             },
         });
-        let hasToridas = parentBoard?.nodes.some((n) => n.nodeType?.typeCode === 'MACHINE' ||
+        const hasToridas = parentBoard?.nodes.some((n) => n.nodeType?.typeCode === 'MACHINE' ||
             n.nodeTypeId === 1003 ||
             n.name?.toLowerCase().includes('toridas'));
         if (!hasToridas) {
@@ -378,7 +527,9 @@ let MpsService = class MpsService {
             });
             if (parentCandidate?.board) {
                 parentBoard = parentCandidate.board;
-                parentPartName = parentCandidate.board.name.replace('Master Production Flow - ', '').trim();
+                parentPartName = parentCandidate.board.name
+                    .replace('Master Production Flow - ', '')
+                    .trim();
             }
             else if (partName.toUpperCase() === 'BL') {
                 parentPartName = 'BIL';
@@ -404,7 +555,7 @@ let MpsService = class MpsService {
             n.name?.toLowerCase().includes('machine') ||
             n.name?.toLowerCase().includes('toridas')) || [];
         const capacityCfg = await this.getCapacitySettings();
-        let toridasCfg = { ...capacityCfg.toridas };
+        const toridasCfg = { ...capacityCfg.toridas };
         if (machineNodes.length > 0) {
             try {
                 const mData = JSON.parse(machineNodes[0].data || '{}');
@@ -421,7 +572,10 @@ let MpsService = class MpsService {
         }
         const [parentSupplies, monthlyRecs, weeklyRecs] = await Promise.all([
             prisma_1.default.mpsSupply.findMany({
-                where: { partName: parentPartName, planDate: { gte: monthStart, lte: monthEnd } },
+                where: {
+                    partName: parentPartName,
+                    planDate: { gte: monthStart, lte: monthEnd },
+                },
                 orderBy: { planDate: 'asc' },
             }),
             prisma_1.default.monthlyChickenReceiving.findMany({
@@ -487,7 +641,7 @@ let MpsService = class MpsService {
                 edges: true,
             },
         });
-        let hasIcutNode = blBoard?.nodes.some((n) => n.nodeType?.typeCode === 'MACHINE' ||
+        const hasIcutNode = blBoard?.nodes.some((n) => n.nodeType?.typeCode === 'MACHINE' ||
             n.name?.toLowerCase().includes('icut') ||
             n.name?.toLowerCase().includes('i-cut'));
         if (!hasIcutNode && blBoard) {
@@ -533,7 +687,7 @@ let MpsService = class MpsService {
         }
         const icutItemSet = new Set();
         const capacityCfg = await this.getCapacitySettings();
-        let icutNodeConfig = { ...capacityCfg.icut };
+        const icutNodeConfig = { ...capacityCfg.icut };
         if (blBoard) {
             const icutNode = blBoard.nodes.find((n) => n.nodeType?.typeCode === 'MACHINE' ||
                 n.name?.toLowerCase().includes('icut') ||
@@ -575,7 +729,10 @@ let MpsService = class MpsService {
         }
         const [plans, specsArr, itemsArr] = await Promise.all([
             prisma_1.default.mpsProductionTransaction.findMany({
-                where: { partName: targetPart, planDate: { gte: monthStart, lte: monthEnd } },
+                where: {
+                    partName: targetPart,
+                    planDate: { gte: monthStart, lte: monthEnd },
+                },
                 orderBy: { planDate: 'asc' },
             }),
             prisma_1.default.productSpec.findMany(),
@@ -631,7 +788,9 @@ let MpsService = class MpsService {
                 totalRmRequiredKg: Number(totalMonthRmReqKg.toFixed(2)),
                 totalBlbCoproductKg: Number(totalMonthBlbKg.toFixed(2)),
                 totalHoursNeeded: Number(totalMonthHours.toFixed(2)),
-                avgUtilizationPct: activeDaysCount > 0 ? Number((sumUtil / activeDaysCount).toFixed(1)) : 0,
+                avgUtilizationPct: activeDaysCount > 0
+                    ? Number((sumUtil / activeDaysCount).toFixed(1))
+                    : 0,
             },
             daily: dailyMetrics,
         };

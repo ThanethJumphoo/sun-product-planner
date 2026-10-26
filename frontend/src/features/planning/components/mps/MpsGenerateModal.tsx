@@ -1,6 +1,6 @@
 import React from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { Wand2, X, CheckCircle2, XCircle, Trash2 } from "lucide-react";
+import { Wand2, X, CheckCircle2, XCircle, Trash2, Lock } from "lucide-react";
 import api from '@/lib/api';
 import { toast } from 'react-hot-toast';
 
@@ -14,6 +14,8 @@ interface MpsGenerateModalProps {
   fetchCalendarData: () => Promise<void>;
   fetchPlannedDemands: () => Promise<void>;
   setIsGenerating: (val: boolean) => void;
+  lockedDatesCount?: number;
+  lockedPlansCount?: number;
 }
 
 export function MpsGenerateModal({
@@ -25,12 +27,19 @@ export function MpsGenerateModal({
   partName,
   fetchCalendarData,
   fetchPlannedDemands,
-  setIsGenerating
+  setIsGenerating,
+  lockedDatesCount,
+  lockedPlansCount
 }: MpsGenerateModalProps) {
   if (!isOpen) return null;
 
   const handleClearPlans = async () => {
-    if (confirm(`Are you sure you want to clear all plans for ${format(currentMonth, 'MMMM yyyy')}?`)) {
+    const hasLocks = (lockedDatesCount || 0) > 0 || (lockedPlansCount || 0) > 0;
+    const confirmMsg = hasLocks
+      ? `คุณแน่ใจหรือไม่ว่าต้องการล้างคำสั่งผลิตของเดือน ${format(currentMonth, 'MMMM yyyy')}?\n(หมายเหตุ: รายการและวันที่ที่ถูกล็อกไว้จะไม่ถูกลบ)`
+      : `Are you sure you want to clear all plans for ${format(currentMonth, 'MMMM yyyy')}?`;
+
+    if (confirm(confirmMsg)) {
       onClose();
       const toastId = toast.loading('Clearing plans...');
       try {
@@ -158,6 +167,23 @@ export function MpsGenerateModal({
                 </p>
               </div>
             </div>
+
+            {/* Locked Plans / Freeze Status */}
+            {((lockedDatesCount || 0) > 0 || (lockedPlansCount || 0) > 0) && (
+              <div className="flex items-start gap-4 p-4 rounded-xl border bg-amber-50/70 border-amber-200">
+                <div className="mt-0.5">
+                  <Lock size={22} className="text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-amber-900 flex items-center gap-1.5">
+                    ตรวจพบแผนที่ล็อกไว้ (Firm & Frozen Plans)
+                  </h3>
+                  <p className="text-sm mt-1 text-amber-700">
+                    พบ {lockedDatesCount || 0} วันที่ล็อกทั้งวัน และ {lockedPlansCount || 0} รายการที่ฟิกซ์ไว้ — ระบบจะ<strong>รักษาแผนเดิมไว้</strong> และคำนวณเกลี่ยเฉพาะความต้องการและวัตถุดิบส่วนที่เหลือ
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         

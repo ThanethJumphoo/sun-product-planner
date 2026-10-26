@@ -22,7 +22,10 @@ function isRmNode(n) {
     if (!n)
         return false;
     const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
-    return code === 'RM' || code === 'RAW_MATERIAL' || n.nodeTypeId === 2002 || n.nodeTypeId === 2001;
+    return (code === 'RM' ||
+        code === 'RAW_MATERIAL' ||
+        n.nodeTypeId === 2002 ||
+        n.nodeTypeId === 2001);
 }
 function isProcessNode(n) {
     if (!n)
@@ -34,7 +37,11 @@ function isMachineNode(n) {
     if (!n)
         return false;
     const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
-    return code === 'MACHINE' || n.nodeTypeId === 1003 || n.nodeTypeId === 2004 || n.name?.toLowerCase().includes('machine') || n.name?.toLowerCase().includes('icut');
+    return (code === 'MACHINE' ||
+        n.nodeTypeId === 1003 ||
+        n.nodeTypeId === 2004 ||
+        n.name?.toLowerCase().includes('machine') ||
+        n.name?.toLowerCase().includes('icut'));
 }
 async function generateAutoPlanOnServer(partName, currentMonthStr) {
     const currentMonth = new Date(currentMonthStr);
@@ -42,45 +49,55 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
     const monthEnd = (0, date_fns_1.endOfMonth)(currentMonth);
     const dateFrom = (0, date_fns_1.format)(monthStart, 'yyyy-MM-dd');
     const dateTo = (0, date_fns_1.format)(monthEnd, 'yyyy-MM-dd');
-    console.log("autoGeneratePlan: Fetching DB data...");
-    const [supplies, plannedDemandsDb, specsArr, chickenWeights, rmSizes, distributions, weeklyRecords, monthlyRecords, monthlyPlans, flowBoards, externalSupplies] = await Promise.all([
+    console.log('autoGeneratePlan: Fetching DB data...');
+    const [supplies, plannedDemandsDb, specsArr, chickenWeights, rmSizes, distributions, weeklyRecords, monthlyRecords, monthlyPlans, flowBoards, externalSupplies, dateLocks,] = await Promise.all([
         prisma_1.default.mpsSupply.findMany({
-            where: { partName, planDate: { gte: monthStart, lte: monthEnd } }
+            where: { partName, planDate: { gte: monthStart, lte: monthEnd } },
         }),
         prisma_1.default.demandPlanLine.findMany({
-            where: { partName }
+            where: { partName },
         }),
         prisma_1.default.productSpec.findMany(),
         prisma_1.default.chickenWeight.findMany({ orderBy: { minWeight: 'asc' } }),
-        prisma_1.default.partRmSize.findMany({ where: { partName }, orderBy: { minSize: 'asc' } }),
+        prisma_1.default.partRmSize.findMany({
+            where: { partName },
+            orderBy: { minSize: 'asc' },
+        }),
         prisma_1.default.partWeightDistribution.findMany({ where: { partName } }),
         prisma_1.default.weeklyChickenReceiving.findMany({
-            where: { receiveDate: { gte: monthStart, lte: monthEnd } }
+            where: { receiveDate: { gte: monthStart, lte: monthEnd } },
         }),
         prisma_1.default.monthlyChickenReceiving.findMany({
-            where: { receiveDate: { gte: monthStart, lte: monthEnd } }
+            where: { receiveDate: { gte: monthStart, lte: monthEnd } },
         }),
         prisma_1.default.mpsProductionTransaction.findMany({
-            where: { partName, planDate: { gte: monthStart, lte: monthEnd } }
+            where: { partName, planDate: { gte: monthStart, lte: monthEnd } },
         }),
         prisma_1.default.flowBoard.findMany({
             where: {
                 OR: [
                     { name: `Master Production Flow - ${partName}` },
                     { name: { contains: partName } },
-                    { name: 'Master Production Flow' }
-                ]
+                    { name: 'Master Production Flow' },
+                ],
             },
             include: {
                 nodes: {
-                    include: { nodeType: true }
+                    include: { nodeType: true },
                 },
-                edges: true
-            }
+                edges: true,
+            },
         }),
         prisma_1.default.externalRmSupply.findMany({
-            where: { partName, date: { gte: monthStart, lte: monthEnd } }
-        })
+            where: { partName, date: { gte: monthStart, lte: monthEnd } },
+        }),
+        prisma_1.default.mpsDateLock.findMany({
+            where: {
+                partName,
+                planDate: { gte: monthStart, lte: monthEnd },
+                isLocked: true,
+            },
+        }),
     ]);
     const wdMatrixRecords = chickenWeights.map((cw) => {
         return {
@@ -100,7 +117,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
         calculatedSupply[s.planDate.toISOString().split('T')[0]] = Number(s.supplyWeight);
     });
     const specs = {};
-    specsArr.forEach(s => {
+    specsArr.forEach((s) => {
         specs[s.erpItemCode] = s;
         try {
             specs[s.erpItemCode].parsedRmSizes = JSON.parse(s.rmSizesJson || '[]');
@@ -124,7 +141,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                                 yieldPercent: 100,
                                 leadMinDays: 1,
                                 leadMaxDays: 3,
-                                parsedRmSizes: []
+                                parsedRmSizes: [],
                             };
                         }
                     });
@@ -138,9 +155,9 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
     const soLines = await prisma_1.default.erpSaleOrderLine.findMany({
         where: {
             header: { erpOrderNumber: { in: soNumbers } },
-            erpItemCode: { in: itemCodes }
+            erpItemCode: { in: itemCodes },
         },
-        include: { header: true }
+        include: { header: true },
     });
     const soLineMap = new Map();
     for (const line of soLines) {
@@ -151,7 +168,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
     }
     const plannedDemands = plannedDemandsDb.map((d) => ({
         ...d,
-        shipDate: soLineMap.get(`${d.soNumber}_${d.lineNumber}_${d.itemCode}`) || null
+        shipDate: soLineMap.get(`${d.soNumber}_${d.lineNumber}_${d.itemCode}`) || null,
     }));
     const dailySupplyState = {};
     let d = monthStart;
@@ -170,30 +187,42 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
             avgWeight = Number(monthlyRec.averageWeight || 0);
         }
         const roundedAvgWeight = Number(Number(avgWeight).toFixed(2));
-        const row = wdMatrixRecords.find((r) => roundedAvgWeight >= Number(r.chickenWeight.minWeight) && roundedAvgWeight <= Number(r.chickenWeight.maxWeight));
+        const row = wdMatrixRecords.find((r) => roundedAvgWeight >= Number(r.chickenWeight.minWeight) &&
+            roundedAvgWeight <= Number(r.chickenWeight.maxWeight));
         let dayBuckets = [];
         if (row && row.rmSizes) {
-            dayBuckets = row.rmSizes.map((rmDist) => {
+            dayBuckets = row.rmSizes
+                .map((rmDist) => {
                 const rm = rmDist.rmSize;
                 const percent = Number(rmDist.percent) || 0;
                 const weight = (percent / 100) * totalWeight;
                 return {
                     id: rm.id,
-                    name: rm.minSize && rm.maxSize ? `${rm.minSize}-${rm.maxSize}g` : rm.minSize ? `>${rm.minSize}g` : rm.maxSize ? `<${rm.maxSize}g` : 'Unsize',
+                    name: rm.minSize && rm.maxSize
+                        ? `${rm.minSize}-${rm.maxSize}g`
+                        : rm.minSize
+                            ? `>${rm.minSize}g`
+                            : rm.maxSize
+                                ? `<${rm.maxSize}g`
+                                : 'Unsize',
                     minSize: rm.minSize || 0,
                     percent,
-                    remaining: weight
+                    remaining: weight,
                 };
-            }).filter((s) => s.percent > 0).sort((a, b) => a.minSize - b.minSize);
+            })
+                .filter((s) => s.percent > 0)
+                .sort((a, b) => a.minSize - b.minSize);
         }
         else if (totalWeight > 0) {
-            dayBuckets = [{
+            dayBuckets = [
+                {
                     id: 'Unsize',
                     name: 'Unsize',
                     minSize: 0,
                     percent: 100,
-                    remaining: totalWeight
-                }];
+                    remaining: totalWeight,
+                },
+            ];
         }
         const dayExtSupplies = (externalSupplies || []).filter((es) => {
             const esDate = (0, date_fns_1.format)(new Date(es.date), 'yyyy-MM-dd');
@@ -212,19 +241,66 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                 remaining: esQty,
                 isExternal: true,
                 supplierName: es.supplierName,
-                poNumber: es.poNumber
+                poNumber: es.poNumber,
             });
         }
         dailySupplyState[dateStr] = dayBuckets;
         d = (0, date_fns_1.addDays)(d, 1);
     }
+    const lockedDateStrings = new Set();
+    (dateLocks || []).forEach((dl) => {
+        lockedDateStrings.add((0, date_fns_1.format)(new Date(dl.planDate), 'yyyy-MM-dd'));
+    });
+    const lockedPlans = (monthlyPlans || []).filter((p) => p.isLocked ||
+        lockedDateStrings.has((0, date_fns_1.format)(new Date(p.planDate), 'yyyy-MM-dd')));
+    for (const p of lockedPlans) {
+        const pDateStr = (0, date_fns_1.format)(new Date(p.planDate), 'yyyy-MM-dd');
+        const pSpec = specs[p.itemCode];
+        if (!pSpec || pSpec.itemCategory !== 'product')
+            continue;
+        const pYield = pSpec.yieldPercent || 100;
+        const reqRM = Number(p.plannedQty || 0) / (pYield / 100);
+        const buckets = dailySupplyState[pDateStr];
+        if (buckets && buckets.length > 0) {
+            let remainingToDeduct = reqRM;
+            if (p.allocatedRmSize &&
+                p.allocatedRmSize !== 'Unsize' &&
+                p.allocatedRmSize !== 'Auto') {
+                const targetBucket = buckets.find((b) => b.name === p.allocatedRmSize ||
+                    String(b.id) === String(p.allocatedRmSize));
+                if (targetBucket && targetBucket.remaining > 0) {
+                    const deduct = Math.min(targetBucket.remaining, remainingToDeduct);
+                    targetBucket.remaining -= deduct;
+                    remainingToDeduct -= deduct;
+                }
+            }
+            if (remainingToDeduct > 0) {
+                for (const b of buckets) {
+                    if (b.remaining > 0) {
+                        const deduct = Math.min(b.remaining, remainingToDeduct);
+                        b.remaining -= deduct;
+                        remainingToDeduct -= deduct;
+                        if (remainingToDeduct <= 0)
+                            break;
+                    }
+                }
+            }
+        }
+    }
+    for (const lockedDay of lockedDateStrings) {
+        if (dailySupplyState[lockedDay]) {
+            dailySupplyState[lockedDay].forEach((b) => {
+                b.remaining = 0;
+            });
+        }
+    }
     const rmPools = {};
     const itemToPoolsMap = {};
     const mainToPoolMap = {};
     if (flowBoards.length > 0) {
-        let board = flowBoards.find(b => b.name === `Master Production Flow - ${partName}`) ||
-            flowBoards.find(b => b.name?.includes(partName)) ||
-            flowBoards.find(b => b.name === 'Master Production Flow') ||
+        const board = flowBoards.find((b) => b.name === `Master Production Flow - ${partName}`) ||
+            flowBoards.find((b) => b.name?.includes(partName)) ||
+            flowBoards.find((b) => b.name === 'Master Production Flow') ||
             flowBoards[0];
         const nodes = board.nodes || [];
         const edges = board.edges || [];
@@ -270,7 +346,8 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
             const processOutgoing = findOutgoingEdges(chosenProcessNode.id);
             const generatedPools = [];
             for (const outEdge of processOutgoing) {
-                if (outEdge.sourceHandle === 'coproduct' || outEdge.sourceHandle === 'byproduct') {
+                if (outEdge.sourceHandle === 'coproduct' ||
+                    outEdge.sourceHandle === 'byproduct') {
                     const targetRmNode = nodes.find((n) => n.id === outEdge.target);
                     if (targetRmNode) {
                         let rmYieldPercent = 0;
@@ -286,8 +363,10 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                                     id: poolKey,
                                     name: targetRmNode.name,
                                     yieldPercent: rmYieldPercent,
-                                    type: outEdge.sourceHandle === 'coproduct' ? 'Co-Product' : 'By-Product',
-                                    itemCodes: new Set()
+                                    type: outEdge.sourceHandle === 'coproduct'
+                                        ? 'Co-Product'
+                                        : 'By-Product',
+                                    itemCodes: new Set(),
                                 };
                             }
                             const rmOutgoing = findOutgoingEdges(targetRmNode.id);
@@ -313,8 +392,11 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                                     }
                                 }
                             }
-                            if (!generatedPools.some(p => p.poolId === poolKey)) {
-                                generatedPools.push({ poolId: poolKey, yieldPercent: rmYieldPercent });
+                            if (!generatedPools.some((p) => p.poolId === poolKey)) {
+                                generatedPools.push({
+                                    poolId: poolKey,
+                                    yieldPercent: rmYieldPercent,
+                                });
                             }
                         }
                     }
@@ -326,7 +408,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                         mainToPoolMap[mainItem.erpItemCode] = [];
                     }
                     for (const gp of generatedPools) {
-                        if (!mainToPoolMap[mainItem.erpItemCode].some(p => p.poolId === gp.poolId)) {
+                        if (!mainToPoolMap[mainItem.erpItemCode].some((p) => p.poolId === gp.poolId)) {
                             mainToPoolMap[mainItem.erpItemCode].push(gp);
                         }
                     }
@@ -336,20 +418,22 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
     }
     const machinePools = [];
     if (flowBoards.length > 0) {
-        let board = flowBoards.find(b => b.name === `Master Production Flow - ${partName}`) ||
-            flowBoards.find(b => b.name?.includes(partName)) ||
-            flowBoards.find(b => b.name === 'Master Production Flow') ||
+        const board = flowBoards.find((b) => b.name === `Master Production Flow - ${partName}`) ||
+            flowBoards.find((b) => b.name?.includes(partName)) ||
+            flowBoards.find((b) => b.name === 'Master Production Flow') ||
             flowBoards[0];
         const nodes = board.nodes || [];
         const edges = board.edges || [];
         const machineNodes = nodes.filter((n) => isMachineNode(n));
         for (const mNode of machineNodes) {
-            const outEdges = edges.filter((e) => e.source === mNode.id && (e.sourceHandle === 'byproduct' || e.sourceHandle === 'coproduct'));
+            const outEdges = edges.filter((e) => e.source === mNode.id &&
+                (e.sourceHandle === 'byproduct' || e.sourceHandle === 'coproduct'));
             for (const oe of outEdges) {
                 const rmNode = nodes.find((n) => n.id === oe.target);
                 let rmYield = 0;
                 try {
-                    rmYield = Number(JSON.parse(rmNode?.data || '{}')['Yield Percent']) || 0;
+                    rmYield =
+                        Number(JSON.parse(rmNode?.data || '{}')['Yield Percent']) || 0;
                 }
                 catch (e) { }
                 if (rmNode && rmYield > 0) {
@@ -360,10 +444,10 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                             name: rmNode.name,
                             yieldPercent: rmYield,
                             type: oe.sourceHandle === 'coproduct' ? 'Co-Product' : 'By-Product',
-                            itemCodes: new Set()
+                            itemCodes: new Set(),
                         };
                     }
-                    if (!machinePools.some(mp => mp.poolId === poolKey)) {
+                    if (!machinePools.some((mp) => mp.poolId === poolKey)) {
                         machinePools.push({ poolId: poolKey, yieldPercent: rmYield });
                     }
                     const rmOut = edges.filter((e) => e.source === rmNode?.id);
@@ -395,7 +479,8 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
             dailyPoolSupply[dateStr] = {};
         for (const mp of machinePools) {
             const bpQty = totalDayWeight * (mp.yieldPercent / 100);
-            dailyPoolSupply[dateStr][mp.poolId] = (dailyPoolSupply[dateStr][mp.poolId] || 0) + bpQty;
+            dailyPoolSupply[dateStr][mp.poolId] =
+                (dailyPoolSupply[dateStr][mp.poolId] || 0) + bpQty;
         }
     }
     for (const plan of monthlyPlans) {
@@ -403,12 +488,14 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
         if (!spec)
             continue;
         const dateStr = (0, date_fns_1.format)(new Date(plan.planDate), 'yyyy-MM-dd');
-        if (spec.itemCategory === 'product' && plan.allocatedRmSize && plan.plannedQty) {
+        if (spec.itemCategory === 'product' &&
+            plan.allocatedRmSize &&
+            plan.plannedQty) {
             const buckets = dailySupplyState[dateStr];
             if (buckets) {
                 const yieldPercent = spec.yieldPercent || 100;
                 const requiredRM = Number(plan.plannedQty) / (yieldPercent / 100);
-                const bucket = buckets.find(b => b.id.toString() === plan.allocatedRmSize);
+                const bucket = buckets.find((b) => b.id.toString() === plan.allocatedRmSize);
                 if (bucket) {
                     bucket.remaining = Math.max(0, bucket.remaining - requiredRM);
                     if (mainToPoolMap[plan.itemCode]) {
@@ -427,7 +514,8 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
         else if (spec.itemCategory !== 'product') {
             const candidatePools = itemToPoolsMap[plan.itemCode] || [];
             for (const pId of candidatePools) {
-                if (dailyPoolSupply[dateStr] && (dailyPoolSupply[dateStr][pId] || 0) > 0) {
+                if (dailyPoolSupply[dateStr] &&
+                    (dailyPoolSupply[dateStr][pId] || 0) > 0) {
                     dailyPoolSupply[dateStr][pId] = Math.max(0, dailyPoolSupply[dateStr][pId] - Number(plan.plannedQty));
                     break;
                 }
@@ -437,7 +525,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
     const sortedDemands = [...plannedDemands].sort((a, b) => {
         const specA = specs[a.itemCode];
         const specB = specs[b.itemCode];
-        const catMap = { 'product': 1, 'coproduct': 2, 'byproduct': 3 };
+        const catMap = { product: 1, coproduct: 2, byproduct: 3 };
         const orderA = catMap[specA?.itemCategory] || 99;
         const orderB = catMap[specB?.itemCategory] || 99;
         if (orderA !== orderB)
@@ -457,16 +545,20 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
     let skipNoSupply = 0;
     const monthlyPlansMap = new Map();
     const dailyICutHoursUsed = {};
-    for (const p of monthlyPlans) {
+    for (const p of lockedPlans) {
         const key = `${p.soNumber}_${p.itemCode}`;
         monthlyPlansMap.set(key, (monthlyPlansMap.get(key) || 0) + Number(p.plannedQty || 0));
         const dateStr = (0, date_fns_1.format)(new Date(p.planDate), 'yyyy-MM-dd');
         const pSpec = specs[p.itemCode];
         if ((0, icutCapacity_1.isICutItem)(p.itemCode, pSpec)) {
-            const speed = (pSpec?.iCutSpeed && Number(pSpec.iCutSpeed) > 0) ? Number(pSpec.iCutSpeed) : 500;
+            const speed = pSpec?.iCutSpeed && Number(pSpec.iCutSpeed) > 0
+                ? Number(pSpec.iCutSpeed)
+                : 500;
             const hrs = Number(p.plannedQty || 0) / speed;
             dailyICutHoursUsed[dateStr] = (dailyICutHoursUsed[dateStr] || 0) + hrs;
         }
+        const keyForTracker = `${dateStr}_${p.soNumber}_${p.itemCode}`;
+        splitIndexTracker[keyForTracker] = Math.max(splitIndexTracker[keyForTracker] ?? -1, p.splitIndex ?? 0);
     }
     const newlyPlannedMap = new Map();
     for (const demand of sortedDemands) {
@@ -489,7 +581,9 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
             continue;
         }
         const isICut = (0, icutCapacity_1.isICutItem)(demand.itemCode, spec);
-        const iCutSpeed = (spec.iCutSpeed && Number(spec.iCutSpeed) > 0) ? Number(spec.iCutSpeed) : 500;
+        const iCutSpeed = spec.iCutSpeed && Number(spec.iCutSpeed) > 0
+            ? Number(spec.iCutSpeed)
+            : 500;
         const leadMinDays = spec.leadMinDays || 1;
         let leadMaxDays = spec.leadMaxDays || 3;
         if (isICut && iCutSpeed > 0) {
@@ -502,16 +596,20 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
         const targetStartDate = (0, date_fns_1.subDays)(shipDate, leadMaxDays);
         const targetEndDate = (0, date_fns_1.subDays)(shipDate, leadMinDays);
         const validTargetDates = [];
-        let currDate = new Date(targetStartDate);
+        const currDate = new Date(targetStartDate);
         let safeguard = 0;
         const currentMonthNum = currentMonth.getMonth();
         const currentYearNum = currentMonth.getFullYear();
         while (currDate <= targetEndDate && safeguard < 100) {
-            if (currDate.getMonth() === currentMonthNum && currDate.getFullYear() === currentYearNum) {
+            if (currDate.getMonth() === currentMonthNum &&
+                currDate.getFullYear() === currentYearNum) {
                 const y = currDate.getFullYear();
                 const m = String(currDate.getMonth() + 1).padStart(2, '0');
                 const d = String(currDate.getDate()).padStart(2, '0');
-                validTargetDates.push(`${y}-${m}-${d}`);
+                const targetDateKey = `${y}-${m}-${d}`;
+                if (!lockedDateStrings.has(targetDateKey)) {
+                    validTargetDates.push(targetDateKey);
+                }
             }
             currDate.setDate(currDate.getDate() + 1);
             safeguard++;
@@ -521,7 +619,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
             continue;
         }
         const yieldPercent = spec.yieldPercent || 100;
-        let requiredRM = remainingPlanQty / (yieldPercent / 100);
+        const requiredRM = remainingPlanQty / (yieldPercent / 100);
         const isProduct = spec.itemCategory === 'product';
         const allowedSizes = spec.parsedRmSizes || [];
         let plannedAnything = false;
@@ -548,7 +646,9 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                 const planForToday = Math.min(remainingPlanQty, availableCoProduct);
                 dailyPoolSupply[dateStr][chosenPoolId] -= planForToday;
                 const keyForTracker = `${dateStr}_${demand.soNumber}_${demand.itemCode}`;
-                const nextIndex = (splitIndexTracker[keyForTracker] !== undefined ? splitIndexTracker[keyForTracker] : -1) + 1;
+                const nextIndex = (splitIndexTracker[keyForTracker] !== undefined
+                    ? splitIndexTracker[keyForTracker]
+                    : -1) + 1;
                 splitIndexTracker[keyForTracker] = nextIndex;
                 generatedTransactions.push({
                     planDate: dateStr,
@@ -557,7 +657,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                     itemCode: demand.itemCode,
                     plannedQty: Number(planForToday.toFixed(2)),
                     allocatedRmSize: null,
-                    splitIndex: nextIndex
+                    splitIndex: nextIndex,
                 });
                 remainingPlanQty -= planForToday;
                 newlyPlannedMap.set(key, (newlyPlannedMap.get(key) || 0) + Number(planForToday.toFixed(2)));
@@ -575,7 +675,9 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                     parsedRules.push({
                         priority: Number(item.priority || idx + 1),
                         rmSize: szStr,
-                        yieldPercent: item.yieldPercent !== undefined ? Number(item.yieldPercent) : yieldPercent
+                        yieldPercent: item.yieldPercent !== undefined
+                            ? Number(item.yieldPercent)
+                            : yieldPercent,
                     });
                 }
                 else {
@@ -585,7 +687,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                     parsedRules.push({
                         priority: idx + 1,
                         rmSize: szStr,
-                        yieldPercent: yieldPercent
+                        yieldPercent: yieldPercent,
                     });
                 }
             }
@@ -600,10 +702,14 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                 const bNameWithoutG = b.name.replace(/g$/i, '').trim();
                 const bIdStr = String(b.id);
                 if (isUnsizeAllowed) {
-                    matchedBucketsWithYield.push({ bucket: b, specificYield: yieldPercent, priority: 999 });
+                    matchedBucketsWithYield.push({
+                        bucket: b,
+                        specificYield: yieldPercent,
+                        priority: 999,
+                    });
                     continue;
                 }
-                const matchRule = parsedRules.find(r => r.rmSize === bIdStr ||
+                const matchRule = parsedRules.find((r) => r.rmSize === bIdStr ||
                     r.rmSize === b.name ||
                     r.rmSize === bNameWithoutG ||
                     r.rmSize.replace(/\s+/g, '') === bNameWithoutG.replace(/\s+/g, ''));
@@ -611,7 +717,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                     matchedBucketsWithYield.push({
                         bucket: b,
                         specificYield: matchRule.yieldPercent || yieldPercent,
-                        priority: matchRule.priority
+                        priority: matchRule.priority,
                     });
                 }
             }
@@ -645,10 +751,13 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                 remainingPlanQty -= qtyProduced;
                 if (isICut) {
                     const hrs = qtyProduced / iCutSpeed;
-                    dailyICutHoursUsed[dateStr] = (dailyICutHoursUsed[dateStr] || 0) + hrs;
+                    dailyICutHoursUsed[dateStr] =
+                        (dailyICutHoursUsed[dateStr] || 0) + hrs;
                 }
                 const keyForTracker = `${dateStr}_${demand.soNumber}_${demand.itemCode}`;
-                const nextIndex = (splitIndexTracker[keyForTracker] !== undefined ? splitIndexTracker[keyForTracker] : -1) + 1;
+                const nextIndex = (splitIndexTracker[keyForTracker] !== undefined
+                    ? splitIndexTracker[keyForTracker]
+                    : -1) + 1;
                 splitIndexTracker[keyForTracker] = nextIndex;
                 const qtyFinal = Number(qtyProduced.toFixed(2));
                 generatedTransactions.push({
@@ -658,7 +767,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                     itemCode: demand.itemCode,
                     plannedQty: qtyFinal,
                     allocatedRmSize: bucket.id.toString(),
-                    splitIndex: nextIndex
+                    splitIndex: nextIndex,
                 });
                 newlyPlannedMap.set(key, (newlyPlannedMap.get(key) || 0) + qtyFinal);
                 if (mainToPoolMap[demand.itemCode]) {
@@ -683,8 +792,8 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
         stats: {
             skipNoShipDate,
             skipOutMonth,
-            skipNoSupply
-        }
+            skipNoSupply,
+        },
     };
 }
 //# sourceMappingURL=autoGeneratePlan.js.map

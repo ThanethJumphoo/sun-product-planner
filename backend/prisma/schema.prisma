@@ -199,11 +199,26 @@ model MpsProductionTransaction {
   plannedQty      Decimal  @map("planned_qty") @db.Decimal(15, 2)
   allocatedRmSize String?  @map("allocated_rm_size") @db.NVarChar(100)
   splitIndex      Int      @default(0) @map("split_index")
+  isLocked        Boolean  @default(false) @map("is_locked")
+  lockedAt        DateTime? @map("locked_at")
+  lockedBy        Int?      @map("locked_by")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@unique([partName, planDate, soNumber, lineNumber, itemCode, splitIndex], name: "unique_plan_line")
   @@map("mps_production_transactions")
+}
+
+model MpsDateLock {
+  id        String   @id @default(uuid())
+  partName  String   @map("part_name") @db.NVarChar(100)
+  planDate  DateTime @map("plan_date") @db.Date
+  isLocked  Boolean  @default(true) @map("is_locked")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([partName, planDate], name: "unique_part_date_lock")
+  @@map("mps_date_locks")
 }
 
 model DpsDemandTransaction {

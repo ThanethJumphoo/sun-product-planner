@@ -17,6 +17,46 @@ export declare class MpsService {
     }>;
     private getCapacitySettings;
     syncChildPartsSupply(parentPartName: string, currentMonth: string): Promise<any[]>;
+    getLockedDates(partName: string, startDate: string, endDate: string): Promise<{
+        lockedDates: string[];
+        transactionLockCountByDate: Record<string, number>;
+    }>;
+    toggleDateLock(partName: string, payload: {
+        date: string;
+        isLocked: boolean;
+        lockAllTransactions?: boolean;
+    }): Promise<{
+        success: boolean;
+        date: string;
+        isLocked: boolean;
+    }>;
+    toggleTransactionLock(partName: string, id: string, isLocked: boolean): Promise<{
+        success: boolean;
+        transaction: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            partName: string;
+            isLocked: boolean;
+            itemCode: string;
+            soNumber: string;
+            lineNumber: string;
+            planDate: Date;
+            plannedQty: import("@prisma/client/runtime/library").Decimal;
+            allocatedRmSize: string | null;
+            splitIndex: number;
+            lockedAt: Date | null;
+            lockedBy: number | null;
+        };
+    }>;
+    batchLockTransactions(partName: string, payload: {
+        date: string;
+        isLocked: boolean;
+    }): Promise<{
+        success: boolean;
+        count: number;
+        isLocked: boolean;
+    }>;
     clearPlans(partName: string, startDate: string, endDate: string): Promise<{
         success: boolean;
         deletedCount: number;

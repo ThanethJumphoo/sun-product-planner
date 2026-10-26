@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, isSameMonth, isSameDay, addMonths, subMonths, endOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, ChevronDown, X, Calendar as CalendarIcon, ClipboardList, Info, Package, Save, ShoppingCart, Search, Trash2, Wand2, CheckCircle2, XCircle, AlertTriangle, AlertCircle, TrendingDown, TrendingUp, Filter, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, X, Calendar as CalendarIcon, ClipboardList, Info, Package, Save, ShoppingCart, Search, Trash2, Wand2, CheckCircle2, XCircle, AlertTriangle, AlertCircle, TrendingDown, TrendingUp, Filter, Check, Lock, Unlock } from "lucide-react";
 import api from '@/lib/api';
 import { toast } from 'react-hot-toast';
 import { AgGridReact } from 'ag-grid-react';
@@ -160,6 +160,93 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   const fetchedSpecsRef = useRef<Record<string, boolean>>({});
   const [calendarAlertFilter, setCalendarAlertFilter] = useState<'all' | 'shortage' | 'surplus' | 'unplanned'>('all');
 
+  // MPS Date and Transaction Lock States
+  const [lockedDateStrings, setLockedDateStrings] = useState<Set<string>>(new Set());
+  const [transactionLockCounts, setTransactionLockCounts] = useState<Record<string, number>>({});
+
+  const handleToggleDateLock = async (dateStr: string, lockAllTransactions?: boolean) => {
+    const isCurrentlyLocked = lockedDateStrings.has(dateStr);
+    const newLockState = !isCurrentlyLocked;
+
+    // Optimistic update
+    setLockedDateStrings(prev => {
+      const next = new Set(prev);
+      if (newLockState) next.add(dateStr);
+      else next.delete(dateStr);
+      return next;
+    });
+
+    try {
+      await api.post(`/api/v1/mps/${encodeURIComponent(partName)}/lock-date`, {
+        date: dateStr,
+        isLocked: newLockState,
+        lockAllTransactions: lockAllTransactions ?? true
+      });
+      toast.success(newLockState ? `ล็อกแผนวันที่ ${format(new Date(dateStr), 'dd/MM/yyyy')} แล้ว` : `ปลดล็อกแผนวันที่ ${format(new Date(dateStr), 'dd/MM/yyyy')} แล้ว`);
+
+      setDailyPlans(prev => prev.map(p => {
+        const pDateStr = p.planDate ? format(new Date(p.planDate), 'yyyy-MM-dd') : '';
+        return pDateStr === dateStr ? { ...p, isLocked: newLockState } : p;
+      }));
+      setMonthlyPlans(prev => prev.map(p => {
+        const pDateStr = p.planDate ? format(new Date(p.planDate), 'yyyy-MM-dd') : '';
+        return pDateStr === dateStr ? { ...p, isLocked: newLockState } : p;
+      }));
+      fetchCalendarData();
+    } catch (err: any) {
+      console.error("Failed to toggle date lock:", err);
+      toast.error(`ไม่สามารถเปลี่ยนสถานะล็อกวันได้: ${err.message || 'Error'}`);
+      setLockedDateStrings(prev => {
+        const next = new Set(prev);
+        if (isCurrentlyLocked) next.add(dateStr);
+        else next.delete(dateStr);
+        return next;
+      });
+    }
+  };
+
+  const handleToggleTransactionLock = async (transactionId: string, currentIsLocked: boolean) => {
+    if (!transactionId) return;
+    const newIsLocked = !currentIsLocked;
+
+    setDailyPlans(prev => prev.map(p => p.id === transactionId ? { ...p, isLocked: newIsLocked } : p));
+    setMonthlyPlans(prev => prev.map(p => p.id === transactionId ? { ...p, isLocked: newIsLocked } : p));
+
+    try {
+      await api.post(`/api/v1/mps/${encodeURIComponent(partName)}/transactions/${transactionId}/lock`, {
+        isLocked: newIsLocked
+      });
+      toast.success(newIsLocked ? "ล็อกรายการนี้แล้ว (Firm Order)" : "ปลดล็อกรายการนี้แล้ว");
+      fetchCalendarData();
+    } catch (err: any) {
+      console.error("Failed to toggle transaction lock:", err);
+      toast.error(`ไม่สามารถล็อกรายการได้: ${err.message || 'Error'}`);
+      setDailyPlans(prev => prev.map(p => p.id === transactionId ? { ...p, isLocked: currentIsLocked } : p));
+      setMonthlyPlans(prev => prev.map(p => p.id === transactionId ? { ...p, isLocked: currentIsLocked } : p));
+    }
+  };
+
+  const handleBatchLockSelectedDate = async (lock: boolean) => {
+    if (!selectedDate) return;
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    try {
+      await api.post(`/api/v1/mps/${encodeURIComponent(partName)}/batch-lock-transactions`, {
+        date: dateStr,
+        isLocked: lock
+      });
+      toast.success(lock ? `ล็อกทุกรายการในวันที่ ${format(selectedDate, 'dd/MM/yyyy')} แล้ว` : `ปลดล็อกทุกรายการแล้ว`);
+      setDailyPlans(prev => prev.map(p => ({ ...p, isLocked: lock })));
+      setMonthlyPlans(prev => prev.map(p => {
+        const pDateStr = p.planDate ? format(new Date(p.planDate), 'yyyy-MM-dd') : '';
+        return pDateStr === dateStr ? { ...p, isLocked: lock } : p;
+      }));
+      fetchCalendarData();
+    } catch (err: any) {
+      console.error("Batch lock failed:", err);
+      toast.error(`เกิดข้อผิดพลาด: ${err.message}`);
+    }
+  };
+
   // Preload all product specs for this part on load to ensure yield & category are available for calendar alerts
   useEffect(() => {
     if (!partName) return;
@@ -229,114 +316,168 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
     });
   }, [dailyPlans, specs, plannedDemandsMap]);
 
-  const dailyPlanColDefs = useMemo<ColDef[]>(() => [
-    { field: "soNumber", headerName: "SO Number", sortable: true, filter: true, flex: 1 },
-    { field: "itemCode", headerName: "Item Code", sortable: true, filter: true, flex: 1 },
-    {
-      headerName: "Item Desc",
-      valueGetter: (params) => {
-        if (!params.data) return '';
-        const so = plannedDemandsMap.get(`${params.data.soNumber}_${params.data.itemCode}`);
-        return so ? so.itemDesc : '';
-      },
-      flex: 2
-    },
-    {
-      headerName: "Ship Date",
-      valueGetter: (params) => {
-        if (!params.data) return '';
-        const so = plannedDemandsMap.get(`${params.data.soNumber}_${params.data.itemCode}`);
-        return so?.shipDate ? format(new Date(so.shipDate), 'dd/MM/yyyy') : '';
-      },
-      flex: 1
-    },
-    {
-      headerName: "Required RM",
-      valueGetter: (params) => {
-        if (!params.data) return 0;
-        const spec = specs[params.data.itemCode];
-        const yieldPercent = spec?.yieldPercent || 100;
-        const reqRM = Number(params.data.plannedQty) / (yieldPercent / 100);
-        return Number(reqRM.toFixed(2));
-      },
-      valueFormatter: (p: any) => p.value?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' kg',
-      width: 140
-    },
-    {
-      field: "allocatedRmSize",
-      headerName: "RM Size",
-      editable: (params: any) => {
-        if (!params.data) return false;
-        const spec = specs[params.data.itemCode];
-        return spec?.itemCategory === 'product';
-      },
-      cellEditor: 'agSelectCellEditor',
-      cellEditorParams: (params: any) => {
-        if (!params.data) return { values: [] };
-        const spec = specs[params.data.itemCode];
-        let allowed: any[] = [];
-        try { allowed = JSON.parse(spec?.rmSizesJson || '[]'); } catch (e) { }
+  const dailyPlanColDefs = useMemo<ColDef[]>(() => {
+    const selectedDateKey = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
+    const isDayLocked = lockedDateStrings.has(selectedDateKey);
 
-        const allowedKeys = Array.isArray(allowed)
-          ? allowed.map((item: any) => {
-            if (typeof item === 'object' && item !== null) return String(item.rmSize || '').trim();
-            return String(item).trim();
-          })
-          : [];
+    return [
+      {
+        field: "isLocked",
+        headerName: "Lock",
+        width: 70,
+        pinned: 'left',
+        cellRenderer: (params: any) => {
+          const isItemLocked = !!params.data?.isLocked;
+          const isLocked = isItemLocked || isDayLocked;
+          return (
+            <div className="flex items-center justify-center h-full">
+              <button
+                type="button"
+                onClick={() => handleToggleTransactionLock(params.data?.id, isItemLocked)}
+                title={isLocked ? "รายการนี้ถูกล็อก (คลิกเพื่อปลดล็อก)" : (isDayLocked ? "วันที่นี้ถูกล็อกทั้งวัน" : "คลิกเพื่อล็อกรายการนี้ (Firm Order)")}
+                className={`p-1 rounded transition-all cursor-pointer flex items-center justify-center ${
+                  isLocked
+                    ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 shadow-2xs font-bold border border-amber-300'
+                    : 'text-slate-400 hover:text-amber-600 hover:bg-slate-100 border border-transparent'
+                }`}
+              >
+                {isLocked ? <Lock size={13} className="text-amber-700" /> : <Unlock size={13} />}
+              </button>
+            </div>
+          );
+        }
+      },
+      { field: "soNumber", headerName: "SO Number", sortable: true, filter: true, flex: 1 },
+      { field: "itemCode", headerName: "Item Code", sortable: true, filter: true, flex: 1 },
+      {
+        headerName: "Item Desc",
+        valueGetter: (params) => {
+          if (!params.data) return '';
+          const so = plannedDemandsMap.get(`${params.data.soNumber}_${params.data.itemCode}`);
+          return so ? so.itemDesc : '';
+        },
+        flex: 2
+      },
+      {
+        headerName: "Ship Date",
+        valueGetter: (params) => {
+          if (!params.data) return '';
+          const so = plannedDemandsMap.get(`${params.data.soNumber}_${params.data.itemCode}`);
+          return so?.shipDate ? format(new Date(so.shipDate), 'dd/MM/yyyy') : '';
+        },
+        flex: 1
+      },
+      {
+        headerName: "Required RM",
+        valueGetter: (params) => {
+          if (!params.data) return 0;
+          const spec = specs[params.data.itemCode];
+          const yieldPercent = spec?.yieldPercent || 100;
+          const reqRM = Number(params.data.plannedQty) / (yieldPercent / 100);
+          return Number(reqRM.toFixed(2));
+        },
+        valueFormatter: (p: any) => p.value?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' kg',
+        width: 140
+      },
+      {
+        field: "allocatedRmSize",
+        headerName: "RM Size",
+        editable: (params: any) => {
+          if (!params.data) return false;
+          if (isDayLocked || params.data.isLocked) return false;
+          const spec = specs[params.data.itemCode];
+          return spec?.itemCategory === 'product';
+        },
+        cellEditor: 'agSelectCellEditor',
+        cellEditorParams: (params: any) => {
+          if (!params.data) return { values: [] };
+          const spec = specs[params.data.itemCode];
+          let allowed: any[] = [];
+          try { allowed = JSON.parse(spec?.rmSizesJson || '[]'); } catch (e) { }
 
-        if (allowedKeys.length === 0 || allowedKeys.includes("Unsize") || allowedKeys.includes("All")) {
-          return { values: ["Unsize", ...rmSizes.map(s => s.id.toString())] };
-        } else {
-          const matchedIds = rmSizes.filter((s: any) => {
-            const szName = s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}` : s.minSize ? `>${s.minSize}` : s.maxSize ? `<${s.maxSize}` : 'Unsize';
-            const szNameWithG = `${szName}g`;
-            const idStr = s.id.toString();
-            return allowedKeys.includes(idStr) || allowedKeys.includes(szName) || allowedKeys.includes(szNameWithG);
-          }).map((s: any) => s.id.toString());
-          return { values: ["Unsize", ...matchedIds] };
+          const allowedKeys = Array.isArray(allowed)
+            ? allowed.map((item: any) => {
+              if (typeof item === 'object' && item !== null) return String(item.rmSize || '').trim();
+              return String(item).trim();
+            })
+            : [];
+
+          if (allowedKeys.length === 0 || allowedKeys.includes("Unsize") || allowedKeys.includes("All")) {
+            return { values: ["Unsize", ...rmSizes.map(s => s.id.toString())] };
+          } else {
+            const matchedIds = rmSizes.filter((s: any) => {
+              const szName = s.minSize && s.maxSize ? `${s.minSize}-${s.maxSize}` : s.minSize ? `>${s.minSize}` : s.maxSize ? `<${s.maxSize}` : 'Unsize';
+              const szNameWithG = `${szName}g`;
+              const idStr = s.id.toString();
+              return allowedKeys.includes(idStr) || allowedKeys.includes(szName) || allowedKeys.includes(szNameWithG);
+            }).map((s: any) => s.id.toString());
+            return { values: ["Unsize", ...matchedIds] };
+          }
+        },
+        valueFormatter: (p: any) => {
+          if (p.data) {
+            const spec = specs[p.data.itemCode];
+            if (spec && spec.itemCategory !== 'product') return '-';
+          }
+          return getRmSizeName(p.value);
+        },
+        width: 140,
+        cellStyle: (params: any) => {
+          if (!params.data) return null;
+          const isRowLocked = isDayLocked || params.data.isLocked;
+          if (isRowLocked) {
+            return { backgroundColor: '#fef3c7', border: '1px solid #fde68a', color: '#92400e', cursor: 'not-allowed' } as any;
+          }
+          const spec = specs[params.data.itemCode];
+          if (spec && spec.itemCategory !== 'product') {
+            return { backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', color: '#94a3b8' } as any;
+          }
+          return { backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', cursor: 'pointer' } as any;
         }
       },
-      valueFormatter: (p: any) => {
-        if (p.data) {
-          const spec = specs[p.data.itemCode];
-          if (spec && spec.itemCategory !== 'product') return '-';
+      {
+        field: "plannedQty",
+        headerName: "Planned Qty",
+        editable: (params: any) => {
+          if (!params.data) return false;
+          if (isDayLocked || params.data.isLocked) return false;
+          return true;
+        },
+        type: 'numericColumn',
+        valueFormatter: (p: any) => p.value?.toLocaleString(),
+        width: 130,
+        cellStyle: (params: any) => {
+          const isRowLocked = isDayLocked || params.data?.isLocked;
+          if (isRowLocked) {
+            return { backgroundColor: '#fef3c7', border: '1px solid #fde68a', color: '#92400e', cursor: 'not-allowed' } as any;
+          }
+          return { backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', cursor: 'text' } as any;
         }
-        return getRmSizeName(p.value);
       },
-      width: 140,
-      cellStyle: (params: any) => {
-        if (!params.data) return null;
-        const spec = specs[params.data.itemCode];
-        if (spec && spec.itemCategory !== 'product') {
-          return { backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', color: '#94a3b8' } as any;
+      {
+        headerName: "Actions",
+        width: 110,
+        cellRenderer: (params: any) => {
+          const isRowLocked = isDayLocked || params.data?.isLocked;
+          if (isRowLocked) {
+            return (
+              <span className="text-[11px] text-amber-700 font-semibold flex items-center gap-1">
+                <Lock size={11} /> ล็อกแล้ว
+              </span>
+            );
+          }
+          return (
+            <button
+              onClick={() => handleSplitRow(params.data)}
+              className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded"
+            >
+              Split
+            </button>
+          );
         }
-        return { backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', cursor: 'pointer' } as any;
       }
-    },
-    {
-      field: "plannedQty",
-      headerName: "Planned Qty",
-      editable: true,
-      type: 'numericColumn',
-      valueFormatter: (p: any) => p.value?.toLocaleString(),
-      width: 130,
-      cellStyle: { backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', cursor: 'text' } as any
-    },
-    {
-      headerName: "Actions",
-      width: 100,
-      cellRenderer: (params: any) => {
-        return (
-          <button
-            onClick={() => handleSplitRow(params.data)}
-            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded"
-          >
-            Split
-          </button>
-        );
-      }
-    }
-  ], [plannedDemandsMap, specs, rmSizes, getRmSizeName]);
+    ];
+  }, [plannedDemandsMap, specs, rmSizes, getRmSizeName, selectedDate, lockedDateStrings, handleToggleTransactionLock]);
 
   const fetchDailyPlans = useCallback(async () => {
     if (!selectedDate || !isBottomOpen) return;
@@ -393,6 +534,11 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   const [produceQtyInputs, setProduceQtyInputs] = useState<Record<string, string>>({});
 
   const handleUpdateSplitPlan = async (planDate: Date, allRowsForThisItem: any[]) => {
+    const dateStr = format(planDate, 'yyyy-MM-dd');
+    if (lockedDateStrings.has(dateStr)) {
+      toast.error("วันที่นี้ถูกล็อกแผนการผลิตไว้แล้ว ไม่สามารถแก้ไขได้");
+      return;
+    }
     setIsSaving(true);
     try {
       const payload = allRowsForThisItem.map((row, index) => ({
@@ -417,6 +563,16 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   };
 
   const handleSplitRow = (rowData: any) => {
+    if (rowData.isLocked) {
+      toast.error("รายการนี้ถูกล็อกไว้ ไม่สามารถแบ่งแถวได้");
+      return;
+    }
+    const dateStr = rowData.planDate ? format(new Date(rowData.planDate), 'yyyy-MM-dd') : null;
+    if (dateStr && lockedDateStrings.has(dateStr)) {
+      toast.error("วันที่นี้ถูกล็อกแผนการผลิตไว้แล้ว ไม่สามารถแบ่งแถวได้");
+      return;
+    }
+
     setDailyPlans(prev => {
       const newPlans = [...prev];
       const index = newPlans.findIndex(p => p === rowData);
@@ -435,6 +591,11 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   const handleConfirmDemand = async (demand: any) => {
     if (!selectedDate) {
       toast.error("Please select a date on the calendar first");
+      return;
+    }
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    if (lockedDateStrings.has(dateStr)) {
+      toast.error("วันที่เลือกถูกล็อกแผนการผลิตไว้แล้ว ไม่สามารถเพิ่มรายการได้");
       return;
     }
     const key = `${demand.soNumber}-${demand.itemCode}`;
@@ -624,17 +785,24 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
       const startDate = format(startOfWeek(monthStart), 'yyyy-MM-dd');
       const endDate = format(endOfWeek(monthEnd), 'yyyy-MM-dd');
 
-      const [supplyRes, plansRes] = await Promise.all([
-        api.get(`/api/v1/mps/${partName}/supply`, {
+      const [supplyRes, plansRes, locksRes] = await Promise.all([
+        api.get(`/api/v1/mps/${encodeURIComponent(partName)}/supply`, {
           params: { startDate, endDate }
         }),
         api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/daily-plans`, {
           params: { startDate, endDate }
-        })
+        }),
+        api.get(`/api/v1/mps/${encodeURIComponent(partName)}/locks`, {
+          params: { startDate, endDate }
+        }).catch(() => ({ data: { lockedDates: [], transactionLockCountByDate: {} } }))
       ]);
 
       if (supplyRes.data) {
         setCalculatedSupply(supplyRes.data);
+      }
+      if (locksRes?.data) {
+        setLockedDateStrings(new Set(locksRes.data.lockedDates || []));
+        setTransactionLockCounts(locksRes.data.transactionLockCountByDate || {});
       }
       if (plansRes.data) {
         setMonthlyPlans(plansRes.data);
@@ -1212,12 +1380,14 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
           (calendarAlertFilter === 'unplanned' && dayStatus === 'unplanned');
 
         const isDimmed = calendarAlertFilter !== 'all' && !isFilterMatched;
+        const isDayLocked = isCurrentMonth && lockedDateStrings.has(dateKey);
+        const dayLockedTxCount = isCurrentMonth ? (transactionLockCounts[dateKey] || 0) : 0;
 
         days.push(
           <div
             key={day.toString()}
             onClick={() => (isCurrentMonth && !isDisabledBySupply) ? handleDateClick(cloneDay) : null}
-            title={isCurrentMonth && dayStatus !== 'none' ? `วันที่: ${format(cloneDay, 'dd/MM/yyyy')}\nSupply: ${daySupply.toLocaleString()} kg\nDemand RM: ${dayRequiredRM.toLocaleString()} kg\n${dayBalance < -0.5 ? `⚠️ เนื้อขาด: -${Math.abs(dayBalance).toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : `✓ เนื้อคงเหลือ: +${dayBalance.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg`}` : undefined}
+            title={isCurrentMonth && dayStatus !== 'none' ? `วันที่: ${format(cloneDay, 'dd/MM/yyyy')}\nSupply: ${daySupply.toLocaleString()} kg\nDemand RM: ${dayRequiredRM.toLocaleString()} kg\n${dayBalance < -0.5 ? `⚠️ เนื้อขาด: -${Math.abs(dayBalance).toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : `✓ เนื้อคงเหลือ: +${dayBalance.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg`}${isDayLocked ? '\n🔒 วันที่นี้ถูกล็อกแผนการผลิต (Frozen)' : (dayLockedTxCount > 0 ? `\n🔒 มี ${dayLockedTxCount} รายการฟิกซ์ไว้` : '')}` : undefined}
             className={`min-h-[135px] p-2 border-r border-b border-slate-200 relative group transition-all flex flex-col justify-between
               ${!isCurrentMonth ? "bg-slate-50 text-slate-400 cursor-not-allowed" : ""}
               ${isCurrentMonth && isDisabledBySupply ? "bg-slate-100/80 cursor-not-allowed opacity-60" : ""}
@@ -1230,19 +1400,67 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
               ${isCurrentMonth && dayStatus === 'surplus' && !isSelected ? "border-l-4 border-l-emerald-500" : ""}
               ${isCurrentMonth && dayStatus === 'unplanned' && !isSelected ? "border-l-4 border-l-sky-400" : ""}
               ${isCurrentMonth && dayStatus === 'balanced' && !isSelected ? "border-l-4 border-l-slate-300" : ""}
+              ${isDayLocked && !isSelected ? "border-t-2 border-t-amber-500 bg-amber-50/10" : ""}
             `}
           >
             <div>
               {/* Header: Date + Status Badge Tag */}
               <div className="flex justify-between items-start gap-1">
-                <span className={`text-sm font-semibold 
-                  ${!isCurrentMonth ? "text-slate-400" : ""}
-                  ${isCurrentMonth && isDisabledBySupply ? "text-slate-400" : ""}
-                  ${isCurrentMonth && !isDisabledBySupply && isSelected ? "text-primary font-bold" : ""}
-                  ${isCurrentMonth && !isDisabledBySupply && !isSelected ? "text-slate-700" : ""}
-                `}>
-                  {formattedDate}
-                </span>
+                <div className="flex items-center gap-1">
+                  <span className={`text-sm font-semibold 
+                    ${!isCurrentMonth ? "text-slate-400" : ""}
+                    ${isCurrentMonth && isDisabledBySupply ? "text-slate-400" : ""}
+                    ${isCurrentMonth && !isDisabledBySupply && isSelected ? "text-primary font-bold" : ""}
+                    ${isCurrentMonth && !isDisabledBySupply && !isSelected ? "text-slate-700" : ""}
+                  `}>
+                    {formattedDate}
+                  </span>
+
+                  {/* Lock Indicator / Button */}
+                  {isCurrentMonth && !isDisabledBySupply && (
+                    <div className="flex items-center">
+                      {isDayLocked ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleDateLock(dateKey);
+                          }}
+                          title="วันนี้ถูกล็อกทั้งวัน (คลิกเพื่อปลดล็อก)"
+                          className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs hover:bg-amber-200 transition-colors cursor-pointer"
+                        >
+                          <Lock size={9} className="text-amber-700 shrink-0" />
+                          <span>ล็อก</span>
+                        </button>
+                      ) : dayLockedTxCount > 0 ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleDateLock(dateKey);
+                          }}
+                          title={`มี ${dayLockedTxCount} รายการฟิกซ์ไว้ (คลิกเพื่อล็อกทั้งวัน)`}
+                          className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs hover:bg-amber-100 transition-colors cursor-pointer"
+                        >
+                          <Lock size={9} className="text-amber-600 shrink-0" />
+                          <span>{dayLockedTxCount}</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleDateLock(dateKey);
+                          }}
+                          title="คลิกเพื่อล็อกแผนทั้งวัน"
+                          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-amber-600 transition-all p-0.5 rounded hover:bg-slate-100 cursor-pointer"
+                        >
+                          <Lock size={11} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Status Alert Badge */}
                 {isCurrentMonth && dayStatus !== 'none' && (
@@ -1492,12 +1710,52 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
             </div>
 
             <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-white mt-1">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <CalendarIcon size={16} className="text-primary" />
                 <h3 className="font-semibold text-sm text-slate-700">
                   Schedule Details {selectedDate ? `- ${format(selectedDate, "dd MMM yyyy")}` : ""}
                 </h3>
+                {selectedDate && (
+                  lockedDateStrings.has(format(selectedDate, 'yyyy-MM-dd')) ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                      <Lock size={12} className="text-amber-700" />
+                      ล็อกทั้งวัน (Freezed)
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                      <Unlock size={12} className="text-slate-500" />
+                      เปิดแก้ไขได้
+                    </span>
+                  )
+                )}
               </div>
+
+              {selectedDate && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleDateLock(format(selectedDate, 'yyyy-MM-dd'))}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-all border flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                      lockedDateStrings.has(format(selectedDate, 'yyyy-MM-dd'))
+                        ? 'bg-white text-slate-700 hover:bg-slate-100 border-slate-300'
+                        : 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600'
+                    }`}
+                    title={lockedDateStrings.has(format(selectedDate, 'yyyy-MM-dd')) ? "คลิกเพื่อปลดล็อกแผนของวันนี้" : "คลิกเพื่อล็อกแผนของวันนี้"}
+                  >
+                    {lockedDateStrings.has(format(selectedDate, 'yyyy-MM-dd')) ? (
+                      <>
+                        <Unlock size={13} className="text-slate-600" />
+                        <span>ปลดล็อก</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock size={13} className="text-white" />
+                        <span>ล็อกแผนวันนี้</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="flex-1 overflow-auto bg-white">
@@ -1656,6 +1914,8 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                         fetchCalendarData={fetchCalendarData}
                         specs={specs}
                         rmSizes={rmSizes}
+                        isDateLocked={selectedDate ? lockedDateStrings.has(format(selectedDate, 'yyyy-MM-dd')) : false}
+                        lockedDateStrings={lockedDateStrings}
                       />
                     ))}
                     {filteredDemands.length > visibleCards && (
@@ -1728,6 +1988,8 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         fetchCalendarData={fetchCalendarData}
         fetchPlannedDemands={fetchPlannedDemands}
         setIsGenerating={setIsGenerating}
+        lockedDatesCount={lockedDateStrings.size}
+        lockedPlansCount={monthlyPlans.filter((p: any) => p.isLocked).length}
       />
 
       {/* Full-screen Loading Overlay */}

@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Delete,
+} from '@nestjs/common';
 import { MpsService } from './mps.service';
 import { JwtAuthGuard } from '../../core/guards/jwt-auth.guard';
 
@@ -46,6 +55,41 @@ export class MpsController {
     @Query('currentMonth') currentMonth: string,
   ) {
     return this.mpsService.getICutMetrics(partName, currentMonth);
+  }
+
+  @Get(':partName/locks')
+  async getLockedDates(
+    @Param('partName') partName: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.mpsService.getLockedDates(partName, startDate, endDate);
+  }
+
+  @Post(':partName/lock-date')
+  async toggleDateLock(
+    @Param('partName') partName: string,
+    @Body()
+    payload: { date: string; isLocked: boolean; lockAllTransactions?: boolean },
+  ) {
+    return this.mpsService.toggleDateLock(partName, payload);
+  }
+
+  @Post(':partName/transactions/:id/lock')
+  async toggleTransactionLock(
+    @Param('partName') partName: string,
+    @Param('id') id: string,
+    @Body('isLocked') isLocked: boolean,
+  ) {
+    return this.mpsService.toggleTransactionLock(partName, id, isLocked);
+  }
+
+  @Post(':partName/batch-lock-transactions')
+  async batchLockTransactions(
+    @Param('partName') partName: string,
+    @Body() payload: { date: string; isLocked: boolean },
+  ) {
+    return this.mpsService.batchLockTransactions(partName, payload);
   }
 
   @Delete(':partName/plans')

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { ChevronRight, ChevronDown, Trash2 } from "lucide-react";
+import { ChevronRight, ChevronDown, Trash2, Lock } from "lucide-react";
 import api from '@/lib/api';
 import { toast } from 'react-hot-toast';
 
@@ -15,7 +15,9 @@ export const MpsDemandCard = React.memo(({
   fetchCalendarData, 
   specs, 
   rmSizes,
-  itemPlans
+  itemPlans,
+  isDateLocked,
+  lockedDateStrings
 }: any) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [splits, setSplits] = useState<any[]>([]);
@@ -60,6 +62,11 @@ export const MpsDemandCard = React.memo(({
   const shipDateFormatted = demand.shipDate ? format(new Date(demand.shipDate), 'dd/MM/yyyy') : 'N/A';
 
   const handleUpdateQty = async (oldDate: Date, newQtyStr: string) => {
+    const oldDateStr = format(oldDate, 'yyyy-MM-dd');
+    if (lockedDateStrings && lockedDateStrings.has(oldDateStr)) {
+      toast.error("วันที่นี้ถูกล็อกแผนการผลิตไว้แล้ว");
+      return;
+    }
     const qty = Number(newQtyStr);
     if(isNaN(qty)) return;
     const payloadRow = {
@@ -76,6 +83,11 @@ export const MpsDemandCard = React.memo(({
 
   const handleChangeSplitDate = async (oldDate: Date, newDateStr: string, currentQty: number) => {
     if (!newDateStr) return; 
+    const oldDateStr = format(oldDate, 'yyyy-MM-dd');
+    if (lockedDateStrings && (lockedDateStrings.has(oldDateStr) || lockedDateStrings.has(newDateStr))) {
+      toast.error("วันที่ต้นทางหรือปลายทางถูกล็อกแผนการผลิตไว้แล้ว");
+      return;
+    }
     
     try {
       const payload = [
@@ -109,6 +121,11 @@ export const MpsDemandCard = React.memo(({
   const handleConfirmProduce = async () => {
     if (!selectedDate) {
       toast.error("Please select a date on the calendar first");
+      return;
+    }
+    const selDateStr = format(selectedDate, 'yyyy-MM-dd');
+    if (isDateLocked || (lockedDateStrings && lockedDateStrings.has(selDateStr))) {
+      toast.error("วันที่เลือกถูกล็อกแผนการผลิตไว้แล้ว");
       return;
     }
     const qty = Number(produceQty);
@@ -237,65 +254,87 @@ export const MpsDemandCard = React.memo(({
                 {splits.length > 0 && (
                   <div className="space-y-1">
                     <p className="text-[10px] text-slate-400 font-semibold uppercase mb-2">Planned Splits</p>
-                    {splits.map((plan: any, idx: number) => (
-                       <div key={plan.id || `${plan.planDate}_${idx}`} className="flex items-center justify-between gap-1 bg-white p-2 rounded border border-slate-200 shadow-sm">
-                         {/* Date input to change split date */}
-                         <input 
-                           type="date"
-                           defaultValue={format(new Date(plan.planDate), 'yyyy-MM-dd')}
-                           className="text-xs text-slate-600 border border-transparent hover:border-slate-300 px-1 py-0.5 rounded cursor-pointer focus:outline-none focus:border-primary w-28"
-                           onBlur={(e) => {
-                             const newDateStr = e.target.value;
-                             const oldDateStr = format(new Date(plan.planDate), 'yyyy-MM-dd');
-                             if (newDateStr && newDateStr !== oldDateStr) {
-                               handleChangeSplitDate(new Date(plan.planDate), newDateStr, Number(plan.plannedQty));
-                             }
-                           }}
-                         />
-                         <div className="flex items-center gap-1">
-                           <input 
-                             type="number"
-                             defaultValue={plan.plannedQty}
-                             className="w-20 px-2 py-1 text-xs text-right border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
-                             onBlur={(e) => {
-                               const newVal = e.target.value;
-                               if(Number(newVal) !== Number(plan.plannedQty)) {
-                                 handleUpdateQty(new Date(plan.planDate), newVal);
-                               }
-                             }}
-                           />
-                           <button 
-                             onClick={() => handleUpdateQty(new Date(plan.planDate), "0")}
-                             className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                             title="Remove split"
-                           >
-                             <Trash2 size={14} />
-                           </button>
-                         </div>
-                       </div>
-                    ))}
+                    {splits.map((plan: any, idx: number) => {
+                      const planDateStr = format(new Date(plan.planDate), 'yyyy-MM-dd');
+                      const isItemLocked = plan.isLocked || (lockedDateStrings && lockedDateStrings.has(planDateStr));
+
+                      return (
+                        <div key={plan.id || `${plan.planDate}_${idx}`} className={`flex items-center justify-between gap-1 p-2 rounded border shadow-sm ${isItemLocked ? 'bg-amber-50/50 border-amber-200' : 'bg-white border-slate-200'}`}>
+                          {/* Date input to change split date */}
+                          <input 
+                            type="date"
+                            defaultValue={format(new Date(plan.planDate), 'yyyy-MM-dd')}
+                            disabled={isItemLocked}
+                            className={`text-xs px-1 py-0.5 rounded w-28 ${isItemLocked ? 'text-slate-400 bg-transparent cursor-not-allowed' : 'text-slate-600 border border-transparent hover:border-slate-300 cursor-pointer focus:outline-none focus:border-primary'}`}
+                            onBlur={(e) => {
+                              if (isItemLocked) return;
+                              const newDateStr = e.target.value;
+                              const oldDateStr = format(new Date(plan.planDate), 'yyyy-MM-dd');
+                              if (newDateStr && newDateStr !== oldDateStr) {
+                                handleChangeSplitDate(new Date(plan.planDate), newDateStr, Number(plan.plannedQty));
+                              }
+                            }}
+                          />
+                          <div className="flex items-center gap-1">
+                            <input 
+                              type="number"
+                              defaultValue={plan.plannedQty}
+                              disabled={isItemLocked}
+                              className={`w-20 px-2 py-1 text-xs text-right rounded ${isItemLocked ? 'bg-slate-100 text-slate-500 border border-slate-200 cursor-not-allowed' : 'border border-slate-300 focus:outline-none focus:ring-1 focus:ring-primary'}`}
+                              onBlur={(e) => {
+                                if (isItemLocked) return;
+                                const newVal = e.target.value;
+                                if(Number(newVal) !== Number(plan.plannedQty)) {
+                                  handleUpdateQty(new Date(plan.planDate), newVal);
+                                }
+                              }}
+                            />
+                            {isItemLocked ? (
+                              <span className="p-1 text-amber-600" title="รายการนี้ถูกล็อกไว้ ไม่สามารถแก้ไขได้">
+                                <Lock size={14} />
+                              </span>
+                            ) : (
+                              <button 
+                                onClick={() => handleUpdateQty(new Date(plan.planDate), "0")}
+                                className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                title="Remove split"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 
                 <div className="pt-2">
                   <p className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Add to {selectedDate ? format(selectedDate, 'dd MMM') : 'Selected Date'}</p>
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="number" 
-                      placeholder="Produce Qty" 
-                      value={produceQty}
-                      onChange={(e) => setProduceQty(e.target.value)}
-                      className="flex-1 px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                    />
-                    <button 
-                      onClick={handleConfirmProduce}
-                      disabled={!selectedDate || isSaving}
-                      className="px-3 py-1.5 bg-primary text-white text-sm font-medium rounded hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={!selectedDate ? "Please select a date on the calendar first" : ""}
-                    >
-                      Confirm
-                    </button>
-                  </div>
+                  {isDateLocked ? (
+                    <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-xs">
+                      <Lock size={14} className="shrink-0 text-amber-600" />
+                      <span>วันที่ {selectedDate ? format(selectedDate, 'dd/MM/yyyy') : ''} ถูกล็อกแผนการผลิตไว้แล้ว</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="number" 
+                        placeholder="Produce Qty" 
+                        value={produceQty}
+                        onChange={(e) => setProduceQty(e.target.value)}
+                        className="flex-1 px-2 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                      />
+                      <button 
+                        onClick={handleConfirmProduce}
+                        disabled={!selectedDate || isSaving}
+                        className="px-3 py-1.5 bg-primary text-white text-sm font-medium rounded hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={!selectedDate ? "Please select a date on the calendar first" : ""}
+                      >
+                        Confirm
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

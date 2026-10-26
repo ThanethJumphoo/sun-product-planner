@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import api from '@/lib/api';
-import { Settings, FileSpreadsheet, Save, Wand2, Plus, Trash2 } from 'lucide-react';
+import { Settings, FileSpreadsheet, Save, Wand2, Plus, Trash2, Calendar, Search, AlertCircle, Clock, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ManualOrderModal } from './ManualOrderModal';
+import { ExcelImportModal } from './ExcelImportModal';
 
 interface SO_Line {
   id?: string;
@@ -19,11 +20,17 @@ interface SO_Line {
   shipDate: string | null;
   planDate: string | null;
   planDates?: Array<{ planDate: string; plannedQty: number; allocatedRmSize?: string | null }>;
+  planDateStart?: string | null;
+  planDateEnd?: string | null;
+  planDurationDays?: number;
+  isLate?: boolean;
+  leadDaysBuffer?: number | null;
   status: 'COMPLETED' | 'PARTIAL' | 'UNPLANNED' | string | null;
   planQty?: number | string | null;
   totalPlanned?: number;
   remainingQty?: number;
   isManual?: boolean;
+  orderType?: string;
   customerName?: string;
 }
 
@@ -39,6 +46,10 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'INCOMPLETE' | 'UNPLANNED' | 'PARTIAL' | 'COMPLETED'>('ALL');
   const [isLoading, setIsLoading] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [startDateFilter, setStartDateFilter] = useState('');
+  const [endDateFilter, setEndDateFilter] = useState('');
 
   useEffect(() => {
     if (partName) {
@@ -46,16 +57,46 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
     }
   }, [partName]);
 
-  const fetchDemandData = async () => {
+  const fetchDemandData = async (sDate?: string, eDate?: string) => {
     setIsLoading(true);
     try {
-      const res = await api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders`);
+      const params = new URLSearchParams();
+      const start = sDate !== undefined ? sDate : startDateFilter;
+      const end = eDate !== undefined ? eDate : endDateFilter;
+      if (start && end) {
+        params.append('startDate', start);
+        params.append('endDate', end);
+      }
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const res = await api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders${qs}`);
       setData(res.data);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load demand planning data');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleApplyPreset = (preset: 'all' | 'this_month' | 'next_month') => {
+    if (preset === 'all') {
+      setStartDateFilter('');
+      setEndDateFilter('');
+      fetchDemandData('', '');
+    } else if (preset === 'this_month') {
+      const now = new Date();
+      const s = format(new Date(now.getFullYear(), now.getMonth(), 1), 'yyyy-MM-dd');
+      const e = format(new Date(now.getFullYear(), now.getMonth() + 1, 0), 'yyyy-MM-dd');
+      setStartDateFilter(s);
+      setEndDateFilter(e);
+      fetchDemandData(s, e);
+    } else if (preset === 'next_month') {
+      const now = new Date();
+      const s = format(new Date(now.getFullYear(), now.getMonth() + 1, 1), 'yyyy-MM-dd');
+      const e = format(new Date(now.getFullYear(), now.getMonth() + 2, 0), 'yyyy-MM-dd');
+      setStartDateFilter(s);
+      setEndDateFilter(e);
+      fetchDemandData(s, e);
     }
   };
 
@@ -140,12 +181,24 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
   }, [currentLines]);
 
   const filteredLines = React.useMemo(() => {
-    if (statusFilter === 'ALL') return currentLines;
+    let lines = currentLines;
     if (statusFilter === 'INCOMPLETE') {
-      return currentLines.filter(l => l.status === 'UNPLANNED' || l.status === 'PARTIAL');
+      lines = lines.filter(l => l.status === 'UNPLANNED' || l.status === 'PARTIAL');
+    } else if (statusFilter !== 'ALL') {
+      lines = lines.filter(l => l.status === statusFilter);
     }
-    return currentLines.filter(l => l.status === statusFilter);
-  }, [currentLines, statusFilter]);
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      lines = lines.filter(l =>
+        l.soNumber?.toLowerCase().includes(q) ||
+        l.itemCode?.toLowerCase().includes(q) ||
+        l.itemDesc?.toLowerCase().includes(q) ||
+        l.customerName?.toLowerCase().includes(q)
+      );
+    }
+    return lines;
+  }, [currentLines, statusFilter, searchQuery]);
 
   return (
     <div className="flex flex-col h-full bg-white rounded-lg border border-border overflow-hidden shadow-sm">
@@ -161,6 +214,13 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
         </div>
 
         <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsExcelModalOpen(true)}
+            className="flex items-center gap-1.5 text-sm text-emerald-700 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 px-3.5 py-1.5 rounded-lg shadow-xs font-semibold transition-colors"
+          >
+            <FileSpreadsheet size={15} />
+            <span>Import Excel</span>
+          </button>
           <button 
             onClick={() => setIsManualModalOpen(true)}
             className="flex items-center gap-1.5 text-sm text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3.5 py-1.5 rounded-lg shadow-xs font-semibold transition-colors"
@@ -250,6 +310,85 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
         </div>
       </div>
 
+      {/* Date Horizon & Search Bar */}
+      <div className="px-4 py-2 bg-slate-50/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 flex-1 min-w-[220px] max-w-sm">
+          <div className="relative w-full">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="ค้นหา SO Number, Item Code, รายละเอียด..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-slate-400 shadow-2xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                title="Clear search"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-slate-500 font-medium flex items-center gap-1">
+            <Calendar size={13} className="text-primary" />
+            <span>Ship Date:</span>
+          </span>
+          <input
+            type="date"
+            value={startDateFilter}
+            onChange={(e) => setStartDateFilter(e.target.value)}
+            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-primary shadow-2xs"
+          />
+          <span className="text-slate-400">-</span>
+          <input
+            type="date"
+            value={endDateFilter}
+            onChange={(e) => setEndDateFilter(e.target.value)}
+            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-primary shadow-2xs"
+          />
+          <button
+            type="button"
+            onClick={() => fetchDemandData()}
+            className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 rounded font-semibold transition-colors shadow-2xs cursor-pointer"
+          >
+            Filter
+          </button>
+          {(startDateFilter || endDateFilter) && (
+            <button
+              type="button"
+              onClick={() => handleApplyPreset('all')}
+              className="px-1.5 py-1 text-slate-500 hover:text-red-600 text-xs cursor-pointer underline"
+            >
+              Clear
+            </button>
+          )}
+
+          <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+            <button
+              type="button"
+              onClick={() => handleApplyPreset('this_month')}
+              className="px-2 py-0.5 rounded text-[11px] font-medium bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 transition-colors shadow-2xs cursor-pointer"
+            >
+              This Month
+            </button>
+            <button
+              type="button"
+              onClick={() => handleApplyPreset('next_month')}
+              className="px-2 py-0.5 rounded text-[11px] font-medium bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 transition-colors shadow-2xs cursor-pointer"
+            >
+              Next Month
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="flex-1 overflow-auto">
         <table className="w-full text-left border-collapse text-sm">
           <thead className="bg-slate-100 text-slate-600 sticky top-0 z-10 shadow-sm">
@@ -265,7 +404,18 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">Plan Qty</th>
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-right">Planned</th>
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-right">Remaining</th>
-              <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">Plan Date</th>
+              <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">
+                <div className="flex items-center justify-center gap-1">
+                  <Calendar size={13} className="text-blue-600" />
+                  <span>Plan Date Start</span>
+                </div>
+              </th>
+              <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">
+                <div className="flex items-center justify-center gap-1">
+                  <Calendar size={13} className="text-emerald-600" />
+                  <span>Plan Date End</span>
+                </div>
+              </th>
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">Status</th>
               <th className="p-3 font-semibold border-b border-slate-200 whitespace-nowrap text-center">Action</th>
             </tr>
@@ -273,7 +423,7 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={14} className="p-8 text-center text-slate-500">
+                <td colSpan={15} className="p-8 text-center text-slate-500">
                   <div className="flex justify-center mb-2">
                     <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
                   </div>
@@ -282,7 +432,7 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
               </tr>
             ) : filteredLines.length === 0 ? (
               <tr>
-                <td colSpan={14} className="p-8 text-center text-slate-500 italic bg-slate-50/50">
+                <td colSpan={15} className="p-8 text-center text-slate-500 italic bg-slate-50/50">
                   No Sales Order lines found for the items in {partName} ({activeTab}) matching filter ({statusFilter}).
                 </td>
               </tr>
@@ -301,8 +451,12 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span>{line.soNumber}</span>
                       {line.isManual && (
-                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                          MANUAL
+                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold border ${
+                          line.orderType === 'EXCEL'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {line.orderType === 'EXCEL' ? 'EXCEL' : 'MANUAL'}
                         </span>
                       )}
                     </div>
@@ -353,15 +507,53 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
                       <span className="text-emerald-600 font-semibold">0.00</span>
                     )}
                   </td>
-                  <td className="p-3 text-center text-xs text-slate-600 max-w-[220px]" title={line.planDate || undefined}>
-                    {line.planDate ? (
-                      <span className="font-mono text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 line-clamp-1">
-                        {line.planDate}
-                      </span>
+
+                  {/* Plan Date Start */}
+                  <td className="p-3 text-center whitespace-nowrap">
+                    {line.planDateStart ? (
+                      <div 
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs cursor-default"
+                        title={line.planDate ? `ตารางผลิตรายวัน:\n${line.planDate}` : undefined}
+                      >
+                        <Calendar size={12} className="text-blue-500 shrink-0" />
+                        <span>{formatDate(line.planDateStart)}</span>
+                      </div>
                     ) : (
-                      <span className="text-slate-400 italic">-</span>
+                      <span className="text-slate-300 italic text-xs">-</span>
                     )}
                   </td>
+
+                  {/* Plan Date End */}
+                  <td className="p-3 text-center whitespace-nowrap">
+                    {line.planDateEnd ? (
+                      <div 
+                        className="inline-flex flex-col items-center cursor-default"
+                        title={line.planDate ? `ตารางผลิตรายวัน:\n${line.planDate}` : undefined}
+                      >
+                        <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold border shadow-2xs ${
+                          line.isLate
+                            ? 'bg-red-50 text-red-700 border-red-300'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
+                          <Calendar size={12} className={line.isLate ? 'text-red-500 shrink-0' : 'text-emerald-500 shrink-0'} />
+                          <span>{formatDate(line.planDateEnd)}</span>
+                        </div>
+                        {line.planDurationDays && line.planDurationDays > 1 ? (
+                          <span className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                            (ผลิต {line.planDurationDays} วัน)
+                          </span>
+                        ) : null}
+                        {line.isLate && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 mt-0.5">
+                            <AlertCircle size={10} /> เลยวันส่งมอบ
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-slate-300 italic text-xs">-</span>
+                    )}
+                  </td>
+
                   <td className="p-3 text-center whitespace-nowrap">
                     {line.status === 'COMPLETED' ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -404,6 +596,14 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
       <ManualOrderModal
         isOpen={isManualModalOpen}
         onClose={() => setIsManualModalOpen(false)}
+        partName={partName}
+        onSuccess={fetchDemandData}
+      />
+
+      {/* Excel Import Modal */}
+      <ExcelImportModal
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
         partName={partName}
         onSuccess={fetchDemandData}
       />
