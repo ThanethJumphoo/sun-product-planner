@@ -1373,6 +1373,10 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         const daySupply = dayInfo?.supply || 0;
         const dayRequiredRM = dayInfo?.requiredRM || 0;
         const dayBalance = dayInfo?.balance || 0;
+        const isDayShortage = dayBalance < -0.5;
+        const isDaySurplus = dayBalance > 0.5;
+        const roundedBalance = Math.round(dayBalance);
+        const cleanBalance = Math.abs(dayBalance) <= 0.5 || Object.is(roundedBalance, -0) ? 0 : roundedBalance;
 
         const isFilterMatched = calendarAlertFilter === 'all' ||
           (calendarAlertFilter === 'shortage' && (dayStatus === 'shortage' || dayStatus === 'no_supply_alert')) ||
@@ -1387,7 +1391,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
           <div
             key={day.toString()}
             onClick={() => (isCurrentMonth && !isDisabledBySupply) ? handleDateClick(cloneDay) : null}
-            title={isCurrentMonth && dayStatus !== 'none' ? `วันที่: ${format(cloneDay, 'dd/MM/yyyy')}\nSupply: ${daySupply.toLocaleString()} kg\nDemand RM: ${dayRequiredRM.toLocaleString()} kg\n${dayBalance < -0.5 ? `⚠️ เนื้อขาด: -${Math.abs(dayBalance).toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : `✓ เนื้อคงเหลือ: +${dayBalance.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg`}${isDayLocked ? '\n🔒 วันที่นี้ถูกล็อกแผนการผลิต (Frozen)' : (dayLockedTxCount > 0 ? `\n🔒 มี ${dayLockedTxCount} รายการฟิกซ์ไว้` : '')}` : undefined}
+            title={isCurrentMonth && dayStatus !== 'none' ? `วันที่: ${format(cloneDay, 'dd/MM/yyyy')}\nSupply: ${daySupply.toLocaleString()} kg\nDemand RM: ${dayRequiredRM.toLocaleString()} kg\n${isDayShortage ? `⚠️ เนื้อขาด: -${Math.abs(dayBalance).toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : isDaySurplus ? `✓ เนื้อคงเหลือ: +${dayBalance.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : `✓ สมดุลพอดี: 0 kg`}${isDayLocked ? '\n🔒 วันที่นี้ถูกล็อกแผนการผลิต (Frozen)' : (dayLockedTxCount > 0 ? `\n🔒 มี ${dayLockedTxCount} รายการฟิกซ์ไว้` : '')}` : undefined}
             className={`min-h-[135px] p-2 border-r border-b border-slate-200 relative group transition-all flex flex-col justify-between
               ${!isCurrentMonth ? "bg-slate-50 text-slate-400 cursor-not-allowed" : ""}
               ${isCurrentMonth && isDisabledBySupply ? "bg-slate-100/80 cursor-not-allowed opacity-60" : ""}
@@ -1519,7 +1523,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                   {hasSupply && (
                     <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden my-0.5">
                       <div
-                        className={`h-full rounded-full transition-all duration-300 ${dayRequiredRM > daySupply
+                        className={`h-full rounded-full transition-all duration-300 ${isDayShortage
                             ? 'bg-rose-500'
                             : dayRequiredRM > 0
                               ? 'bg-emerald-500'
@@ -1530,11 +1534,11 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                     </div>
                   )}
                   {hasSupply && dayRequiredRM > 0 && (
-                    <div className={`flex justify-between items-center pt-0.5 border-t border-slate-200/60 font-semibold whitespace-nowrap tabular-nums ${dayBalance < -0.5 ? 'text-rose-600' : 'text-emerald-600'
+                    <div className={`flex justify-between items-center pt-0.5 border-t border-slate-200/60 font-semibold whitespace-nowrap tabular-nums ${isDayShortage ? 'text-rose-600' : 'text-emerald-600'
                       }`}>
-                      <span>{dayBalance < -0.5 ? 'ขาด:' : 'เหลือ:'}</span>
+                      <span>{isDayShortage ? 'ขาด:' : 'เหลือ:'}</span>
                       <span>
-                        {dayBalance > 0 ? '+' : ''}{Math.round(dayBalance).toLocaleString()} kg
+                        {cleanBalance > 0 ? '+' : ''}{cleanBalance.toLocaleString()} kg
                       </span>
                     </div>
                   )}
@@ -1616,16 +1620,25 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
                     {monthlySummary.totalUsedRM.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
                   </span>
                 </div>
-                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border shadow-2xs font-bold ${monthlySummary.netBalance < -0.5
-                    ? 'bg-rose-50 text-rose-700 border-rose-200'
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  }`}>
-                  <span className="text-[11px]">{monthlySummary.netBalance < -0.5 ? '⚠️ ขาดสุทธิ:' : '✓ เหลือสุทธิ:'}</span>
-                  <span>
-                    {monthlySummary.netBalance > 0 ? '+' : ''}
-                    {monthlySummary.netBalance.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
-                  </span>
-                </div>
+                {(() => {
+                  const net = monthlySummary.netBalance;
+                  const isNetShortage = net < -0.5;
+                  const isNetSurplus = net > 0.5;
+                  const cleanNet = !isNetShortage && !isNetSurplus ? 0 : net;
+                  return (
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border shadow-2xs font-bold ${
+                      isNetShortage
+                        ? 'bg-rose-50 text-rose-700 border-rose-200'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    }`}>
+                      <span className="text-[11px]">{isNetShortage ? '⚠️ ขาดสุทธิ:' : cleanNet === 0 ? '✓ สมดุลพอดี:' : '✓ เหลือสุทธิ:'}</span>
+                      <span>
+                        {cleanNet > 0 ? '+' : ''}
+                        {cleanNet.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Status Filter Chips */}

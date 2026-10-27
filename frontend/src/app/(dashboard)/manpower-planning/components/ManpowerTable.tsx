@@ -17,12 +17,14 @@ import {
   CheckCircle2,
   AlertCircle,
   FileSpreadsheet,
+  CalendarDays,
 } from 'lucide-react';
 import { format, addMonths, subMonths, parseISO, isWeekend } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { toast } from 'react-hot-toast';
 import api from '@/lib/api';
 import { ManpowerRole, ManpowerRoleModal } from './ManpowerRoleModal';
+import { WeeklyDefaultsModal } from './WeeklyDefaultsModal';
 
 interface CellData {
   calculatedWorkers: number;
@@ -57,6 +59,7 @@ export function ManpowerTable({ partName }: { partName: string }) {
   const [data, setData] = useState<ManpowerDailyPlanResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [isWeeklyModalOpen, setIsWeeklyModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Tracks unsaved user edits: key is `${roleId}_${dateStr}`, value is the new worker count
@@ -278,6 +281,16 @@ export function ManpowerTable({ partName }: { partName: string }) {
             onChange={(e) => e.target.value && setCurrentMonth(e.target.value)}
             className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-700 shadow-2xs focus:outline-none focus:ring-1 focus:ring-primary"
           />
+
+          {/* Weekly Day-of-Week Defaults Button */}
+          <button
+            onClick={() => setIsWeeklyModalOpen(true)}
+            className="px-3 py-1.5 border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-semibold rounded-lg shadow-2xs transition-all flex items-center gap-1.5"
+            title="กำหนดค่าคงที่กำลังคนแยกรายวัน (วันอาทิตย์ - เสาร์) เช่น ส่วนที่ 3 กำลังคนบริการ เพื่อนำไปใช้ทั้งเดือน"
+          >
+            <CalendarDays size={14} />
+            กำหนดค่าคงที่ (อา-ส)
+          </button>
 
           {/* Configure Roles Button */}
           <button
@@ -578,6 +591,17 @@ export function ManpowerTable({ partName }: { partName: string }) {
           }}
         />
       )}
+
+      {/* Weekly Day-of-Week Defaults Modal */}
+      <WeeklyDefaultsModal
+        isOpen={isWeeklyModalOpen}
+        onClose={() => setIsWeeklyModalOpen(false)}
+        partName={partName}
+        currentMonth={currentMonth}
+        onApplied={() => {
+          fetchDailyPlan();
+        }}
+      />
     </div>
   );
 

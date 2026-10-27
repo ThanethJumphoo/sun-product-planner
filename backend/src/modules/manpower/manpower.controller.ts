@@ -4,6 +4,8 @@ import {
   CreateManpowerRoleDto,
   UpdateManpowerRoleDto,
   SaveManpowerOverrideDto,
+  BatchSaveActualManpowerDto,
+  SaveWeeklyDefaultsDto,
 } from './manpower.service';
 
 @Controller('api/v1/manpower')
@@ -64,4 +66,73 @@ export class ManpowerController {
       date,
     );
   }
+
+  // --- Actual Manpower Daily Records & Plan vs Actual ---
+
+  @Get(':partName/actual-records')
+  async getActualRecords(
+    @Param('partName') partName: string,
+    @Query('date') date?: string,
+    @Query('month') month?: string,
+    @Query('shift') shift?: string,
+  ) {
+    return this.manpowerService.getActualRecords(partName, date, month, shift);
+  }
+
+  @Get(':partName/daily-actual-form')
+  async getDailyActualForm(
+    @Param('partName') partName: string,
+    @Query('date') date: string,
+    @Query('shift') shift?: string,
+  ) {
+    return this.manpowerService.getDailyActualForm(partName, date, shift);
+  }
+
+  @Post(':partName/actual-records')
+  async saveActualRecords(
+    @Param('partName') partName: string,
+    @Body() dto: BatchSaveActualManpowerDto,
+  ) {
+    return this.manpowerService.saveActualRecords(partName, dto);
+  }
+
+  @Delete(':partName/actual-records')
+  async deleteActualRecords(
+    @Param('partName') partName: string,
+    @Query('date') date: string,
+    @Query('shift') shift?: string,
+    @Query('roleId') roleId?: string,
+  ) {
+    return this.manpowerService.deleteActualRecords(
+      partName,
+      date,
+      shift,
+      roleId ? Number(roleId) : undefined,
+    );
+  }
+
+  @Get(':partName/plan-vs-actual')
+  async getPlanVsActual(
+    @Param('partName') partName: string,
+    @Query('month') month: string,
+    @Query('shift') shift?: string,
+  ) {
+    return this.manpowerService.getPlanVsActual(partName, month, shift);
+  }
+
+  // --- Day-of-Week (Sun-Sat) Defaults ---
+
+  @Get(':partName/weekly-defaults')
+  async getWeeklyDefaults(@Param('partName') partName: string) {
+    return this.manpowerService.getWeeklyDefaults(partName);
+  }
+
+  @Put(':partName/weekly-defaults')
+  async saveWeeklyDefaults(
+    @Param('partName') partName: string,
+    @Body() dto: SaveWeeklyDefaultsDto,
+  ) {
+    return this.manpowerService.saveWeeklyDefaults(partName, dto);
+  }
 }
+

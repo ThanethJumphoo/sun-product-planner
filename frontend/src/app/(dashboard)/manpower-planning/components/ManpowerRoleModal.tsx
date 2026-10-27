@@ -11,6 +11,7 @@ export interface ManpowerRole {
   roleName: string;
   calculationType: 'VARIABLE' | 'MACHINE' | 'FIXED_OVERRIDE';
   defaultWorkers: number;
+  weeklyDefaults?: Record<number, number> | null;
   workingHoursPerShift: number;
   shiftsCount: number;
   machineType: string | null;
@@ -42,6 +43,7 @@ export function ManpowerRoleModal({
     roleName: '',
     calculationType: 'VARIABLE' as 'VARIABLE' | 'MACHINE' | 'FIXED_OVERRIDE',
     defaultWorkers: 28,
+    weeklyDefaults: { 0: 28, 1: 28, 2: 28, 3: 28, 4: 28, 5: 28, 6: 28 } as Record<number, number>,
     workingHoursPerShift: 10.0,
     shiftsCount: 1,
     machineType: '',
@@ -64,6 +66,7 @@ export function ManpowerRoleModal({
       roleName: '',
       calculationType: 'VARIABLE',
       defaultWorkers: 28,
+      weeklyDefaults: { 0: 28, 1: 28, 2: 28, 3: 28, 4: 28, 5: 28, 6: 28 },
       workingHoursPerShift: 10.0,
       shiftsCount: 1,
       machineType: '',
@@ -76,10 +79,22 @@ export function ManpowerRoleModal({
   const handleStartEdit = (role: ManpowerRole) => {
     setIsAddingNew(false);
     setEditingRoleId(role.id);
+    const defVal = Number(role.defaultWorkers || 0);
+    const existingWeekly = role.weeklyDefaults || {
+      0: defVal,
+      1: defVal,
+      2: defVal,
+      3: defVal,
+      4: defVal,
+      5: defVal,
+      6: defVal,
+    };
+
     setFormData({
       roleName: role.roleName,
       calculationType: role.calculationType,
-      defaultWorkers: Number(role.defaultWorkers || 0),
+      defaultWorkers: defVal,
+      weeklyDefaults: existingWeekly,
       workingHoursPerShift: Number(role.workingHoursPerShift || 8),
       shiftsCount: Number(role.shiftsCount || 1),
       machineType: role.machineType || '',
@@ -106,6 +121,7 @@ export function ManpowerRoleModal({
         roleName: formData.roleName.trim(),
         calculationType: formData.calculationType,
         defaultWorkers: Number(formData.defaultWorkers) || 0,
+        weeklyDefaults: formData.weeklyDefaults,
         workingHoursPerShift: Number(formData.workingHoursPerShift) || 8,
         shiftsCount: Number(formData.shiftsCount) || 1,
         machineType: formData.calculationType === 'MACHINE' ? formData.machineType.trim() : null,
@@ -309,19 +325,59 @@ export function ManpowerRoleModal({
 
                 {/* Default Workers if FIXED_OVERRIDE or MACHINE */}
                 {formData.calculationType !== 'VARIABLE' && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      จำนวนคนเริ่มต้น (Default Workers ต่อกะ)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      value={formData.defaultWorkers}
-                      onChange={(e) => setFormData({ ...formData, defaultWorkers: parseFloat(e.target.value) || 0 })}
-                      placeholder="เช่น 4 คน"
-                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    />
+                  <div className="md:col-span-2 space-y-2 p-3 bg-white border border-slate-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        จำนวนคนเริ่มต้นแยกตามวัน (อาทิตย์ - เสาร์)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const val = Number(formData.defaultWorkers || 0);
+                          setFormData({
+                            ...formData,
+                            weeklyDefaults: { 0: val, 1: val, 2: val, 3: val, 4: val, 5: val, 6: val },
+                          });
+                          toast.success('คัดลอกค่าเริ่มต้นไปทุกวันแล้ว');
+                        }}
+                        className="text-[11px] text-primary hover:underline font-medium"
+                      >
+                        คัดลอกค่าเริ่มต้นไปทุกวัน (จ-ส)
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-1.5">
+                      {[
+                        { day: 0, label: 'อา', en: 'Sun', color: 'text-rose-600', bg: 'bg-rose-50/50' },
+                        { day: 1, label: 'จ', en: 'Mon', color: 'text-slate-700', bg: 'bg-slate-50' },
+                        { day: 2, label: 'อ', en: 'Tue', color: 'text-slate-700', bg: 'bg-slate-50' },
+                        { day: 3, label: 'พ', en: 'Wed', color: 'text-slate-700', bg: 'bg-slate-50' },
+                        { day: 4, label: 'พฤ', en: 'Thu', color: 'text-slate-700', bg: 'bg-slate-50' },
+                        { day: 5, label: 'ศ', en: 'Fri', color: 'text-slate-700', bg: 'bg-slate-50' },
+                        { day: 6, label: 'ส', en: 'Sat', color: 'text-purple-600', bg: 'bg-purple-50/40' },
+                      ].map((d) => (
+                        <div key={d.day} className={`p-1.5 rounded border border-slate-200 text-center ${d.bg}`}>
+                          <div className={`text-[10px] font-bold ${d.color}`}>{d.label}</div>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={formData.weeklyDefaults?.[d.day] ?? formData.defaultWorkers ?? 0}
+                            onChange={(e) => {
+                              const num = Math.max(0, parseFloat(e.target.value) || 0);
+                              setFormData({
+                                ...formData,
+                                weeklyDefaults: {
+                                  ...(formData.weeklyDefaults || {}),
+                                  [d.day]: num,
+                                },
+                              });
+                            }}
+                            className="w-full text-center py-1 text-xs font-bold border border-slate-300 rounded bg-white mt-1"
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 

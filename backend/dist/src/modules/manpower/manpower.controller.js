@@ -41,6 +41,27 @@ let ManpowerController = class ManpowerController {
     async resetOverrides(partName, roleId, date) {
         return this.manpowerService.resetOverrides(partName, roleId ? Number(roleId) : undefined, date);
     }
+    async getActualRecords(partName, date, month, shift) {
+        return this.manpowerService.getActualRecords(partName, date, month, shift);
+    }
+    async getDailyActualForm(partName, date, shift) {
+        return this.manpowerService.getDailyActualForm(partName, date, shift);
+    }
+    async saveActualRecords(partName, dto) {
+        return this.manpowerService.saveActualRecords(partName, dto);
+    }
+    async deleteActualRecords(partName, date, shift, roleId) {
+        return this.manpowerService.deleteActualRecords(partName, date, shift, roleId ? Number(roleId) : undefined);
+    }
+    async getPlanVsActual(partName, month, shift) {
+        return this.manpowerService.getPlanVsActual(partName, month, shift);
+    }
+    async getWeeklyDefaults(partName) {
+        return this.manpowerService.getWeeklyDefaults(partName);
+    }
+    async saveWeeklyDefaults(partName, dto) {
+        return this.manpowerService.saveWeeklyDefaults(partName, dto);
+    }
 };
 exports.ManpowerController = ManpowerController;
 __decorate([
@@ -98,6 +119,67 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], ManpowerController.prototype, "resetOverrides", null);
+__decorate([
+    (0, common_1.Get)(':partName/actual-records'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Query)('date')),
+    __param(2, (0, common_1.Query)('month')),
+    __param(3, (0, common_1.Query)('shift')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], ManpowerController.prototype, "getActualRecords", null);
+__decorate([
+    (0, common_1.Get)(':partName/daily-actual-form'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Query)('date')),
+    __param(2, (0, common_1.Query)('shift')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], ManpowerController.prototype, "getDailyActualForm", null);
+__decorate([
+    (0, common_1.Post)(':partName/actual-records'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, manpower_service_1.BatchSaveActualManpowerDto]),
+    __metadata("design:returntype", Promise)
+], ManpowerController.prototype, "saveActualRecords", null);
+__decorate([
+    (0, common_1.Delete)(':partName/actual-records'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Query)('date')),
+    __param(2, (0, common_1.Query)('shift')),
+    __param(3, (0, common_1.Query)('roleId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], ManpowerController.prototype, "deleteActualRecords", null);
+__decorate([
+    (0, common_1.Get)(':partName/plan-vs-actual'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Query)('month')),
+    __param(2, (0, common_1.Query)('shift')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], ManpowerController.prototype, "getPlanVsActual", null);
+__decorate([
+    (0, common_1.Get)(':partName/weekly-defaults'),
+    __param(0, (0, common_1.Param)('partName')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], ManpowerController.prototype, "getWeeklyDefaults", null);
+__decorate([
+    (0, common_1.Put)(':partName/weekly-defaults'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, manpower_service_1.SaveWeeklyDefaultsDto]),
+    __metadata("design:returntype", Promise)
+], ManpowerController.prototype, "saveWeeklyDefaults", null);
 exports.ManpowerController = ManpowerController = __decorate([
     (0, common_1.Controller)('api/v1/manpower'),
     __metadata("design:paramtypes", [manpower_service_1.ManpowerService])

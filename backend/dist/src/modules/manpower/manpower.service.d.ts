@@ -3,6 +3,7 @@ export declare class CreateManpowerRoleDto {
     roleName: string;
     calculationType: 'VARIABLE' | 'MACHINE' | 'FIXED_OVERRIDE';
     defaultWorkers?: number;
+    weeklyDefaults?: Record<number, number> | string;
     workingHoursPerShift?: number;
     shiftsCount?: number;
     machineType?: string;
@@ -13,17 +14,45 @@ export declare class UpdateManpowerRoleDto {
     roleName?: string;
     calculationType?: 'VARIABLE' | 'MACHINE' | 'FIXED_OVERRIDE';
     defaultWorkers?: number;
+    weeklyDefaults?: Record<number, number> | string;
     workingHoursPerShift?: number;
     shiftsCount?: number;
     machineType?: string;
     standardSpeedKgHr?: number;
     orderIndex?: number;
 }
+export declare class RoleWeeklyDefaultItemDto {
+    roleId: number;
+    weeklyDefaults: Record<number, number>;
+}
+export declare class SaveWeeklyDefaultsDto {
+    roles: RoleWeeklyDefaultItemDto[];
+    month?: string;
+    applyToMonth?: boolean;
+    overrideExistingOverrides?: boolean;
+}
 export declare class SaveManpowerOverrideDto {
     date: string;
     roleId: number;
     actualWorkers: number;
     notes?: string;
+}
+export declare class SaveActualManpowerItemDto {
+    roleId: number;
+    presentWorkers: number;
+    otWorkers?: number;
+    otHours?: number;
+    absentWorkers?: number;
+    borrowedWorkers?: number;
+    loanedWorkers?: number;
+    actualOutputKg?: number;
+    notes?: string;
+}
+export declare class BatchSaveActualManpowerDto {
+    date: string;
+    shift?: string;
+    recordedBy?: string;
+    records: SaveActualManpowerItemDto[];
 }
 export declare class ManpowerService {
     private readonly productSpecService;
@@ -34,6 +63,7 @@ export declare class ManpowerService {
         roleName: string;
         calculationType: string;
         defaultWorkers: number;
+        weeklyDefaults: Record<number, number> | null;
         workingHoursPerShift: number;
         shiftsCount: number;
         machineType: string | null;
@@ -43,45 +73,48 @@ export declare class ManpowerService {
     private seedDefaultRoles;
     createRole(partName: string, dto: CreateManpowerRoleDto): Promise<{
         id: number;
-        createdAt: Date;
-        updatedAt: Date;
-        roleName: string;
         partName: string;
+        roleName: string;
         calculationType: string;
         defaultWorkers: import("@prisma/client/runtime/library").Decimal;
+        weeklyDefaults: string | null;
         workingHoursPerShift: import("@prisma/client/runtime/library").Decimal;
         shiftsCount: number;
         machineType: string | null;
         standardSpeedKgHr: import("@prisma/client/runtime/library").Decimal | null;
         orderIndex: number;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     updateRole(id: number, dto: UpdateManpowerRoleDto): Promise<{
         id: number;
-        createdAt: Date;
-        updatedAt: Date;
-        roleName: string;
         partName: string;
+        roleName: string;
         calculationType: string;
         defaultWorkers: import("@prisma/client/runtime/library").Decimal;
+        weeklyDefaults: string | null;
         workingHoursPerShift: import("@prisma/client/runtime/library").Decimal;
         shiftsCount: number;
         machineType: string | null;
         standardSpeedKgHr: import("@prisma/client/runtime/library").Decimal | null;
         orderIndex: number;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     deleteRole(id: number): Promise<{
         id: number;
-        createdAt: Date;
-        updatedAt: Date;
-        roleName: string;
         partName: string;
+        roleName: string;
         calculationType: string;
         defaultWorkers: import("@prisma/client/runtime/library").Decimal;
+        weeklyDefaults: string | null;
         workingHoursPerShift: import("@prisma/client/runtime/library").Decimal;
         shiftsCount: number;
         machineType: string | null;
         standardSpeedKgHr: import("@prisma/client/runtime/library").Decimal | null;
         orderIndex: number;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     getDailyPlan(partName: string, monthStr: string): Promise<{
         partName: string;
@@ -93,6 +126,7 @@ export declare class ManpowerService {
             roleName: string;
             calculationType: string;
             defaultWorkers: number;
+            weeklyDefaults: Record<number, number> | null;
             workingHoursPerShift: number;
             shiftsCount: number;
             machineType: string | null;
@@ -115,4 +149,131 @@ export declare class ManpowerService {
     }>;
     saveOverrides(partName: string, overrides: SaveManpowerOverrideDto[]): Promise<any[]>;
     resetOverrides(partName: string, roleId?: number, date?: string): Promise<import(".prisma/client").Prisma.BatchPayload>;
+    getWeeklyDefaults(partName: string): Promise<{
+        roleId: number;
+        roleName: string;
+        calculationType: string;
+        defaultWorkers: number;
+        weeklyDefaults: Record<number, number>;
+        workingHoursPerShift: number;
+        shiftsCount: number;
+        machineType: string | null;
+        orderIndex: number;
+    }[]>;
+    saveWeeklyDefaults(partName: string, dto: SaveWeeklyDefaultsDto): Promise<any[]>;
+    getActualRecords(partName: string, dateStr?: string, monthStr?: string, shift?: string): Promise<{
+        id: string;
+        partName: string;
+        date: string;
+        shift: string;
+        roleId: number;
+        roleName: string;
+        calculationType: string;
+        presentWorkers: number;
+        otWorkers: number;
+        otHours: number;
+        absentWorkers: number;
+        borrowedWorkers: number;
+        loanedWorkers: number;
+        actualOutputKg: number | null;
+        notes: string;
+        recordedBy: string;
+        createdAt: Date;
+        updatedAt: Date;
+    }[]>;
+    getDailyActualForm(partName: string, dateStr: string, shift?: string): Promise<{
+        partName: string;
+        date: string;
+        shift: string;
+        summary: {
+            totalPlannedWorkers: number;
+            totalActualWorkers: number;
+            netVariance: number;
+            totalAbsentWorkers: number;
+            totalOtWorkers: number;
+            totalOtHours: number;
+            totalBorrowedWorkers: number;
+            totalLoanedWorkers: number;
+            totalPlannedQtyKg: number;
+            isAllRecorded: boolean;
+            isPartiallyRecorded: boolean;
+            recordedRolesCount: number;
+            totalRolesCount: number;
+        };
+        rows: {
+            roleId: number;
+            roleName: string;
+            calculationType: string;
+            machineType: string | null;
+            workingHoursPerShift: number;
+            shiftsCount: number;
+            calculatedWorkers: any;
+            plannedWorkers: any;
+            plannedQtyKg: any;
+            isRecorded: boolean;
+            presentWorkers: any;
+            actualRecordedWorkers: number | null;
+            otWorkers: number;
+            otHours: number;
+            absentWorkers: number;
+            borrowedWorkers: number;
+            loanedWorkers: number;
+            actualOutputKg: number | null;
+            notes: any;
+            recordedBy: any;
+            variance: number;
+            status: "ON_TARGET" | "SHORTAGE" | "SURPLUS" | "UNRECORDED";
+        }[];
+    }>;
+    saveActualRecords(partName: string, dto: BatchSaveActualManpowerDto): Promise<any[]>;
+    deleteActualRecords(partName: string, dateStr: string, shift?: string, roleId?: number): Promise<import(".prisma/client").Prisma.BatchPayload>;
+    getPlanVsActual(partName: string, monthStr: string, shift?: string): Promise<{
+        partName: string;
+        month: string;
+        shift: string;
+        summary: {
+            totalPlannedWorkers: number;
+            totalActualWorkers: number;
+            netVariance: number;
+            avgFulfillmentRate: number | null;
+            recordedDaysCount: number;
+            totalDaysInMonth: number;
+            shortageDaysCount: number;
+            surplusDaysCount: number;
+            onTargetDaysCount: number;
+            totalOtWorkers: number;
+            totalOtHours: number;
+            totalAbsentWorkers: number;
+            totalBorrowedWorkers: number;
+            totalLoanedWorkers: number;
+        };
+        roles: {
+            id: number;
+            partName: string;
+            roleName: string;
+            calculationType: string;
+            defaultWorkers: number;
+            weeklyDefaults: Record<number, number> | null;
+            workingHoursPerShift: number;
+            shiftsCount: number;
+            machineType: string | null;
+            standardSpeedKgHr: number | null;
+            orderIndex: number;
+        }[];
+        roleSummary: {
+            roleId: number;
+            roleName: string;
+            calculationType: string;
+            totalPlanned: number;
+            totalActual: number;
+            netVariance: number;
+            shortageDays: number;
+            surplusDays: number;
+            onTargetDays: number;
+            recordedDays: number;
+            totalOtWorkers: number;
+            totalAbsentWorkers: number;
+        }[];
+        dailyTimeline: any[];
+    }>;
 }
