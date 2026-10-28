@@ -136,52 +136,63 @@ export class MpsService {
     );
 
     if (generatedTransactions.length > 0) {
-      await prisma.$transaction(async (tx) => {
-        const upserts = generatedTransactions.map((line) => {
-          const planDate = new Date(line.planDate);
-          return tx.mpsProductionTransaction.upsert({
-            where: {
-              unique_plan_line: {
-                partName,
-                planDate,
-                soNumber: line.soNumber,
-                lineNumber: line.lineNumber,
-                itemCode: line.itemCode,
-                splitIndex: line.splitIndex || 0,
-              },
-            },
-            update: {
-              plannedQty: line.plannedQty,
-              allocatedRmSize: line.allocatedRmSize || null,
-            } as any,
-            create: {
-              partName,
-              planDate,
-              soNumber: line.soNumber,
-              lineNumber: line.lineNumber,
-              itemCode: line.itemCode,
-              splitIndex: line.splitIndex || 0,
-              plannedQty: line.plannedQty,
-              allocatedRmSize: line.allocatedRmSize || null,
-              isLocked: false,
-            } as any,
-          });
-        });
-        await Promise.all(upserts);
+      await prisma.$transaction(
+        async (tx) => {
+          const chunkSize = 100;
+          for (let i = 0; i < generatedTransactions.length; i += chunkSize) {
+            const chunk = generatedTransactions.slice(i, i + chunkSize);
+            await Promise.all(
+              chunk.map((line) => {
+                const planDate = new Date(line.planDate);
+                return tx.mpsProductionTransaction.upsert({
+                  where: {
+                    unique_plan_line: {
+                      partName,
+                      planDate,
+                      soNumber: line.soNumber,
+                      lineNumber: line.lineNumber,
+                      itemCode: line.itemCode,
+                      splitIndex: line.splitIndex || 0,
+                    },
+                  },
+                  update: {
+                    plannedQty: line.plannedQty,
+                    allocatedRmSize: line.allocatedRmSize || null,
+                  } as any,
+                  create: {
+                    partName,
+                    planDate,
+                    soNumber: line.soNumber,
+                    lineNumber: line.lineNumber,
+                    itemCode: line.itemCode,
+                    splitIndex: line.splitIndex || 0,
+                    plannedQty: line.plannedQty,
+                    allocatedRmSize: line.allocatedRmSize || null,
+                    isLocked: false,
+                  } as any,
+                });
+              }),
+            );
+          }
 
-        // Optional cleanup: delete 0 qty plans that are not locked
-        await tx.mpsProductionTransaction.deleteMany({
-          where: {
-            partName,
-            planDate: {
-              gte: monthStart,
-              lte: monthEnd,
+          // Optional cleanup: delete 0 qty plans that are not locked
+          await tx.mpsProductionTransaction.deleteMany({
+            where: {
+              partName,
+              planDate: {
+                gte: monthStart,
+                lte: monthEnd,
+              },
+              plannedQty: { lte: 0 },
+              isLocked: false,
             },
-            plannedQty: { lte: 0 },
-            isLocked: false,
-          },
-        });
-      });
+          });
+        },
+        {
+          maxWait: 20000,
+          timeout: 60000,
+        },
+      );
     }
 
     // Trigger synchronization to child parts if parent board has sub-boards

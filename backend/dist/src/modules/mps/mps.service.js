@@ -108,37 +108,40 @@ let MpsService = class MpsService {
         const { generatedTransactions, stats } = await (0, autoGeneratePlan_1.generateAutoPlanOnServer)(partName, currentMonth);
         if (generatedTransactions.length > 0) {
             await prisma_1.default.$transaction(async (tx) => {
-                const upserts = generatedTransactions.map((line) => {
-                    const planDate = new Date(line.planDate);
-                    return tx.mpsProductionTransaction.upsert({
-                        where: {
-                            unique_plan_line: {
+                const chunkSize = 100;
+                for (let i = 0; i < generatedTransactions.length; i += chunkSize) {
+                    const chunk = generatedTransactions.slice(i, i + chunkSize);
+                    await Promise.all(chunk.map((line) => {
+                        const planDate = new Date(line.planDate);
+                        return tx.mpsProductionTransaction.upsert({
+                            where: {
+                                unique_plan_line: {
+                                    partName,
+                                    planDate,
+                                    soNumber: line.soNumber,
+                                    lineNumber: line.lineNumber,
+                                    itemCode: line.itemCode,
+                                    splitIndex: line.splitIndex || 0,
+                                },
+                            },
+                            update: {
+                                plannedQty: line.plannedQty,
+                                allocatedRmSize: line.allocatedRmSize || null,
+                            },
+                            create: {
                                 partName,
                                 planDate,
                                 soNumber: line.soNumber,
                                 lineNumber: line.lineNumber,
                                 itemCode: line.itemCode,
                                 splitIndex: line.splitIndex || 0,
+                                plannedQty: line.plannedQty,
+                                allocatedRmSize: line.allocatedRmSize || null,
+                                isLocked: false,
                             },
-                        },
-                        update: {
-                            plannedQty: line.plannedQty,
-                            allocatedRmSize: line.allocatedRmSize || null,
-                        },
-                        create: {
-                            partName,
-                            planDate,
-                            soNumber: line.soNumber,
-                            lineNumber: line.lineNumber,
-                            itemCode: line.itemCode,
-                            splitIndex: line.splitIndex || 0,
-                            plannedQty: line.plannedQty,
-                            allocatedRmSize: line.allocatedRmSize || null,
-                            isLocked: false,
-                        },
-                    });
-                });
-                await Promise.all(upserts);
+                        });
+                    }));
+                }
                 await tx.mpsProductionTransaction.deleteMany({
                     where: {
                         partName,
@@ -150,6 +153,9 @@ let MpsService = class MpsService {
                         isLocked: false,
                     },
                 });
+            }, {
+                maxWait: 20000,
+                timeout: 60000,
             });
         }
         let childSyncResults = [];

@@ -73,8 +73,10 @@ export declare class ManpowerService {
     private seedDefaultRoles;
     createRole(partName: string, dto: CreateManpowerRoleDto): Promise<{
         id: number;
-        partName: string;
+        createdAt: Date;
+        updatedAt: Date;
         roleName: string;
+        partName: string;
         calculationType: string;
         defaultWorkers: import("@prisma/client/runtime/library").Decimal;
         weeklyDefaults: string | null;
@@ -83,13 +85,13 @@ export declare class ManpowerService {
         machineType: string | null;
         standardSpeedKgHr: import("@prisma/client/runtime/library").Decimal | null;
         orderIndex: number;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     updateRole(id: number, dto: UpdateManpowerRoleDto): Promise<{
         id: number;
-        partName: string;
+        createdAt: Date;
+        updatedAt: Date;
         roleName: string;
+        partName: string;
         calculationType: string;
         defaultWorkers: import("@prisma/client/runtime/library").Decimal;
         weeklyDefaults: string | null;
@@ -98,13 +100,13 @@ export declare class ManpowerService {
         machineType: string | null;
         standardSpeedKgHr: import("@prisma/client/runtime/library").Decimal | null;
         orderIndex: number;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     deleteRole(id: number): Promise<{
         id: number;
-        partName: string;
+        createdAt: Date;
+        updatedAt: Date;
         roleName: string;
+        partName: string;
         calculationType: string;
         defaultWorkers: import("@prisma/client/runtime/library").Decimal;
         weeklyDefaults: string | null;
@@ -113,8 +115,6 @@ export declare class ManpowerService {
         machineType: string | null;
         standardSpeedKgHr: import("@prisma/client/runtime/library").Decimal | null;
         orderIndex: number;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     getDailyPlan(partName: string, monthStr: string): Promise<{
         partName: string;

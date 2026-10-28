@@ -45,14 +45,26 @@ var OracleService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OracleService = void 0;
 const common_1 = require("@nestjs/common");
+const fs = __importStar(require("fs"));
 const oracledb = __importStar(require("oracledb"));
 let OracleService = OracleService_1 = class OracleService {
     logger = new common_1.Logger(OracleService_1.name);
     pool;
     constructor() {
         try {
-            oracledb.initOracleClient();
-            this.logger.log('✅ Oracle Client initialized in Thick mode');
+            const defaultDir = 'C:\\oracle\\instantclient_19_24';
+            const libDir = process.env.ORACLE_CLIENT_LIB_DIR ||
+                (process.platform === 'win32' && fs.existsSync(defaultDir)
+                    ? defaultDir
+                    : undefined);
+            if (libDir) {
+                oracledb.initOracleClient({ libDir });
+                this.logger.log(`✅ Oracle Client initialized in Thick mode with libDir: ${libDir}`);
+            }
+            else {
+                oracledb.initOracleClient();
+                this.logger.log('✅ Oracle Client initialized in Thick mode');
+            }
         }
         catch (err) {
             if (err.message && !err.message.includes('already been initialized')) {

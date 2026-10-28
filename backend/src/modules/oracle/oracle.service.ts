@@ -4,6 +4,7 @@ import {
   OnModuleDestroy,
   Logger,
 } from '@nestjs/common';
+import * as fs from 'fs';
 import * as oracledb from 'oracledb';
 
 @Injectable()
@@ -13,8 +14,20 @@ export class OracleService implements OnModuleInit, OnModuleDestroy {
 
   constructor() {
     try {
-      oracledb.initOracleClient();
-      this.logger.log('✅ Oracle Client initialized in Thick mode');
+      const defaultDir = 'C:\\oracle\\instantclient_19_24';
+      const libDir =
+        process.env.ORACLE_CLIENT_LIB_DIR ||
+        (process.platform === 'win32' && fs.existsSync(defaultDir)
+          ? defaultDir
+          : undefined);
+
+      if (libDir) {
+        oracledb.initOracleClient({ libDir });
+        this.logger.log(`✅ Oracle Client initialized in Thick mode with libDir: ${libDir}`);
+      } else {
+        oracledb.initOracleClient();
+        this.logger.log('✅ Oracle Client initialized in Thick mode');
+      }
     } catch (err: any) {
       if (err.message && !err.message.includes('already been initialized')) {
         this.logger.error('Failed to initialize Oracle Client:', err.message);

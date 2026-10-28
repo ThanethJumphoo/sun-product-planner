@@ -17,8 +17,10 @@ export declare class ManpowerController {
     }[]>;
     createRole(partName: string, dto: CreateManpowerRoleDto): Promise<{
         id: number;
-        partName: string;
+        createdAt: Date;
+        updatedAt: Date;
         roleName: string;
+        partName: string;
         calculationType: string;
         defaultWorkers: import("@prisma/client/runtime/library").Decimal;
         weeklyDefaults: string | null;
@@ -27,13 +29,13 @@ export declare class ManpowerController {
         machineType: string | null;
         standardSpeedKgHr: import("@prisma/client/runtime/library").Decimal | null;
         orderIndex: number;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     updateRole(id: string, dto: UpdateManpowerRoleDto): Promise<{
         id: number;
-        partName: string;
+        createdAt: Date;
+        updatedAt: Date;
         roleName: string;
+        partName: string;
         calculationType: string;
         defaultWorkers: import("@prisma/client/runtime/library").Decimal;
         weeklyDefaults: string | null;
@@ -42,13 +44,13 @@ export declare class ManpowerController {
         machineType: string | null;
         standardSpeedKgHr: import("@prisma/client/runtime/library").Decimal | null;
         orderIndex: number;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     deleteRole(id: string): Promise<{
         id: number;
-        partName: string;
+        createdAt: Date;
+        updatedAt: Date;
         roleName: string;
+        partName: string;
         calculationType: string;
         defaultWorkers: import("@prisma/client/runtime/library").Decimal;
         weeklyDefaults: string | null;
@@ -57,8 +59,6 @@ export declare class ManpowerController {
         machineType: string | null;
         standardSpeedKgHr: import("@prisma/client/runtime/library").Decimal | null;
         orderIndex: number;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     getDailyPlan(partName: string, month: string): Promise<{
         partName: string;

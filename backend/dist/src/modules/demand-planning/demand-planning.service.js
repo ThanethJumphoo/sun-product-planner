@@ -55,6 +55,8 @@ let DemandPlanningService = class DemandPlanningService {
         const soLineWhere = {
             erpItemCode: { in: itemCodes },
         };
+        const demandPlanWhere = { partName };
+        const mpsTxWhere = { partName };
         if (startDate && endDate) {
             const s = new Date(startDate);
             s.setHours(0, 0, 0, 0);
@@ -63,6 +65,18 @@ let DemandPlanningService = class DemandPlanningService {
             soLineWhere.scheduleShipDate = {
                 gte: s,
                 lte: e,
+            };
+            demandPlanWhere.shipDate = {
+                gte: s,
+                lte: e,
+            };
+            const lookbackStart = new Date(s);
+            lookbackStart.setDate(lookbackStart.getDate() - 14);
+            const lookforwardEnd = new Date(e);
+            lookforwardEnd.setDate(lookforwardEnd.getDate() + 7);
+            mpsTxWhere.planDate = {
+                gte: lookbackStart,
+                lte: lookforwardEnd,
             };
         }
         const soLines = await prisma_1.default.erpSaleOrderLine.findMany({
@@ -82,7 +96,7 @@ let DemandPlanningService = class DemandPlanningService {
         });
         const [savedPlans, prioritySetting, gradeSetting, productionPlans] = await Promise.all([
             prisma_1.default.demandPlanLine.findMany({
-                where: { partName },
+                where: demandPlanWhere,
             }),
             prisma_1.default.systemSetting.findUnique({
                 where: { key: 'demand_planning_priority_order' },
@@ -91,7 +105,7 @@ let DemandPlanningService = class DemandPlanningService {
                 where: { key: 'demand_planning_null_grade_fallback' },
             }),
             prisma_1.default.mpsProductionTransaction.findMany({
-                where: { partName },
+                where: mpsTxWhere,
                 orderBy: { planDate: 'asc' },
             }),
         ]);

@@ -17,6 +17,8 @@ export declare class ErpSaleOrderService implements OnModuleInit {
         lineCount: number;
     }>;
     private processChunk;
+    private ensureHeadersExist;
+    private processLineChunk;
     getSaleOrderLines(headerId: string): Promise<{
         id: string;
         createdAt: Date;

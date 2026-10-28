@@ -59,7 +59,7 @@ export class ErpSaleOrderService implements OnModuleInit {
       );
       const prefixSetting = await this.settingsService.getSettingByKey(
         'erp_order_type_prefix',
-        'SFO%SO, SFO%F',
+        'SFO%SO, SFO%F, SFO%SLH',
       );
       const prefixes = prefixSetting
         .split(',')
@@ -110,11 +110,11 @@ export class ErpSaleOrderService implements OnModuleInit {
                ODH.FLOW_STATUS_CODE  AS ERP_ORDER_STATUS
         FROM   OE_ORDER_HEADERS_ALL ODH
                JOIN OE_TRANSACTION_TYPES_TL ODT ON ODT.TRANSACTION_TYPE_ID = ODH.ORDER_TYPE_ID
-               JOIN AR_CUSTOMERS CUS ON CUS.CUSTOMER_ID = ODH.SOLD_TO_ORG_ID
+               LEFT JOIN AR_CUSTOMERS CUS ON CUS.CUSTOMER_ID = ODH.SOLD_TO_ORG_ID
         WHERE  (${typeConditions})
         AND    ODH.CANCELLED_FLAG    = 'N'
         AND    ODH.ORG_ID            = :orgId
-        AND    ODH.FLOW_STATUS_CODE  = 'BOOKED'
+        AND    ODH.FLOW_STATUS_CODE IN ('BOOKED', 'ENTERED')
         AND    ODH.LAST_UPDATE_DATE >= TO_DATE(:lastSync, 'YYYY-MM-DD HH24:MI:SS')
         AND    EXISTS (
                  SELECT 1 FROM OE_ORDER_LINES_ALL ODL 
@@ -182,41 +182,7 @@ export class ErpSaleOrderService implements OnModuleInit {
         const chunkSize = 1000;
         for (let i = 0; i < lines.length; i += chunkSize) {
           const chunk = lines.slice(i, i + chunkSize);
-          await prisma.$transaction(
-            chunk.map((row: any) =>
-              prisma.erpSaleOrderLine.upsert({
-                where: { erpOrderLineId: String(row.ERP_ORDER_LINE_ID) },
-                update: {
-                  erpLineNumber: String(row.LINE_NUMBER || ''),
-                  orderedQuantity: row.ORDERED_QUANTITY,
-                  orderQuantityUom: row.ORDER_QUANTITY_UOM || '',
-                  unitSellingPrice: row.UNIT_SELLING_PRICE || 0,
-                  scheduleShipDate: row.SCHEDULE_SHIP_DATE
-                    ? new Date(row.SCHEDULE_SHIP_DATE)
-                    : null,
-                  erpLastUpdateDate: new Date(row.ERP_LAST_UPDATE_DATE),
-                  lastSyncedAt: new Date(),
-                },
-                create: {
-                  erpOrderLineId: String(row.ERP_ORDER_LINE_ID),
-                  header: {
-                    connect: { erpOrderHeaderId: String(row.HEADER_ID) },
-                  },
-                  erpLineNumber: String(row.LINE_NUMBER || ''),
-                  erpItemId: String(row.ERP_ITEM_ID),
-                  erpItemCode: String(row.ERP_ITEM_CODE),
-                  orderedQuantity: row.ORDERED_QUANTITY,
-                  orderQuantityUom: row.ORDER_QUANTITY_UOM || '',
-                  unitSellingPrice: row.UNIT_SELLING_PRICE || 0,
-                  scheduleShipDate: row.SCHEDULE_SHIP_DATE
-                    ? new Date(row.SCHEDULE_SHIP_DATE)
-                    : null,
-                  erpCreationDate: new Date(row.ERP_CREATION_DATE),
-                  erpLastUpdateDate: new Date(row.ERP_LAST_UPDATE_DATE),
-                },
-              }),
-            ),
-          );
+          await this.processLineChunk(chunk);
         }
         this.logger.log(`Delta Sync: Upserted ${lines.length} Lines`);
       }
@@ -238,7 +204,7 @@ export class ErpSaleOrderService implements OnModuleInit {
       );
       const prefixSetting = await this.settingsService.getSettingByKey(
         'erp_order_type_prefix',
-        'SFO%SO, SFO%F',
+        'SFO%SO, SFO%F, SFO%SLH',
       );
       const prefixes = prefixSetting
         .split(',')
@@ -271,12 +237,12 @@ export class ErpSaleOrderService implements OnModuleInit {
         FROM   OE_ORDER_HEADERS_ALL ODH
                JOIN OE_ORDER_LINES_ALL ODL ON ODL.HEADER_ID = ODH.HEADER_ID
                JOIN OE_TRANSACTION_TYPES_TL ODT ON ODT.TRANSACTION_TYPE_ID = ODH.ORDER_TYPE_ID
-               JOIN AR_CUSTOMERS CUS ON CUS.CUSTOMER_ID = ODH.SOLD_TO_ORG_ID
+               LEFT JOIN AR_CUSTOMERS CUS ON CUS.CUSTOMER_ID = ODH.SOLD_TO_ORG_ID
         WHERE  (${typeConditions})
         AND    ODL.SCHEDULE_SHIP_DATE >= TO_DATE(:minShipDate, 'YYYY-MM-DD')
         AND    ODH.CANCELLED_FLAG    = 'N'
         AND    ODH.ORG_ID            = :orgId
-        AND    ODH.FLOW_STATUS_CODE  = 'BOOKED'
+        AND    ODH.FLOW_STATUS_CODE IN ('BOOKED', 'ENTERED')
         ORDER BY ERP_ORDER_NUMBER ASC
       `;
 
@@ -288,7 +254,7 @@ export class ErpSaleOrderService implements OnModuleInit {
       const headerStream = await this.oracleService.getStream(headerSql, binds);
 
       let headerChunk: any[] = [];
-      const chunkSize = 1000;
+      const chunkSize = 250;
       let headerCount = 0;
 
       await new Promise((resolve, reject) => {
@@ -356,7 +322,7 @@ export class ErpSaleOrderService implements OnModuleInit {
         WHERE  (${typeConditions})
         AND    ODL.ORG_ID = :orgId
         AND    ODH.CANCELLED_FLAG = 'N'
-        AND    ODH.FLOW_STATUS_CODE = 'BOOKED'
+        AND    ODH.FLOW_STATUS_CODE IN ('BOOKED', 'ENTERED')
         AND    ODL.SCHEDULE_SHIP_DATE >= TO_DATE(:minShipDate, 'YYYY-MM-DD')
       `;
 
@@ -369,41 +335,7 @@ export class ErpSaleOrderService implements OnModuleInit {
           lineChunk.push(row);
           if (lineChunk.length >= chunkSize) {
             lineStream.pause();
-            await prisma.$transaction(
-              lineChunk.map((r: any) =>
-                prisma.erpSaleOrderLine.upsert({
-                  where: { erpOrderLineId: String(r.ERP_ORDER_LINE_ID) },
-                  update: {
-                    erpLineNumber: String(r.LINE_NUMBER || ''),
-                    orderedQuantity: r.ORDERED_QUANTITY,
-                    orderQuantityUom: r.ORDER_QUANTITY_UOM || '',
-                    unitSellingPrice: r.UNIT_SELLING_PRICE || 0,
-                    scheduleShipDate: r.SCHEDULE_SHIP_DATE
-                      ? new Date(r.SCHEDULE_SHIP_DATE)
-                      : null,
-                    erpLastUpdateDate: new Date(r.ERP_LAST_UPDATE_DATE),
-                    lastSyncedAt: new Date(),
-                  },
-                  create: {
-                    erpOrderLineId: String(r.ERP_ORDER_LINE_ID),
-                    header: {
-                      connect: { erpOrderHeaderId: String(r.HEADER_ID) },
-                    },
-                    erpLineNumber: String(r.LINE_NUMBER || ''),
-                    erpItemId: String(r.ERP_ITEM_ID),
-                    erpItemCode: String(r.ERP_ITEM_CODE),
-                    orderedQuantity: r.ORDERED_QUANTITY,
-                    orderQuantityUom: r.ORDER_QUANTITY_UOM || '',
-                    unitSellingPrice: r.UNIT_SELLING_PRICE || 0,
-                    scheduleShipDate: r.SCHEDULE_SHIP_DATE
-                      ? new Date(r.SCHEDULE_SHIP_DATE)
-                      : null,
-                    erpCreationDate: new Date(r.ERP_CREATION_DATE),
-                    erpLastUpdateDate: new Date(r.ERP_LAST_UPDATE_DATE),
-                  },
-                }),
-              ),
-            );
+            await this.processLineChunk(lineChunk);
             lineCount += lineChunk.length;
             this.logger.log(`Synced ${lineCount} sale order lines...`);
             lineChunk = [];
@@ -413,41 +345,7 @@ export class ErpSaleOrderService implements OnModuleInit {
 
         lineStream.on('end', async () => {
           if (lineChunk.length > 0) {
-            await prisma.$transaction(
-              lineChunk.map((r: any) =>
-                prisma.erpSaleOrderLine.upsert({
-                  where: { erpOrderLineId: String(r.ERP_ORDER_LINE_ID) },
-                  update: {
-                    erpLineNumber: String(r.LINE_NUMBER || ''),
-                    orderedQuantity: r.ORDERED_QUANTITY,
-                    orderQuantityUom: r.ORDER_QUANTITY_UOM || '',
-                    unitSellingPrice: r.UNIT_SELLING_PRICE || 0,
-                    scheduleShipDate: r.SCHEDULE_SHIP_DATE
-                      ? new Date(r.SCHEDULE_SHIP_DATE)
-                      : null,
-                    erpLastUpdateDate: new Date(r.ERP_LAST_UPDATE_DATE),
-                    lastSyncedAt: new Date(),
-                  },
-                  create: {
-                    erpOrderLineId: String(r.ERP_ORDER_LINE_ID),
-                    header: {
-                      connect: { erpOrderHeaderId: String(r.HEADER_ID) },
-                    },
-                    erpLineNumber: String(r.LINE_NUMBER || ''),
-                    erpItemId: String(r.ERP_ITEM_ID),
-                    erpItemCode: String(r.ERP_ITEM_CODE),
-                    orderedQuantity: r.ORDERED_QUANTITY,
-                    orderQuantityUom: r.ORDER_QUANTITY_UOM || '',
-                    unitSellingPrice: r.UNIT_SELLING_PRICE || 0,
-                    scheduleShipDate: r.SCHEDULE_SHIP_DATE
-                      ? new Date(r.SCHEDULE_SHIP_DATE)
-                      : null,
-                    erpCreationDate: new Date(r.ERP_CREATION_DATE),
-                    erpLastUpdateDate: new Date(r.ERP_LAST_UPDATE_DATE),
-                  },
-                }),
-              ),
-            );
+            await this.processLineChunk(lineChunk);
             lineCount += lineChunk.length;
           }
           this.logger.log(`Line sync completed. Total: ${lineCount}`);
@@ -500,6 +398,102 @@ export class ErpSaleOrderService implements OnModuleInit {
     );
   }
 
+  private async ensureHeadersExist(headerIds: string[]): Promise<Set<string>> {
+    if (!headerIds || headerIds.length === 0) return new Set();
+
+    const existing = await prisma.erpSaleOrderHeader.findMany({
+      where: { erpOrderHeaderId: { in: headerIds } },
+      select: { erpOrderHeaderId: true },
+    });
+    const existingSet = new Set(existing.map((h) => h.erpOrderHeaderId));
+    const missing = headerIds.filter((id) => !existingSet.has(id));
+
+    if (missing.length > 0) {
+      this.logger.warn(
+        `Found ${missing.length} line headers missing in local DB. Fetching from Oracle...`,
+      );
+      try {
+        const missingSql = `
+          SELECT DISTINCT
+                 ODH.HEADER_ID         AS ERP_ORDER_HEADER_ID,
+                 ODH.ORG_ID            AS ERP_ORG_ID,
+                 ODH.ORDERED_DATE      AS ERP_ORDER_DATE,
+                 ODH.ORDER_NUMBER      AS ERP_ORDER_NUMBER,
+                 ODT.NAME              AS ERP_ORDER_TYPE,
+                 CUS.CUSTOMER_NUMBER   AS ERP_CUSTOMER_NUMBER,
+                 CUS.CUSTOMER_NAME     AS ERP_CUSTOMER_NAME,
+                 CUS.ATTRIBUTE1        AS ERP_CUSTOMER_GRADE,
+                 ODH.CREATION_DATE     AS ERP_CREATION_DATE,
+                 ODH.LAST_UPDATE_DATE  AS ERP_LAST_UPDATE_DATE,
+                 ODH.FLOW_STATUS_CODE  AS ERP_ORDER_STATUS
+          FROM   OE_ORDER_HEADERS_ALL ODH
+                 JOIN OE_TRANSACTION_TYPES_TL ODT ON ODT.TRANSACTION_TYPE_ID = ODH.ORDER_TYPE_ID
+                 LEFT JOIN AR_CUSTOMERS CUS ON CUS.CUSTOMER_ID = ODH.SOLD_TO_ORG_ID
+          WHERE  ODH.HEADER_ID IN (${missing.slice(0, 1000).join(',')})
+        `;
+        const fetched = await this.oracleService.executeQuery(missingSql);
+        if (fetched.length > 0) {
+          await this.processChunk(fetched);
+          fetched.forEach((h: any) =>
+            existingSet.add(String(h.ERP_ORDER_HEADER_ID)),
+          );
+        }
+      } catch (err) {
+        this.logger.error('Failed to fetch missing headers from Oracle', err);
+      }
+    }
+    return existingSet;
+  }
+
+  private async processLineChunk(chunk: any[]) {
+    if (!chunk || chunk.length === 0) return;
+    const headerIds = Array.from(
+      new Set(chunk.map((r) => String(r.HEADER_ID))),
+    );
+    const existingHeaderSet = await this.ensureHeadersExist(headerIds);
+    const validLines = chunk.filter((r) =>
+      existingHeaderSet.has(String(r.HEADER_ID)),
+    );
+
+    if (validLines.length === 0) return;
+
+    await prisma.$transaction(
+      validLines.map((r: any) =>
+        prisma.erpSaleOrderLine.upsert({
+          where: { erpOrderLineId: String(r.ERP_ORDER_LINE_ID) },
+          update: {
+            erpLineNumber: String(r.LINE_NUMBER || ''),
+            orderedQuantity: r.ORDERED_QUANTITY,
+            orderQuantityUom: r.ORDER_QUANTITY_UOM || '',
+            unitSellingPrice: r.UNIT_SELLING_PRICE || 0,
+            scheduleShipDate: r.SCHEDULE_SHIP_DATE
+              ? new Date(r.SCHEDULE_SHIP_DATE)
+              : null,
+            erpLastUpdateDate: new Date(r.ERP_LAST_UPDATE_DATE),
+            lastSyncedAt: new Date(),
+          },
+          create: {
+            erpOrderLineId: String(r.ERP_ORDER_LINE_ID),
+            header: {
+              connect: { erpOrderHeaderId: String(r.HEADER_ID) },
+            },
+            erpLineNumber: String(r.LINE_NUMBER || ''),
+            erpItemId: String(r.ERP_ITEM_ID),
+            erpItemCode: String(r.ERP_ITEM_CODE),
+            orderedQuantity: r.ORDERED_QUANTITY,
+            orderQuantityUom: r.ORDER_QUANTITY_UOM || '',
+            unitSellingPrice: r.UNIT_SELLING_PRICE || 0,
+            scheduleShipDate: r.SCHEDULE_SHIP_DATE
+              ? new Date(r.SCHEDULE_SHIP_DATE)
+              : null,
+            erpCreationDate: new Date(r.ERP_CREATION_DATE),
+            erpLastUpdateDate: new Date(r.ERP_LAST_UPDATE_DATE),
+          },
+        }),
+      ),
+    );
+  }
+
   /**
    * Get synced sale orders from local database
    */
@@ -532,9 +526,10 @@ export class ErpSaleOrderService implements OnModuleInit {
     if (search) {
       where.OR = [
         { erpOrderNumber: { contains: search } },
+        { erpOrderType: { contains: search } },
         { erpCustomerName: { contains: search } },
         { erpCustomerNumber: { contains: search } },
-        { lines: { some: { erpItemCode: { contains: search } } } },
+        { ErpSaleOrderLine: { some: { erpItemCode: { contains: search } } } },
       ];
     }
 
@@ -578,7 +573,7 @@ export class ErpSaleOrderService implements OnModuleInit {
     }
 
     if (Object.keys(lineConditions).length > 0) {
-      where.lines = { some: lineConditions };
+      where.ErpSaleOrderLine = { some: lineConditions };
     }
 
     const [data, total] = await Promise.all([

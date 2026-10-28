@@ -162,11 +162,50 @@ export async function generateAutoPlanOnServer(
   const specs: Record<string, any> = {};
   specsArr.forEach((s) => {
     specs[s.erpItemCode] = s;
+    let parsedRmSizes: any[] = [];
     try {
-      specs[s.erpItemCode].parsedRmSizes = JSON.parse(s.rmSizesJson || '[]');
+      parsedRmSizes = JSON.parse(s.rmSizesJson || '[]');
     } catch (e) {
-      specs[s.erpItemCode].parsedRmSizes = [];
+      parsedRmSizes = [];
     }
+    specs[s.erpItemCode].parsedRmSizes = parsedRmSizes;
+
+    const parsedRules: {
+      priority: number;
+      rmSize: string;
+      yieldPercent: number;
+    }[] = [];
+    let isUnsizeAllowed = parsedRmSizes.length === 0;
+    const defaultYield = s.yieldPercent || 100;
+
+    for (let idx = 0; idx < parsedRmSizes.length; idx++) {
+      const item: any = parsedRmSizes[idx];
+      if (typeof item === 'object' && item !== null) {
+        const szStr = String(item.rmSize || '').trim();
+        if (szStr === 'Unsize' || szStr === 'All' || !szStr)
+          isUnsizeAllowed = true;
+        parsedRules.push({
+          priority: Number(item.priority || idx + 1),
+          rmSize: szStr,
+          yieldPercent:
+            item.yieldPercent !== undefined
+              ? Number(item.yieldPercent)
+              : defaultYield,
+        });
+      } else {
+        const szStr = String(item).trim();
+        if (szStr === 'Unsize' || szStr === 'All') isUnsizeAllowed = true;
+        parsedRules.push({
+          priority: idx + 1,
+          rmSize: szStr,
+          yieldPercent: defaultYield,
+        });
+      }
+    }
+    parsedRules.sort((a, b) => a.priority - b.priority);
+
+    specs[s.erpItemCode].precomputedRules = parsedRules;
+    specs[s.erpItemCode].isUnsizeAllowed = isUnsizeAllowed;
   });
 
   // Populate fallback specs from flowBoards for any demand items without explicit productSpec
@@ -196,18 +235,34 @@ export async function generateAutoPlanOnServer(
 
   const soNumbers = Array.from(
     new Set(plannedDemandsDb.map((d: any) => d.soNumber)),
-  );
+  ).filter((s) => s && s.trim());
   const itemCodes = Array.from(
     new Set(plannedDemandsDb.map((d: any) => d.itemCode)),
-  );
+  ).filter((i) => i && i.trim());
 
-  const soLines = await prisma.erpSaleOrderLine.findMany({
-    where: {
-      header: { erpOrderNumber: { in: soNumbers } },
-      erpItemCode: { in: itemCodes },
-    },
-    include: { header: true },
-  });
+  const soLines: any[] = [];
+  const chunkSize = 500;
+  for (let i = 0; i < soNumbers.length; i += chunkSize) {
+    const chunkSo = soNumbers.slice(i, i + chunkSize);
+    const chunkWhere: any = {
+      header: { erpOrderNumber: { in: chunkSo } },
+    };
+    if (itemCodes.length > 0 && itemCodes.length <= 1000) {
+      chunkWhere.erpItemCode = { in: itemCodes };
+    }
+    const chunkRes = await prisma.erpSaleOrderLine.findMany({
+      where: chunkWhere,
+      select: {
+        scheduleShipDate: true,
+        erpLineNumber: true,
+        erpItemCode: true,
+        header: {
+          select: { erpOrderNumber: true },
+        },
+      },
+    });
+    soLines.push(...chunkRes);
+  }
 
   const soLineMap = new Map();
   for (const line of soLines) {
@@ -229,26 +284,32 @@ export async function generateAutoPlanOnServer(
   // 2. Initialize Daily Supply State
   const dailySupplyState: Record<string, any[]> = {};
 
+  const monthlyRecMap = new Map<string, any>();
+  for (const r of monthlyRecords) {
+    monthlyRecMap.set(format(new Date(r.receiveDate), 'yyyy-MM-dd'), r);
+  }
+
+  const weeklyRecAggMap = new Map<
+    string,
+    { count: number; totalWeight: number }
+  >();
+  for (const r of weeklyRecords) {
+    const key = format(new Date(r.receiveDate), 'yyyy-MM-dd');
+    const curr = weeklyRecAggMap.get(key) || { count: 0, totalWeight: 0 };
+    curr.count += Number(r.totalCount || 0);
+    curr.totalWeight += Number(r.totalWeight || 0);
+    weeklyRecAggMap.set(key, curr);
+  }
+
   let d = monthStart;
   while (d <= monthEnd) {
     const dateStr = format(d, 'yyyy-MM-dd');
     const totalWeight = calculatedSupply[dateStr] || 0;
 
-    const monthlyRec = monthlyRecords.find((r) =>
-      isSameDay(new Date(r.receiveDate), d),
-    );
-    const weeklyRecs = weeklyRecords.filter((r) =>
-      isSameDay(new Date(r.receiveDate), d),
-    );
-
-    const weeklyCount = weeklyRecs.reduce(
-      (sum, r) => sum + Number(r.totalCount),
-      0,
-    );
-    const weeklyTotalWeight = weeklyRecs.reduce(
-      (sum, r) => sum + Number(r.totalWeight),
-      0,
-    );
+    const monthlyRec = monthlyRecMap.get(dateStr);
+    const weeklyAgg = weeklyRecAggMap.get(dateStr);
+    const weeklyCount = weeklyAgg ? weeklyAgg.count : 0;
+    const weeklyTotalWeight = weeklyAgg ? weeklyAgg.totalWeight : 0;
 
     let avgWeight = 0;
     if (weeklyCount > 0) {
@@ -406,6 +467,8 @@ export async function generateAutoPlanOnServer(
     { poolId: string; yieldPercent: number }[]
   > = {};
 
+  const machinePools: { poolId: string; yieldPercent: number }[] = [];
+
   if (flowBoards.length > 0) {
     const board =
       flowBoards.find(
@@ -414,39 +477,58 @@ export async function generateAutoPlanOnServer(
       flowBoards.find((b) => b.name?.includes(partName)) ||
       flowBoards.find((b) => b.name === 'Master Production Flow') ||
       flowBoards[0];
-    const nodes = board.nodes || [];
-    const edges = board.edges || [];
+    const nodes: any[] = board?.nodes || [];
+    const edges: any[] = board?.edges || [];
+
+    // Pre-index nodes, parsed data, and edge adjacencies for O(1) traversal
+    const nodeMap = new Map<string, any>();
+    const nodeDataMap = new Map<string, any>();
+    for (const n of nodes) {
+      nodeMap.set(n.id, n);
+      try {
+        nodeDataMap.set(
+          n.id,
+          n.data
+            ? typeof n.data === 'string'
+              ? JSON.parse(n.data)
+              : n.data
+            : {},
+        );
+      } catch {
+        nodeDataMap.set(n.id, {});
+      }
+    }
+
+    const incomingEdgesMap = new Map<string, any[]>();
+    const outgoingEdgesMap = new Map<string, any[]>();
+    for (const e of edges) {
+      if (!incomingEdgesMap.has(e.target)) incomingEdgesMap.set(e.target, []);
+      incomingEdgesMap.get(e.target)!.push(e);
+
+      if (!outgoingEdgesMap.has(e.source)) outgoingEdgesMap.set(e.source, []);
+      outgoingEdgesMap.get(e.source)!.push(e);
+    }
 
     const findIncomingEdges = (nodeId: string) =>
-      edges.filter((e: any) => e.target === nodeId);
+      incomingEdgesMap.get(nodeId) || [];
     const findOutgoingEdges = (nodeId: string) =>
-      edges.filter((e: any) => e.source === nodeId);
+      outgoingEdgesMap.get(nodeId) || [];
 
     const itemNodes = nodes.filter((n: any) => isItemNode(n));
     for (const itemNode of itemNodes) {
-      let data: any;
-      try {
-        data = JSON.parse(itemNode.data || '{}');
-      } catch (e) {
-        continue;
-      }
+      const data = nodeDataMap.get(itemNode.id) || {};
       if (data.itemCategory !== 'product') continue;
 
       let chosenProcessNode: any = null;
       let minProcessNumber = 999999;
 
       for (const edge1 of findIncomingEdges(itemNode.id)) {
-        const rmNode = nodes.find((n: any) => n.id === edge1.source);
+        const rmNode = nodeMap.get(edge1.source);
         if (rmNode && isRmNode(rmNode)) {
           for (const edge2 of findIncomingEdges(rmNode.id)) {
-            const processNode = nodes.find((n: any) => n.id === edge2.source);
+            const processNode = nodeMap.get(edge2.source);
             if (processNode && isProcessNode(processNode)) {
-              let pData: any;
-              try {
-                pData = JSON.parse(processNode.data || '{}');
-              } catch (e) {
-                continue;
-              }
+              const pData = nodeDataMap.get(processNode.id) || {};
               const pNum = Number(pData.Process) || 999;
               if (pNum < minProcessNumber) {
                 minProcessNumber = pNum;
@@ -467,13 +549,10 @@ export async function generateAutoPlanOnServer(
           outEdge.sourceHandle === 'coproduct' ||
           outEdge.sourceHandle === 'byproduct'
         ) {
-          const targetRmNode = nodes.find((n: any) => n.id === outEdge.target);
+          const targetRmNode = nodeMap.get(outEdge.target);
           if (targetRmNode) {
-            let rmYieldPercent = 0;
-            try {
-              const rmData = JSON.parse(targetRmNode.data || '{}');
-              rmYieldPercent = Number(rmData['Yield Percent']) || 0;
-            } catch (e) {}
+            const rmData = nodeDataMap.get(targetRmNode.id) || {};
+            const rmYieldPercent = Number(rmData['Yield Percent']) || 0;
 
             if (rmYieldPercent > 0) {
               const poolKey = targetRmNode.name?.trim() || targetRmNode.id;
@@ -492,16 +571,9 @@ export async function generateAutoPlanOnServer(
 
               const rmOutgoing = findOutgoingEdges(targetRmNode.id);
               for (const outEdge2 of rmOutgoing) {
-                const coItemNode = nodes.find(
-                  (n: any) => n.id === outEdge2.target,
-                );
+                const coItemNode = nodeMap.get(outEdge2.target);
                 if (coItemNode && isItemNode(coItemNode)) {
-                  let coData: any;
-                  try {
-                    coData = JSON.parse(coItemNode.data || '{}');
-                  } catch (e) {
-                    continue;
-                  }
+                  const coData = nodeDataMap.get(coItemNode.id) || {};
                   if (coData.Items && Array.isArray(coData.Items)) {
                     for (const coItem of coData.Items) {
                       rmPools[poolKey].itemCodes.add(coItem.erpItemCode);
@@ -545,65 +617,51 @@ export async function generateAutoPlanOnServer(
         }
       }
     }
-  }
 
-  // 1.6 Discover byproducts generated directly from Machine nodes (e.g. Toridas Machine TRD-01)
-  const machinePools: { poolId: string; yieldPercent: number }[] = [];
-  if (flowBoards.length > 0) {
-    const board =
-      flowBoards.find(
-        (b) => b.name === `Master Production Flow - ${partName}`,
-      ) ||
-      flowBoards.find((b) => b.name?.includes(partName)) ||
-      flowBoards.find((b) => b.name === 'Master Production Flow') ||
-      flowBoards[0];
-    const nodes = board.nodes || [];
-    const edges = board.edges || [];
-
+    // 1.6 Discover byproducts generated directly from Machine nodes (e.g. Toridas Machine TRD-01)
     const machineNodes = nodes.filter((n: any) => isMachineNode(n));
     for (const mNode of machineNodes) {
-      const outEdges = edges.filter(
+      const outEdges = findOutgoingEdges(mNode.id).filter(
         (e: any) =>
-          e.source === mNode.id &&
-          (e.sourceHandle === 'byproduct' || e.sourceHandle === 'coproduct'),
+          e.sourceHandle === 'byproduct' || e.sourceHandle === 'coproduct',
       );
       for (const oe of outEdges) {
-        const rmNode = nodes.find((n: any) => n.id === oe.target);
-        let rmYield = 0;
-        try {
-          rmYield =
-            Number(JSON.parse(rmNode?.data || '{}')['Yield Percent']) || 0;
-        } catch (e) {}
-        if (rmNode && rmYield > 0) {
-          const poolKey = rmNode.name?.trim() || rmNode.id;
-          if (!rmPools[poolKey]) {
-            rmPools[poolKey] = {
-              id: poolKey,
-              name: rmNode.name,
-              yieldPercent: rmYield,
-              type:
-                oe.sourceHandle === 'coproduct' ? 'Co-Product' : 'By-Product',
-              itemCodes: new Set(),
-            };
-          }
-          if (!machinePools.some((mp) => mp.poolId === poolKey)) {
-            machinePools.push({ poolId: poolKey, yieldPercent: rmYield });
-          }
+        const rmNode = nodeMap.get(oe.target);
+        if (rmNode) {
+          const rmData = nodeDataMap.get(rmNode.id) || {};
+          const rmYield = Number(rmData['Yield Percent']) || 0;
+          if (rmYield > 0) {
+            const poolKey = rmNode.name?.trim() || rmNode.id;
+            if (!rmPools[poolKey]) {
+              rmPools[poolKey] = {
+                id: poolKey,
+                name: rmNode.name,
+                yieldPercent: rmYield,
+                type:
+                  oe.sourceHandle === 'coproduct'
+                    ? 'Co-Product'
+                    : 'By-Product',
+                itemCodes: new Set(),
+              };
+            }
+            if (!machinePools.some((mp) => mp.poolId === poolKey)) {
+              machinePools.push({ poolId: poolKey, yieldPercent: rmYield });
+            }
 
-          const rmOut = edges.filter((e: any) => e.source === rmNode?.id);
-          for (const ro of rmOut) {
-            const itemNode = nodes.find((n: any) => n.id === ro.target);
-            let itemData: any = {};
-            try {
-              itemData = JSON.parse(itemNode?.data || '{}');
-            } catch (e) {}
-            if (itemData.Items && Array.isArray(itemData.Items)) {
-              for (const item of itemData.Items) {
-                rmPools[poolKey].itemCodes.add(item.erpItemCode);
-                if (!itemToPoolsMap[item.erpItemCode])
-                  itemToPoolsMap[item.erpItemCode] = [];
-                if (!itemToPoolsMap[item.erpItemCode].includes(poolKey)) {
-                  itemToPoolsMap[item.erpItemCode].push(poolKey);
+            const rmOut = findOutgoingEdges(rmNode.id);
+            for (const ro of rmOut) {
+              const itemNode = nodeMap.get(ro.target);
+              if (itemNode && isItemNode(itemNode)) {
+                const itemData = nodeDataMap.get(itemNode.id) || {};
+                if (itemData.Items && Array.isArray(itemData.Items)) {
+                  for (const item of itemData.Items) {
+                    rmPools[poolKey].itemCodes.add(item.erpItemCode);
+                    if (!itemToPoolsMap[item.erpItemCode])
+                      itemToPoolsMap[item.erpItemCode] = [];
+                    if (!itemToPoolsMap[item.erpItemCode].includes(poolKey)) {
+                      itemToPoolsMap[item.erpItemCode].push(poolKey);
+                    }
+                  }
                 }
               }
             }
@@ -866,40 +924,14 @@ export async function generateAutoPlanOnServer(
         continue;
       }
 
-      // Normalize allowed size rules
+      // Use precomputed allowed size rules
       const parsedRules: {
         priority: number;
         rmSize: string;
         yieldPercent: number;
-      }[] = [];
-      let isUnsizeAllowed = allowedSizes.length === 0;
-
-      for (let idx = 0; idx < allowedSizes.length; idx++) {
-        const item: any = allowedSizes[idx];
-        if (typeof item === 'object' && item !== null) {
-          const szStr = String(item.rmSize || '').trim();
-          if (szStr === 'Unsize' || szStr === 'All' || !szStr)
-            isUnsizeAllowed = true;
-          parsedRules.push({
-            priority: Number(item.priority || idx + 1),
-            rmSize: szStr,
-            yieldPercent:
-              item.yieldPercent !== undefined
-                ? Number(item.yieldPercent)
-                : yieldPercent,
-          });
-        } else {
-          const szStr = String(item).trim();
-          if (szStr === 'Unsize' || szStr === 'All') isUnsizeAllowed = true;
-          parsedRules.push({
-            priority: idx + 1,
-            rmSize: szStr,
-            yieldPercent: yieldPercent,
-          });
-        }
-      }
-
-      parsedRules.sort((a, b) => a.priority - b.priority);
+      }[] = spec.precomputedRules || [];
+      const isUnsizeAllowed =
+        spec.isUnsizeAllowed ?? (allowedSizes.length === 0);
 
       const matchedBucketsWithYield: {
         bucket: any;

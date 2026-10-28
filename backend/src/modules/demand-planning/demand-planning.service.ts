@@ -61,6 +61,9 @@ export class DemandPlanningService {
       erpItemCode: { in: itemCodes },
     };
 
+    const demandPlanWhere: any = { partName };
+    const mpsTxWhere: any = { partName };
+
     if (startDate && endDate) {
       const s = new Date(startDate);
       s.setHours(0, 0, 0, 0);
@@ -69,6 +72,22 @@ export class DemandPlanningService {
       soLineWhere.scheduleShipDate = {
         gte: s,
         lte: e,
+      };
+
+      // Scope saved demand plans to the active ship date window
+      demandPlanWhere.shipDate = {
+        gte: s,
+        lte: e,
+      };
+
+      // Scope production transactions to the active window (with 14-day lead-time lookback)
+      const lookbackStart = new Date(s);
+      lookbackStart.setDate(lookbackStart.getDate() - 14);
+      const lookforwardEnd = new Date(e);
+      lookforwardEnd.setDate(lookforwardEnd.getDate() + 7);
+      mpsTxWhere.planDate = {
+        gte: lookbackStart,
+        lte: lookforwardEnd,
       };
     }
 
@@ -94,7 +113,7 @@ export class DemandPlanningService {
     const [savedPlans, prioritySetting, gradeSetting, productionPlans] =
       await Promise.all([
         prisma.demandPlanLine.findMany({
-          where: { partName },
+          where: demandPlanWhere,
         }),
         prisma.systemSetting.findUnique({
           where: { key: 'demand_planning_priority_order' },
@@ -103,7 +122,7 @@ export class DemandPlanningService {
           where: { key: 'demand_planning_null_grade_fallback' },
         }),
         prisma.mpsProductionTransaction.findMany({
-          where: { partName },
+          where: mpsTxWhere,
           orderBy: { planDate: 'asc' },
         }),
       ]);

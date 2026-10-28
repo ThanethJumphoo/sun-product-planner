@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 /* 
-  Base Light/Dark variables. 
-  These CSS variables will automatically map to Tailwind v4 theme colors.
+  Base Light Theme variables.
+  Enforced across all devices regardless of OS theme.
 */
 :root {
   --background: #F7F8FA;
@@ -23,26 +23,6 @@
   --radius-sm: 0.125rem;
   --radius-md: 0.25rem;
   --radius-lg: 0.5rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f172a;
-    --surface: #1e293b;
-    --foreground: #f8fafc;
-    --text-muted: #94a3b8;
-    --border: #334155;
-    
-    /* We can slightly adjust these for dark mode contrast if needed */
-    --primary: #3b749d; 
-    --primary-foreground: #FFFFFF;
-    --secondary: #748c9f;
-    --secondary-foreground: #FFFFFF;
-    
-    --success: #22c55e;
-    --warning: #f59e0b;
-    --danger: #ef4444;
-  }
 }
 
 @theme {
@@ -96,6 +76,16 @@
     color: var(--foreground);
     font-family: var(--font-sans);
   }
+
+  /* Enforce clear dark text and white background for form inputs */
+  input, select, textarea {
+    color: #0f172a !important;
+    background-color: #ffffff;
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: #94a3b8 !important;
+  }
 }
 
 /* Custom Hover Scrollbar */
@@ -103,4 +93,3 @@
 .hover-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .hover-scrollbar::-webkit-scrollbar-thumb { background-color: transparent; border-radius: 10px; }
 .hover-scrollbar:hover::-webkit-scrollbar-thumb { background-color: rgba(156, 163, 175, 0.5); }
-
