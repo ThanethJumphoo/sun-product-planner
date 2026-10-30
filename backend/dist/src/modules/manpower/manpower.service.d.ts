@@ -137,6 +137,7 @@ export declare class ManpowerService {
         dailyTotals: {
             calculated: Record<string, number>;
             actual: Record<string, number>;
+            actualRecorded: Record<string, number | null>;
             plannedQtyKg: Record<string, number>;
         };
         summary: {
@@ -146,6 +147,13 @@ export declare class ManpowerService {
             totalPlannedQtyKg: number;
             rolesCount: number;
         };
+    }>;
+    saveQuickActualTotals(partName: string, items: Array<{
+        date: string;
+        actualWorkers: number;
+    }>): Promise<{
+        success: boolean;
+        count: number;
     }>;
     saveOverrides(partName: string, overrides: SaveManpowerOverrideDto[]): Promise<any[]>;
     resetOverrides(partName: string, roleId?: number, date?: string): Promise<import(".prisma/client").Prisma.BatchPayload>;

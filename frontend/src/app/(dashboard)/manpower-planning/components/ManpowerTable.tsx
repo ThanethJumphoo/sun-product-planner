@@ -18,6 +18,7 @@ import {
   AlertCircle,
   FileSpreadsheet,
   CalendarDays,
+  UserCheck,
 } from 'lucide-react';
 import { format, addMonths, subMonths, parseISO, isWeekend } from 'date-fns';
 import { th } from 'date-fns/locale';
@@ -43,6 +44,7 @@ interface ManpowerDailyPlanResponse {
   dailyTotals: {
     calculated: Record<string, number>;
     actual: Record<string, number>;
+    actualRecorded?: Record<string, number | null>;
     plannedQtyKg: Record<string, number>;
   };
   summary: {
@@ -65,10 +67,15 @@ export function ManpowerTable({ partName }: { partName: string }) {
   // Tracks unsaved user edits: key is `${roleId}_${dateStr}`, value is the new worker count
   const [editedCells, setEditedCells] = useState<Record<string, number>>({});
 
+  // Tracks unsaved actual worker edits: key is dateStr (YYYY-MM-DD), value is string
+  const [editedActuals, setEditedActuals] = useState<Record<string, string>>({});
+  const [isSavingActual, setIsSavingActual] = useState(false);
+
   useEffect(() => {
     if (partName) {
       fetchDailyPlan();
       setEditedCells({});
+      setEditedActuals({});
     }
   }, [partName, currentMonth]);
 
@@ -145,6 +152,50 @@ export function ManpowerTable({ partName }: { partName: string }) {
     }
   };
 
+
+  const handleActualChange = (dateStr: string, value: string) => {
+    setEditedActuals((prev) => ({
+      ...prev,
+      [dateStr]: value,
+    }));
+  };
+
+  const hasUnsavedActualChanges = Object.keys(editedActuals).length > 0;
+
+  const handleSaveActuals = async () => {
+    const dates = Object.keys(editedActuals);
+    if (dates.length === 0) return;
+
+    setIsSavingActual(true);
+    try {
+      const items = dates
+        .map((dStr) => {
+          const val = parseFloat(editedActuals[dStr]);
+          if (isNaN(val) || val < 0) return null;
+          return {
+            date: dStr,
+            actualWorkers: val,
+          };
+        })
+        .filter(Boolean);
+
+      if (items.length === 0) {
+        toast.error('กรุณาระบุตัวเลขกำลังคนจริงที่ถูกต้อง');
+        return;
+      }
+
+      await api.post(`/api/v1/manpower/${encodeURIComponent(partName)}/quick-actual-totals`, items);
+      toast.success(`บันทึกข้อมูลกำลังคนจริง ${items.length} วันเรียบร้อยแล้ว`);
+      setEditedActuals({});
+      fetchDailyPlan();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูลจริง');
+    } finally {
+      setIsSavingActual(false);
+    }
+  };
+
   const handleResetOverrides = async () => {
     if (!confirm('คุณต้องการรีเซ็ตค่าที่ปรับแต่งทั้งหมดของเดือนนี้กลับเป็นค่าคำนวณเริ่มต้นใช่หรือไม่?')) {
       return;
@@ -199,6 +250,41 @@ export function ManpowerTable({ partName }: { partName: string }) {
     };
   }, [data, editedCells]);
 
+
+  // Compute actual manpower daily totals and summary
+  const computedActualTotals = useMemo(() => {
+    if (!data) return { daily: {} as Record<string, number | null>, avgDaily: 0, recordedCount: 0 };
+    const totals: Record<string, number | null> = {};
+    let grandSum = 0;
+    let activeDays = 0;
+
+    data.days.forEach((dStr) => {
+      let val: number | null = null;
+      if (editedActuals[dStr] !== undefined) {
+        const parsed = parseFloat(editedActuals[dStr]);
+        val = isNaN(parsed) ? null : parsed;
+      } else if (
+        data.dailyTotals.actualRecorded?.[dStr] !== null &&
+        data.dailyTotals.actualRecorded?.[dStr] !== undefined
+      ) {
+        val = Number(data.dailyTotals.actualRecorded[dStr]);
+      }
+
+      totals[dStr] = val;
+      if (val !== null && val > 0) {
+        grandSum += val;
+        activeDays += 1;
+      }
+    });
+
+    const avg = activeDays > 0 ? Math.round((grandSum / activeDays) * 10) / 10 : 0;
+    return {
+      daily: totals,
+      avgDaily: avg,
+      recordedCount: activeDays,
+    };
+  }, [data, editedActuals]);
+
   const hasUnsavedChanges = Object.keys(editedCells).length > 0;
 
   // Group roles by category
@@ -225,7 +311,7 @@ export function ManpowerTable({ partName }: { partName: string }) {
       <div className="flex h-96 items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-sm font-medium text-slate-600 animate-pulse">กำลังคำนวณแผนกำลังคน {partName}...</p>
+          <p className="text-sm font-medium text-slate-600 ">กำลังคำนวณแผนกำลังคน {partName}...</p>
         </div>
       </div>
     );
@@ -251,7 +337,7 @@ export function ManpowerTable({ partName }: { partName: string }) {
         </div>
 
         {/* Action Buttons & Month Picker */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 justify-end">
           {/* Month Selector */}
           <div className="flex items-center bg-white border border-slate-300 rounded-lg shadow-2xs overflow-hidden">
             <button
@@ -274,57 +360,59 @@ export function ManpowerTable({ partName }: { partName: string }) {
             </button>
           </div>
 
-          {/* Month input native picker */}
-          <input
-            type="month"
-            value={currentMonth}
-            onChange={(e) => e.target.value && setCurrentMonth(e.target.value)}
-            className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-700 shadow-2xs focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-
           {/* Weekly Day-of-Week Defaults Button */}
           <button
             onClick={() => setIsWeeklyModalOpen(true)}
-            className="px-3 py-1.5 border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-semibold rounded-lg shadow-2xs transition-all flex items-center gap-1.5"
-            title="กำหนดค่าคงที่กำลังคนแยกรายวัน (วันอาทิตย์ - เสาร์) เช่น ส่วนที่ 3 กำลังคนบริการ เพื่อนำไปใช้ทั้งเดือน"
+            className="px-2.5 py-1.5 border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-semibold rounded-lg shadow-2xs transition-all flex items-center gap-1.5"
+            title="กำหนดค่าคงที่กำลังคนแยกรายวัน (วันอาทิตย์ - เสาร์)"
           >
-            <CalendarDays size={14} />
-            กำหนดค่าคงที่ (อา-ส)
+            <CalendarDays size={13} />
+            <span>กำหนดค่าคงที่</span>
           </button>
 
           {/* Configure Roles Button */}
           <button
             onClick={() => setIsRoleModalOpen(true)}
-            className="px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-lg shadow-2xs transition-all flex items-center gap-1.5"
+            className="px-2.5 py-1.5 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-lg shadow-2xs transition-all flex items-center gap-1.5"
           >
-            <Settings size={14} className="text-slate-500" />
-            ตั้งค่าตำแหน่งงาน ({data?.roles.length || 0})
+            <Settings size={13} className="text-slate-500" />
+            <span>ตำแหน่งงาน ({data?.roles.length || 0})</span>
           </button>
 
           {/* Reset Overrides Button */}
           <button
             onClick={handleResetOverrides}
             disabled={isSaving}
-            className="px-3 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-medium rounded-lg shadow-2xs transition-all flex items-center gap-1.5 disabled:opacity-50"
-            title="รีเซ็ตค่าที่แก้ไขทั้งหมดกลับเป็นค่าสูตรคำนวณ"
+            className="px-2 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-medium rounded-lg shadow-2xs transition-all flex items-center gap-1 disabled:opacity-50"
+            title="รีเซ็ตค่าที่แก้ไขทั้งหมดกลับเป็นค่าเริ่มต้น"
           >
-            <RotateCcw size={13} />
-            คืนค่าเริ่มต้น
+            <RotateCcw size={12} />
+            <span>คืนค่า</span>
           </button>
 
-          {/* Save Button */}
-          <button
-            onClick={handleSave}
-            disabled={!hasUnsavedChanges || isSaving}
-            className={`px-4 py-1.5 text-xs font-semibold rounded-lg shadow-2xs transition-all flex items-center gap-1.5 ${
-              hasUnsavedChanges
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse'
-                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-            }`}
-          >
-            <Save size={14} />
-            {isSaving ? 'กำลังบันทึก...' : `บันทึก (${Object.keys(editedCells).length})`}
-          </button>
+          {/* Save Actual Button */}
+          {hasUnsavedActualChanges && (
+            <button
+              onClick={handleSaveActuals}
+              disabled={isSavingActual}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
+            >
+              <Save size={14} />
+              <span>{isSavingActual ? 'กำลังบันทึก...' : `บันทึกคนจริง (${Object.keys(editedActuals).length})`}</span>
+            </button>
+          )}
+
+          {/* Save Plan Button */}
+          {hasUnsavedChanges && (
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
+            >
+              <Save size={14} />
+              <span>{isSaving ? 'กำลังบันทึก...' : `บันทึกแผน (${Object.keys(editedCells).length})`}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -500,18 +588,18 @@ export function ManpowerTable({ partName }: { partName: string }) {
                 </>
               )}
 
-              {/* TOTAL ROW 1: TOTAL ACTUAL / FINAL MANPOWER */}
-              <tr className="bg-slate-800 text-white font-bold sticky bottom-8 z-20 shadow-md">
-                <td className="py-2.5 px-3 sticky left-0 bg-slate-800 z-30 shadow-md">
+              {/* TOTAL ROW 1: PLANNED MANPOWER */}
+              <tr className="bg-slate-800 text-white font-bold sticky bottom-16 z-20 shadow-md">
+                <td className="py-2 px-3 sticky left-0 bg-slate-800 z-30 shadow-md">
                   <div className="flex items-center gap-1.5">
                     <Users size={14} className="text-sky-400" />
-                    <span>รวมกำลังคนทั้งหมด (Final Manpower)</span>
+                    <span>แผนกำลังคนรวม (Planned Manpower)</span>
                   </div>
                 </td>
-                <td className="py-2.5 px-2 text-center text-slate-300 font-mono text-[10px] border-r border-slate-700">
-                  TOTAL
+                <td className="py-2 px-2 text-center text-slate-300 font-mono text-[10px] border-r border-slate-700">
+                  PLAN
                 </td>
-                <td className="py-2.5 px-2 text-right text-slate-300 text-[10px] border-r border-slate-700">
+                <td className="py-2 px-2 text-right text-slate-300 text-[10px] border-r border-slate-700">
                   คน/วัน
                 </td>
 
@@ -523,7 +611,7 @@ export function ManpowerTable({ partName }: { partName: string }) {
                   return (
                     <td
                       key={dStr}
-                      className={`py-2 px-1 text-center font-mono font-bold text-sm border-r border-slate-700 ${
+                      className={`py-1.5 px-1 text-center font-mono font-bold text-xs border-r border-slate-700 ${
                         isWk ? 'bg-slate-900/60 text-amber-300' : 'text-white'
                       }`}
                     >
@@ -532,8 +620,131 @@ export function ManpowerTable({ partName }: { partName: string }) {
                   );
                 })}
 
-                <td className="py-2.5 px-2 text-center font-mono font-bold text-sm bg-slate-800 sticky right-0 z-30 shadow-md border-l border-slate-700 text-sky-300">
+                <td className="py-2 px-2 text-center font-mono font-bold text-xs bg-slate-800 sticky right-0 z-30 shadow-md border-l border-slate-700 text-sky-300">
                   {computedTotals.avgDaily}
+                </td>
+              </tr>
+
+              {/* TOTAL ROW 2: ACTUAL MANPOWER (ENTRY ROW) */}
+              <tr className="bg-slate-900 text-white font-bold sticky bottom-8 z-20 shadow-md border-t-2 border-emerald-500">
+                <td className="py-2 px-3 sticky left-0 bg-slate-900 z-30 shadow-md">
+                  <div className="flex items-center gap-1.5">
+                    <UserCheck size={14} className="text-emerald-400" />
+                    <span className="text-white font-bold">กำลังคนทำงานจริง (Actual Manpower)</span>
+                  </div>
+                </td>
+                <td className="py-2 px-2 text-center text-emerald-400 font-mono text-[10px] border-r border-slate-700 font-bold">
+                  ACTUAL
+                </td>
+                <td className="py-2 px-2 text-right text-slate-300 text-[10px] border-r border-slate-700">
+                  คนจริง
+                </td>
+
+                {data?.days.map((dStr) => {
+                  const planWorkers = computedTotals.dailyTotals[dStr] || 0;
+                  const currentActualStr =
+                    editedActuals[dStr] !== undefined
+                      ? editedActuals[dStr]
+                      : data.dailyTotals.actualRecorded?.[dStr] !== null &&
+                        data.dailyTotals.actualRecorded?.[dStr] !== undefined
+                      ? String(data.dailyTotals.actualRecorded[dStr])
+                      : '';
+                  const isEdited = editedActuals[dStr] !== undefined;
+                  const isRecorded = currentActualStr !== '';
+
+                  return (
+                    <td
+                      key={dStr}
+                      className="py-1 px-1 text-center border-r border-slate-700 bg-slate-900"
+                    >
+                      <input
+                        type="number"
+                        min={0}
+                        value={currentActualStr}
+                        placeholder="-"
+                        onChange={(e) => handleActualChange(dStr, e.target.value)}
+                        className={`w-full text-center font-mono font-bold text-xs py-1 px-0.5 rounded transition-all focus:outline-none focus:ring-1 focus:ring-emerald-400 ${
+                          isEdited
+                            ? 'bg-amber-300 text-slate-900 font-extrabold ring-1 ring-amber-500'
+                            : isRecorded
+                            ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-600/60 hover:border-emerald-400'
+                            : 'bg-slate-800/80 text-slate-400 border border-slate-700 hover:border-slate-500'
+                        }`}
+                        title={`กำลังคนทำงานจริง วันที่ ${dStr} (แผน: ${planWorkers} คน)`}
+                      />
+                    </td>
+                  );
+                })}
+
+                <td className="py-2 px-2 text-center font-mono font-bold text-xs bg-slate-900 sticky right-0 z-30 shadow-md border-l border-slate-700 text-emerald-300">
+                  {computedActualTotals.avgDaily > 0 ? computedActualTotals.avgDaily : '-'}
+                </td>
+              </tr>
+
+              {/* TOTAL ROW 3: VARIANCE (ACTUAL - PLAN) */}
+              <tr className="bg-slate-850 text-white font-medium sticky bottom-8 z-20 border-t border-slate-700 bg-slate-850" style={{ backgroundColor: '#1e293b' }}>
+                <td className="py-1.5 px-3 sticky left-0 z-30 shadow-md" style={{ backgroundColor: '#1e293b' }}>
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                    <TrendingUp size={13} className="text-amber-400" />
+                    <span>ผลต่างคนจริง vs แผน (Variance)</span>
+                  </div>
+                </td>
+                <td className="py-1.5 px-2 text-center text-slate-400 font-mono text-[9px] border-r border-slate-700">
+                  DIFF
+                </td>
+                <td className="py-1.5 px-2 text-right text-slate-400 text-[9px] border-r border-slate-700">
+                  +/- คน
+                </td>
+
+                {data?.days.map((dStr) => {
+                  const planWorkers = computedTotals.dailyTotals[dStr] || 0;
+                  const actVal = computedActualTotals.daily[dStr];
+
+                  if (actVal === null || actVal === undefined) {
+                    return (
+                      <td key={dStr} className="py-1 px-1 text-center font-mono text-[10px] text-slate-500 border-r border-slate-700">
+                        -
+                      </td>
+                    );
+                  }
+
+                  const diff = Math.round((actVal - planWorkers) * 10) / 10;
+                  let diffClass = 'text-sky-300';
+                  let diffSign = '';
+                  if (diff < 0) {
+                    diffClass = 'text-emerald-400 font-bold';
+                    diffSign = '';
+                  } else if (diff > 0) {
+                    diffClass = 'text-rose-400 font-extrabold';
+                    diffSign = '+';
+                  }
+
+                  return (
+                    <td
+                      key={dStr}
+                      className={`py-1 px-1 text-center font-mono text-[11px] border-r border-slate-700 ${diffClass}`}
+                      title={`คนจริง ${actVal} - แผน ${planWorkers} = ${diffSign}${diff} คน`}
+                    >
+                      {diffSign}{diff}
+                    </td>
+                  );
+                })}
+
+                <td className="py-1.5 px-2 text-center font-mono font-bold text-xs sticky right-0 z-30 shadow-md border-l border-slate-700" style={{ backgroundColor: '#1e293b' }}>
+                  {computedActualTotals.recordedCount > 0 ? (
+                    <span
+                      className={
+                        computedActualTotals.avgDaily - computedTotals.avgDaily < 0
+                          ? 'text-emerald-400 font-bold'
+                          : computedActualTotals.avgDaily - computedTotals.avgDaily > 0
+                          ? 'text-rose-400 font-extrabold'
+                          : 'text-sky-300'
+                      }
+                    >
+                      {computedActualTotals.avgDaily - computedTotals.avgDaily > 0 ? '+' : ''}
+                      {(Math.round((computedActualTotals.avgDaily - computedTotals.avgDaily) * 10) / 10).toFixed(1)}
+                    </span>
+                  ) : '-'}
                 </td>
               </tr>
 

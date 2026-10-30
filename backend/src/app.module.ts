@@ -25,6 +25,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { MpsModule } from './modules/mps/mps.module';
 import { DpsModule } from './modules/dps/dps.module';
 import { MachineSizingModule } from './modules/master-data/machine-sizing/machine-sizing.module';
+import { MachineCapacityModule } from './modules/machine-capacity/machine-capacity.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { MachineSizingModule } from './modules/master-data/machine-sizing/machin
     MpsModule,
     DpsModule,
     MachineSizingModule,
+    MachineCapacityModule,
   ],
   controllers: [AppController],
   providers: [AppService],

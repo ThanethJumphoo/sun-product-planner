@@ -41,6 +41,9 @@ let ManpowerController = class ManpowerController {
     async resetOverrides(partName, roleId, date) {
         return this.manpowerService.resetOverrides(partName, roleId ? Number(roleId) : undefined, date);
     }
+    async saveQuickActualTotals(partName, items) {
+        return this.manpowerService.saveQuickActualTotals(partName, items);
+    }
     async getActualRecords(partName, date, month, shift) {
         return this.manpowerService.getActualRecords(partName, date, month, shift);
     }
@@ -119,6 +122,14 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], ManpowerController.prototype, "resetOverrides", null);
+__decorate([
+    (0, common_1.Post)(':partName/quick-actual-totals'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Array]),
+    __metadata("design:returntype", Promise)
+], ManpowerController.prototype, "saveQuickActualTotals", null);
 __decorate([
     (0, common_1.Get)(':partName/actual-records'),
     __param(0, (0, common_1.Param)('partName')),

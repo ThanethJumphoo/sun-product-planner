@@ -69,6 +69,14 @@ export class ManpowerController {
 
   // --- Actual Manpower Daily Records & Plan vs Actual ---
 
+  @Post(':partName/quick-actual-totals')
+  async saveQuickActualTotals(
+    @Param('partName') partName: string,
+    @Body() items: Array<{ date: string; actualWorkers: number }>,
+  ) {
+    return this.manpowerService.saveQuickActualTotals(partName, items);
+  }
+
   @Get(':partName/actual-records')
   async getActualRecords(
     @Param('partName') partName: string,

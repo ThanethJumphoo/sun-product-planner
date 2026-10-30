@@ -494,6 +494,28 @@ export class ManpowerService {
       }
     }
 
+    // 6.1 Fetch actual manpower records for this month
+    const actualRecords = await prisma.actualManpowerRecord.findMany({
+      where: {
+        partName,
+        date: { gte: monthStart, lte: monthEnd },
+      },
+    });
+
+    const dailyActualRecordedTotals: Record<string, number | null> = {};
+    days.forEach((dStr) => {
+      dailyActualRecordedTotals[dStr] = null;
+    });
+
+    actualRecords.forEach((r) => {
+      const dStr = format(new Date(r.date), 'yyyy-MM-dd');
+      const present = Number(r.presentWorkers || 0);
+      if (dailyActualRecordedTotals[dStr] === null) {
+        dailyActualRecordedTotals[dStr] = 0;
+      }
+      dailyActualRecordedTotals[dStr] = (dailyActualRecordedTotals[dStr] || 0) + present;
+    });
+
     // 7. Calculate summary stats
     const totalWorkingDays = days.filter((d) => (totalQtyByDate[d] || 0) > 0).length || days.length;
     const avgDailyWorkers =
@@ -509,6 +531,7 @@ export class ManpowerService {
       dailyTotals: {
         calculated: dailyTotalCalculated,
         actual: dailyTotalActual,
+        actualRecorded: dailyActualRecordedTotals,
         plannedQtyKg: totalQtyByDate,
       },
       summary: {
@@ -524,6 +547,89 @@ export class ManpowerService {
   /**
    * Save overrides for multiple dates/roles
    */
+  /**
+   * Quick save total actual workers for multiple dates
+   */
+  async saveQuickActualTotals(
+    partName: string,
+    items: Array<{ date: string; actualWorkers: number }>,
+  ) {
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      throw new BadRequestException('Items array is required.');
+    }
+
+    const roles = await this.getRolesForPart(partName);
+    if (roles.length === 0) {
+      throw new NotFoundException('No roles found for part ' + partName);
+    }
+
+    return prisma.$transaction(async (tx) => {
+      for (const item of items) {
+        const targetDate = new Date(item.date);
+        const totalActual = Math.max(0, Number(item.actualWorkers || 0));
+
+        const savedOverrides = await tx.dailyManpowerRecord.findMany({
+          where: {
+            partName,
+            date: targetDate,
+          },
+        });
+        const overrideMap = new Map(savedOverrides.map((o) => [o.roleId, o]));
+
+        const plannedByRole: Record<number, number> = {};
+        let sumPlanned = 0;
+
+        roles.forEach((r) => {
+          const ov = overrideMap.get(r.id);
+          const p = ov && ov.isOverridden
+            ? Number(ov.actualWorkers)
+            : Number(r.defaultWorkers || 1);
+          plannedByRole[r.id] = p;
+          sumPlanned += p;
+        });
+
+        let allocatedSum = 0;
+        for (let idx = 0; idx < roles.length; idx++) {
+          const r = roles[idx];
+          let roleActual = 0;
+          if (idx === roles.length - 1) {
+            roleActual = Math.max(0, totalActual - allocatedSum);
+          } else if (sumPlanned > 0) {
+            roleActual = Math.round((plannedByRole[r.id] / sumPlanned) * totalActual);
+            allocatedSum += roleActual;
+          } else {
+            roleActual = Math.round(totalActual / roles.length);
+            allocatedSum += roleActual;
+          }
+
+          await tx.actualManpowerRecord.upsert({
+            where: {
+              partName_date_roleId_shift: {
+                partName,
+                date: targetDate,
+                roleId: r.id,
+                shift: 'ALL',
+              },
+            },
+            update: {
+              presentWorkers: roleActual,
+              recordedBy: 'Planner (Matrix Row)',
+            },
+            create: {
+              partName,
+              date: targetDate,
+              roleId: r.id,
+              shift: 'ALL',
+              presentWorkers: roleActual,
+              recordedBy: 'Planner (Matrix Row)',
+            },
+          });
+        }
+      }
+      return { success: true, count: items.length };
+    });
+  }
+
   async saveOverrides(partName: string, overrides: SaveManpowerOverrideDto[]) {
     return prisma.$transaction(async (tx) => {
       const results: any[] = [];

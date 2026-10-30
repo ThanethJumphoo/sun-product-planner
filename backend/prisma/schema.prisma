@@ -393,6 +393,75 @@ model ActualManpowerRecord {
   @@map("actual_manpower_records")
 }
 
+model MachineMaster {
+  id                   Int                   @id @default(autoincrement())
+  partName             String                @map("part_name") @db.NVarChar(100)
+  machineCode          String                @map("machine_code") @db.NVarChar(100)
+  machineName          String                @map("machine_name") @db.NVarChar(150)
+  machineType          String                @map("machine_type") @db.NVarChar(50) // 'ICUT', 'TORIDAS', 'BELT_GATE', 'SKINNER', 'FREEZER', 'XRAY', 'GENERAL'
+  machinesCount        Int                   @default(1) @map("machines_count")
+  standardSpeedKgHr    Decimal               @default(500.0) @map("standard_speed_kg_hr") @db.Decimal(10, 2)
+  workingHoursPerShift Decimal               @default(8.0) @map("working_hours_per_shift") @db.Decimal(5, 2)
+  shiftsCount          Int                   @default(1) @map("shifts_count")
+  targetUtilizationPct Decimal               @default(85.0) @map("target_utilization_pct") @db.Decimal(5, 2)
+  weeklyDefaults       String?               @map("weekly_defaults") @db.NVarChar(500)
+  orderIndex           Int                   @default(0) @map("order_index")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+  dailyRecords         DailyMachineRecord[]
+  actualRecords        ActualMachineRecord[]
+
+  @@unique([partName, machineCode])
+  @@index([partName])
+  @@map("machine_masters")
+}
+
+model DailyMachineRecord {
+  id                String        @id @default(uuid())
+  partName          String        @map("part_name") @db.NVarChar(100)
+  date              DateTime      @db.Date
+  machineId         Int           @map("machine_id")
+  plannedLoadKg     Decimal       @default(0) @map("planned_load_kg") @db.Decimal(15, 2)
+  requiredHours     Decimal       @default(0) @map("required_hours") @db.Decimal(10, 2)
+  availableHours    Decimal       @default(0) @map("available_hours") @db.Decimal(10, 2)
+  shiftsCount       Int           @default(1) @map("shifts_count")
+  isOverridden      Boolean       @default(false) @map("is_overridden")
+  notes             String?       @map("notes") @db.NVarChar(255)
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  machine           MachineMaster @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@unique([partName, date, machineId])
+  @@index([partName, date])
+  @@map("daily_machine_records")
+}
+
+model ActualMachineRecord {
+  id                      String        @id @default(uuid())
+  partName                String        @map("part_name") @db.NVarChar(100)
+  date                    DateTime      @db.Date
+  shift                   String        @default("ALL") @db.NVarChar(50)
+  machineId               Int           @map("machine_id")
+  actualRunHours          Decimal       @default(0) @map("actual_run_hours") @db.Decimal(10, 2)
+  actualOutputKg          Decimal?      @map("actual_output_kg") @db.Decimal(15, 2)
+  downtimeHours           Decimal       @default(0) @map("downtime_hours") @db.Decimal(10, 2)
+  downtimeBreakdownHours  Decimal       @default(0) @map("downtime_breakdown_hours") @db.Decimal(10, 2)
+  downtimeChangeoverHours Decimal       @default(0) @map("downtime_changeover_hours") @db.Decimal(10, 2)
+  downtimeCleaningHours   Decimal       @default(0) @map("downtime_cleaning_hours") @db.Decimal(10, 2)
+  downtimeShortageHours   Decimal       @default(0) @map("downtime_shortage_hours") @db.Decimal(10, 2)
+  downtimeOtherHours      Decimal       @default(0) @map("downtime_other_hours") @db.Decimal(10, 2)
+  downtimeReason          String?       @map("downtime_reason") @db.NVarChar(500)
+  recordedBy              String?       @map("recorded_by") @db.NVarChar(100)
+  notes                   String?       @map("notes") @db.NVarChar(500)
+  createdAt               DateTime      @default(now()) @map("created_at")
+  updatedAt               DateTime      @updatedAt @map("updated_at")
+  machine                 MachineMaster @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@unique([partName, date, machineId, shift])
+  @@index([partName, date])
+  @@map("actual_machine_records")
+}
+
 
 model ProductionOrder {
   id             Int             @id @default(autoincrement())
