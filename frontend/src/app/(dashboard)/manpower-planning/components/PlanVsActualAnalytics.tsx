@@ -13,16 +13,13 @@ import {
   UserCheck,
   UserX,
   Clock,
-  ArrowRightLeft,
   Download,
-  Filter,
   BarChart3,
   CalendarDays,
   ExternalLink,
   Layers,
-  Sparkles,
 } from 'lucide-react';
-import { format, parseISO, addMonths, subMonths, isWeekend } from 'date-fns';
+import { format, parseISO, addMonths, subMonths } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -92,7 +89,7 @@ interface PlanVsActualResponse {
     totalBorrowedWorkers: number;
     totalLoanedWorkers: number;
   };
-  roles: any[];
+  roles: unknown[];
   roleSummary: RoleSummaryItem[];
   dailyTimeline: DailyTimelineItem[];
 }
@@ -110,13 +107,8 @@ export function PlanVsActualAnalytics({
   const [isLoading, setIsLoading] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'SHORTAGE' | 'SURPLUS' | 'ON_TARGET' | 'UNRECORDED'>('ALL');
 
-  useEffect(() => {
-    if (partName) {
-      fetchPlanVsActual();
-    }
-  }, [partName, currentMonth, selectedShift]);
-
-  const fetchPlanVsActual = async () => {
+  const fetchPlanVsActual = React.useCallback(async () => {
+    if (!partName) return;
     setIsLoading(true);
     try {
       const res = await api.get(`/api/v1/manpower/${encodeURIComponent(partName)}/plan-vs-actual`, {
@@ -132,7 +124,12 @@ export function PlanVsActualAnalytics({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [partName, currentMonth, selectedShift]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchPlanVsActual();
+  }, [fetchPlanVsActual]);
 
   const handlePrevMonth = () => {
     const prev = subMonths(parseISO(`${currentMonth}-01`), 1);
@@ -160,7 +157,6 @@ export function PlanVsActualAnalytics({
     // 1. Daily Comparison Sheet
     const dailyRows = data.dailyTimeline.map((item) => {
       const dateObj = parseISO(item.date);
-      const isSun = dateObj.getDay() === 0;
       return {
         'วันที่ (Date)': item.date,
         'วัน (Day)': format(dateObj, 'EEE', { locale: th }),
@@ -662,7 +658,7 @@ export function PlanVsActualAnalytics({
             ].map((f) => (
               <button
                 key={f.id}
-                onClick={() => setActiveFilter(f.id as any)}
+                onClick={() => setActiveFilter(f.id as typeof activeFilter)}
                 className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
                   activeFilter === f.id
                     ? 'bg-primary text-white shadow-2xs font-bold'

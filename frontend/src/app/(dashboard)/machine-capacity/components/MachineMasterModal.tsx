@@ -9,8 +9,6 @@ import {
   Trash2,
   Edit2,
   Save,
-  Check,
-  AlertCircle,
   HelpCircle,
 } from 'lucide-react';
 import api from '@/lib/api';
@@ -136,9 +134,9 @@ export function MachineMasterModal({
       setIsAddingNew(false);
       setEditingMachineId(null);
       onMachinesUpdated();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึก');
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึก');
     } finally {
       setIsSaving(false);
     }
@@ -150,7 +148,7 @@ export function MachineMasterModal({
         await api.delete(`/api/v1/machine-capacity/machines/${machine.id}`);
         toast.success('ลบเครื่องจักรเรียบร้อยแล้ว');
         onMachinesUpdated();
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(err);
         toast.error('ไม่สามารถลบเครื่องจักรได้');
       }

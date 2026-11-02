@@ -17,15 +17,11 @@ export default function ManpowerPlanningPage() {
   const [activeTab, setActiveTab] = useState<ManpowerTab>('plan');
   const [selectedDateForEdit, setSelectedDateForEdit] = useState<string | undefined>(undefined);
 
-  useEffect(() => {
-    fetchParts();
-  }, []);
-
-  const fetchParts = async () => {
+  const fetchParts = React.useCallback(async () => {
     setIsLoadingParts(true);
     try {
       const res = await api.get('/api/v1/simulator/boards/menu');
-      const fetchedParts = res.data.map((p: any) => p.name);
+      const fetchedParts = (res.data as Array<{ name: string }>).map((p) => p.name);
       setParts(fetchedParts);
 
       // Auto-select Fillet or first part
@@ -36,12 +32,17 @@ export default function ManpowerPlanningPage() {
           setSelectedPart(fetchedParts[0]);
         }
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to fetch parts list');
     } finally {
       setIsLoadingParts(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchParts();
+  }, [fetchParts]);
 
   if (isLoadingParts) {
     return (

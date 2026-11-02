@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Calendar,
   ChevronLeft,
@@ -12,11 +12,7 @@ import {
   TrendingUp,
   Cpu,
   Zap,
-  Info,
-  Clock,
-  CheckCircle2,
   AlertCircle,
-  FileSpreadsheet,
   CalendarDays,
   UserCheck,
 } from 'lucide-react';
@@ -71,28 +67,27 @@ export function ManpowerTable({ partName }: { partName: string }) {
   const [editedActuals, setEditedActuals] = useState<Record<string, string>>({});
   const [isSavingActual, setIsSavingActual] = useState(false);
 
-  useEffect(() => {
-    if (partName) {
-      fetchDailyPlan();
-      setEditedCells({});
-      setEditedActuals({});
-    }
-  }, [partName, currentMonth]);
-
-  const fetchDailyPlan = async () => {
+  const fetchDailyPlan = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await api.get(`/api/v1/manpower/${encodeURIComponent(partName)}/daily-plan`, {
         params: { month: currentMonth },
       });
       setData(res.data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       toast.error('ไม่สามารถโหลดข้อมูลแผนกำลังคนได้');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [partName, currentMonth]);
+
+  useEffect(() => {
+    if (partName) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchDailyPlan();
+    }
+  }, [partName, fetchDailyPlan]);
 
   const handlePrevMonth = () => {
     const prev = subMonths(parseISO(`${currentMonth}-01`), 1);
@@ -144,9 +139,9 @@ export function ManpowerTable({ partName }: { partName: string }) {
       toast.success('บันทึกการปรับแก้กำลังคนสำเร็จ');
       setEditedCells({});
       fetchDailyPlan();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
     } finally {
       setIsSaving(false);
     }
@@ -188,9 +183,9 @@ export function ManpowerTable({ partName }: { partName: string }) {
       toast.success(`บันทึกข้อมูลกำลังคนจริง ${items.length} วันเรียบร้อยแล้ว`);
       setEditedActuals({});
       fetchDailyPlan();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูลจริง');
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูลจริง');
     } finally {
       setIsSavingActual(false);
     }
@@ -207,9 +202,9 @@ export function ManpowerTable({ partName }: { partName: string }) {
       toast.success('รีเซ็ตค่ากำลังคนกลับสู่ค่าเริ่มต้นแล้ว');
       setEditedCells({});
       fetchDailyPlan();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'ไม่สามารถรีเซ็ตค่าได้');
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'ไม่สามารถรีเซ็ตค่าได้');
     } finally {
       setIsSaving(false);
     }

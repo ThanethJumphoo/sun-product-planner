@@ -1,18 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Check,
-  Calendar,
   Settings2,
-  Users,
-  Copy,
-  RotateCcw,
-  Sparkles,
   Info,
   CalendarDays,
-  ArrowRight,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '@/lib/api';
@@ -65,13 +59,8 @@ export function WeeklyDefaultsModal({
   const [applyToMonth, setApplyToMonth] = useState(true);
   const [overrideExistingOverrides, setOverrideExistingOverrides] = useState(true);
 
-  useEffect(() => {
-    if (isOpen && partName) {
-      fetchWeeklyDefaults();
-    }
-  }, [isOpen, partName]);
-
-  const fetchWeeklyDefaults = async () => {
+  const fetchWeeklyDefaults = React.useCallback(async () => {
+    if (!partName) return;
     setIsLoading(true);
     try {
       const res = await api.get(`/api/v1/manpower/${encodeURIComponent(partName)}/weekly-defaults`);
@@ -98,7 +87,14 @@ export function WeeklyDefaultsModal({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [partName]);
+
+  useEffect(() => {
+    if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchWeeklyDefaults();
+    }
+  }, [isOpen, fetchWeeklyDefaults]);
 
   const handleCellChange = (roleId: number, dayIndex: number, valStr: string) => {
     const num = Math.max(0, parseFloat(valStr) || 0);
@@ -175,9 +171,10 @@ export function WeeklyDefaultsModal({
       );
       onApplied();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
+      toast.error(msg);
     } finally {
       setIsSaving(false);
     }
@@ -226,7 +223,7 @@ export function WeeklyDefaultsModal({
                 การทำงานของระบบค่าคงที่รายวัน (อา-ส):
               </p>
               <p className="text-blue-800/90 leading-relaxed">
-                ระบบจะนำค่าคนของแต่ละวันไปคำนวณเป็นค่าเริ่มต้นในตารางแผนรายวันของเดือน เช่น วันอาทิตย์จะดึงค่าช่อง "อา", วันจันทร์ดึงค่าช่อง "จ" เป็นต้น
+                ระบบจะนำค่าคนของแต่ละวันไปคำนวณเป็นค่าเริ่มต้นในตารางแผนรายวันของเดือน เช่น วันอาทิตย์จะดึงค่าช่อง &ldquo;อา&rdquo;, วันจันทร์ดึงค่าช่อง &ldquo;จ&rdquo; เป็นต้น
                 ทำให้ไม่ต้องมาคอยแก้ตัวเลขรายวันทีละวันด้วยตนเอง
               </p>
             </div>

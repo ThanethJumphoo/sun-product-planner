@@ -1,20 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  TrendingDown,
-  TrendingUp,
-  CheckCircle2,
   AlertTriangle,
   Cpu,
-  Clock,
   Download,
-  Filter,
   BarChart3,
-  CalendarDays,
   ExternalLink,
   Zap,
 } from 'lucide-react';
@@ -94,7 +88,7 @@ interface PlanVsActualResponse {
     overloadDaysCount: number;
     highDowntimeDaysCount: number;
   };
-  machines: any[];
+  machines: Array<{ id: number; machineCode: string; machineName: string; machineType: string }>;
   machineSummary: MachineSummaryItem[];
   dailyTimeline: DailyTimelineItem[];
 }
@@ -113,11 +107,7 @@ export function MachinePlanVsActualAnalytics({
   const [data, setData] = useState<PlanVsActualResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, [partName, currentMonth, selectedShift]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     setIsLoading(true);
     try {
       const endpoint = partName && partName !== 'ALL'
@@ -128,13 +118,18 @@ export function MachinePlanVsActualAnalytics({
         params: { month: currentMonth, shift: selectedShift },
       });
       setData(res.data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       toast.error('ไม่สามารถโหลดข้อมูลการวิเคราะห์ได้');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [partName, currentMonth, selectedShift]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAnalytics();
+  }, [fetchAnalytics]);
 
   const handlePrevMonth = () => {
     const prev = subMonths(parseISO(`${currentMonth}-01`), 1);

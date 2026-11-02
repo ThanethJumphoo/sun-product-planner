@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Edit2, Check, Settings, Users, Cpu, Clock, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Plus, Trash2, Edit2, Check, Settings, Users, Cpu, Zap } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '@/lib/api';
 
@@ -51,12 +51,11 @@ export function ManpowerRoleModal({
     orderIndex: 1,
   });
 
-  useEffect(() => {
-    if (!isOpen) {
-      setEditingRoleId(null);
-      setIsAddingNew(false);
-    }
-  }, [isOpen]);
+  const handleClose = () => {
+    setEditingRoleId(null);
+    setIsAddingNew(false);
+    onClose();
+  };
 
   if (!isOpen) return null;
 
@@ -117,7 +116,7 @@ export function ManpowerRoleModal({
 
     setIsLoading(true);
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         roleName: formData.roleName.trim(),
         calculationType: formData.calculationType,
         defaultWorkers: Number(formData.defaultWorkers) || 0,
@@ -142,9 +141,10 @@ export function ManpowerRoleModal({
 
       handleCancelForm();
       onRolesUpdated();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -160,9 +160,10 @@ export function ManpowerRoleModal({
       await api.delete(`/api/v1/manpower/roles/${role.id}`);
       toast.success(`ลบตำแหน่ง "${role.roleName}" สำเร็จ`);
       onRolesUpdated();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'ไม่สามารถลบตำแหน่งงานได้');
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'ไม่สามารถลบตำแหน่งงานได้';
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -214,7 +215,7 @@ export function ManpowerRoleModal({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
           >
             <X size={18} />

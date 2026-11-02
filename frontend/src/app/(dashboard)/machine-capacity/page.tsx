@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import api from '@/lib/api';
-import { Cpu, Package, Calendar, Activity, BarChart3, Layers, Users } from 'lucide-react';
+import { Cpu, Package, Calendar, Activity, BarChart3, Layers } from 'lucide-react';
 import { MachineCapacityTable } from './components/MachineCapacityTable';
 import { DailyMachineActualTracking } from './components/DailyMachineActualTracking';
 import { MachinePlanVsActualAnalytics } from './components/MachinePlanVsActualAnalytics';
@@ -23,16 +23,12 @@ export default function MachineCapacityPage() {
   const [activeTab, setActiveTab] = useState<MachineTab>('plan');
   const [selectedDateForEdit, setSelectedDateForEdit] = useState<string | undefined>(undefined);
 
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  const fetchInitialData = async () => {
+  const fetchInitialData = useCallback(async () => {
     setIsLoadingParts(true);
     try {
       // 1. Fetch parts list from simulator menu
       const partsRes = await api.get('/api/v1/simulator/boards/menu');
-      const fetchedParts: string[] = partsRes.data.map((p: any) => p.name);
+      const fetchedParts: string[] = partsRes.data.map((p: { name: string }) => p.name);
       setParts(fetchedParts);
 
       // 2. Fetch machines list to count machines per part
@@ -54,7 +50,12 @@ export default function MachineCapacityPage() {
     } finally {
       setIsLoadingParts(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchInitialData();
+  }, [fetchInitialData]);
 
   const getMachineCountBadge = (partName: string) => {
     const count = machineCounts[partName] || 0;

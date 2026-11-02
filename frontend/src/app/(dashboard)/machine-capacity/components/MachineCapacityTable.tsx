@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Calendar,
   ChevronLeft,
@@ -11,13 +11,9 @@ import {
   Cpu,
   TrendingUp,
   Zap,
-  Info,
   Clock,
-  CheckCircle2,
   AlertCircle,
   CalendarDays,
-  Sliders,
-  Filter,
   Eye,
   X,
   Package,
@@ -102,12 +98,7 @@ export function MachineCapacityTable({
   // Tracks unsaved user edits: key is `${machineId}_${dateStr}`, value is shiftsCount override
   const [editedShifts, setEditedShifts] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    fetchDailyPlan();
-    setEditedShifts({});
-  }, [partName, currentMonth]);
-
-  const fetchDailyPlan = async () => {
+  const fetchDailyPlan = useCallback(async () => {
     setIsLoading(true);
     try {
       const endpoint = partName && partName !== 'ALL'
@@ -118,13 +109,18 @@ export function MachineCapacityTable({
         params: { month: currentMonth },
       });
       setData(res.data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       toast.error('ไม่สามารถโหลดข้อมูลแผนกำลังการผลิตเครื่องจักรได้');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [partName, currentMonth]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchDailyPlan();
+  }, [fetchDailyPlan]);
 
   const handlePrevMonth = () => {
     const prev = subMonths(parseISO(`${currentMonth}-01`), 1);

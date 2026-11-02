@@ -1,14 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   X,
-  Calendar,
   Save,
-  RotateCcw,
-  Check,
-  Clock,
   CalendarDays,
   HelpCircle,
 } from 'lucide-react';
@@ -41,26 +37,22 @@ export function MachineWeeklyDefaultsModal({
   onSaved,
 }: MachineWeeklyDefaultsModalProps) {
   // Map of machineId -> Record<dayOfWeek 0..6, shiftsCount>
-  const [shiftsMap, setShiftsMap] = useState<Record<number, Record<number, number>>>({});
-  const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      const initial: Record<number, Record<number, number>> = {};
-      machines.forEach((m) => {
-        initial[m.id] = {};
-        DAYS_OF_WEEK.forEach((d) => {
-          if (m.weeklyDefaults && m.weeklyDefaults[d.index] !== undefined) {
-            initial[m.id][d.index] = m.weeklyDefaults[d.index];
-          } else {
-            // Default: if Sunday -> 0 shifts or 1 shift based on machine default
-            initial[m.id][d.index] = d.isWeekend && d.index === 0 ? 0 : m.shiftsCount || 1;
-          }
-        });
+  const [shiftsMap, setShiftsMap] = useState<Record<number, Record<number, number>>>(() => {
+    const initial: Record<number, Record<number, number>> = {};
+    machines.forEach((m) => {
+      initial[m.id] = {};
+      DAYS_OF_WEEK.forEach((d) => {
+        if (m.weeklyDefaults && m.weeklyDefaults[d.index] !== undefined) {
+          initial[m.id][d.index] = m.weeklyDefaults[d.index];
+        } else {
+          // Default: if Sunday -> 0 shifts or 1 shift based on machine default
+          initial[m.id][d.index] = d.isWeekend && d.index === 0 ? 0 : m.shiftsCount || 1;
+        }
       });
-      setShiftsMap(initial);
-    }
-  }, [isOpen, machines]);
+    });
+    return initial;
+  });
+  const [isSaving, setIsSaving] = useState(false);
 
   if (!isOpen) return null;
 
@@ -110,7 +102,7 @@ export function MachineWeeklyDefaultsModal({
       toast.success('บันทึกกะการทำงานประจำวันเรียบร้อยแล้ว');
       onSaved();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       toast.error('ไม่สามารถบันทึกกะประจำวันได้');
     } finally {

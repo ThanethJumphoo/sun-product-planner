@@ -97,27 +97,23 @@ export function DailyActualTracking({
   const [formData, setFormData] = useState<DailyActualFormResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [recordedBy, setRecordedBy] = useState<string>('หัวหน้ากะ');
+  const [recordedBy, setRecordedBy] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('manpower_recorded_by') || 'หัวหน้ากะ';
+      } catch {
+        return 'หัวหน้ากะ';
+      }
+    }
+    return 'หัวหน้ากะ';
+  });
 
   // Input states per roleId
   const [inputs, setInputs] = useState<Record<number, RoleInputState>>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Load recordedBy from localStorage if available
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('manpower_recorded_by');
-      if (saved) setRecordedBy(saved);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (partName && selectedDate) {
-      fetchDailyActualForm();
-    }
-  }, [partName, selectedDate, selectedShift]);
-
-  const fetchDailyActualForm = async () => {
+  const fetchDailyActualForm = React.useCallback(async () => {
+    if (!partName || !selectedDate) return;
     setIsLoading(true);
     try {
       const res = await api.get(`/api/v1/manpower/${encodeURIComponent(partName)}/daily-actual-form`, {
@@ -151,7 +147,12 @@ export function DailyActualTracking({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [partName, selectedDate, selectedShift]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchDailyActualForm();
+  }, [fetchDailyActualForm]);
 
   const handlePrevDay = () => {
     try {
@@ -175,7 +176,7 @@ export function DailyActualTracking({
     setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
   };
 
-  const handleInputChange = (roleId: number, field: keyof RoleInputState, value: any) => {
+  const handleInputChange = (roleId: number, field: keyof RoleInputState, value: string | number) => {
     setInputs((prev) => {
       const current = prev[roleId] || {
         presentWorkers: 0,
@@ -261,9 +262,10 @@ export function DailyActualTracking({
       toast.success('บันทึกข้อมูลกำลังพลจริงประจำวันเรียบร้อยแล้ว');
       setHasUnsavedChanges(false);
       fetchDailyActualForm();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
+      toast.error(msg);
     } finally {
       setIsSaving(false);
     }
@@ -283,9 +285,10 @@ export function DailyActualTracking({
       });
       toast.success('ลบข้อมูลบันทึกของวันที่เลือกแล้ว');
       fetchDailyActualForm();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'ไม่สามารถลบข้อมูลได้');
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'ไม่สามารถลบข้อมูลได้';
+      toast.error(msg);
     } finally {
       setIsSaving(false);
     }

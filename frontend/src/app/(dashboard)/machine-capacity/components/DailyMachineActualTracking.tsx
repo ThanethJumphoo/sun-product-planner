@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Calendar,
   ChevronLeft,
@@ -9,14 +9,9 @@ import {
   Cpu,
   Clock,
   AlertTriangle,
-  CheckCircle2,
-  TrendingDown,
-  TrendingUp,
-  RotateCcw,
   Copy,
   Trash2,
   HelpCircle,
-  FileSpreadsheet,
   Zap,
 } from 'lucide-react';
 import { format, parseISO, addDays, subDays } from 'date-fns';
@@ -102,21 +97,14 @@ export function DailyMachineActualTracking({
   const [formData, setFormData] = useState<DailyActualMachineFormResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [recordedBy, setRecordedBy] = useState<string>('หัวหน้าช่าง');
+  const [recordedBy, setRecordedBy] = useState<string>(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('machine_recorded_by') || 'หัวหน้าช่าง' : 'หัวหน้าช่าง',
+  );
 
   // Input states keyed by machineId
   const [inputs, setInputs] = useState<Record<number, MachineInputState>>({});
 
-  useEffect(() => {
-    const saved = localStorage.getItem('machine_recorded_by');
-    if (saved) setRecordedBy(saved);
-  }, []);
-
-  useEffect(() => {
-    fetchDailyActualForm();
-  }, [partName, selectedDate, selectedShift]);
-
-  const fetchDailyActualForm = async () => {
+  const fetchDailyActualForm = useCallback(async () => {
     setIsLoading(true);
     try {
       const endpoint = partName && partName !== 'ALL'
@@ -150,13 +138,18 @@ export function DailyMachineActualTracking({
         };
       });
       setInputs(newInputs);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       toast.error('ไม่สามารถโหลดข้อมูลบันทึกจริงประจำวันได้');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [partName, selectedDate, selectedShift]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchDailyActualForm();
+  }, [fetchDailyActualForm]);
 
   const handleInputChange = (
     machineId: number,
@@ -266,7 +259,7 @@ export function DailyMachineActualTracking({
 
       toast.success('บันทึกข้อมูลการทำงานจริงและ Downtime เรียบร้อยแล้ว');
       fetchDailyActualForm();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูลจริง');
     } finally {
@@ -286,7 +279,7 @@ export function DailyMachineActualTracking({
         });
         toast.success('ลบข้อมูลบันทึกจริงเรียบร้อยแล้ว');
         fetchDailyActualForm();
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(err);
         toast.error('ไม่สามารถลบข้อมูลได้');
       }
@@ -308,6 +301,16 @@ export function DailyMachineActualTracking({
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         {/* Date Selector */}
         <div className="flex items-center gap-2 flex-wrap">
+          {onBackToPlan && (
+            <button
+              onClick={onBackToPlan}
+              className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 border border-slate-200"
+              title="กลับไปหน้าแผนรายเดือน"
+            >
+              <ChevronLeft size={14} />
+              <span>กลับหน้าแผน</span>
+            </button>
+          )}
           <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200">
             <button
               onClick={handlePrevDay}
