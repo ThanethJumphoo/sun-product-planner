@@ -27,8 +27,8 @@ let DemandPlanningController = class DemandPlanningController {
     async batchImportExcelOrdersGlobal(payload) {
         return this.service.batchImportExcelOrders('All', payload);
     }
-    async getSalesOrdersForPart(partName, startDate, endDate) {
-        return this.service.getSalesOrdersForPart(partName, startDate, endDate);
+    async getSalesOrdersForPart(partName, startDate, endDate, onlySelected, includeClosed) {
+        return this.service.getSalesOrdersForPart(partName, startDate, endDate, onlySelected === 'true', includeClosed === 'true');
     }
     async saveDemandPlans(partName, payload) {
         return this.service.saveDemandPlans(partName, payload);
@@ -74,8 +74,10 @@ __decorate([
     __param(0, (0, common_1.Param)('partName')),
     __param(1, (0, common_1.Query)('startDate')),
     __param(2, (0, common_1.Query)('endDate')),
+    __param(3, (0, common_1.Query)('onlySelected')),
+    __param(4, (0, common_1.Query)('includeClosed')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], DemandPlanningController.prototype, "getSalesOrdersForPart", null);
 __decorate([

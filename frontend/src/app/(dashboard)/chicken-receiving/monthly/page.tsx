@@ -154,7 +154,7 @@ export default function MonthlyChickenReceivingPage() {
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1 });
 
-        const rows = data.slice(1).filter(row => row.length >= 3 && row[0] && row[1] && row[2]);
+        const rows = data.slice(1).filter(row => row && row.length >= 3 && row[0] !== undefined && row[0] !== null && String(row[0]).trim() !== '');
         
         if (rows.length === 0) {
           toast.error("No valid data found in Excel file.");
@@ -165,19 +165,51 @@ export default function MonthlyChickenReceivingPage() {
         const payload = rows.map(row => {
           let recDate = row[0];
           if (recDate instanceof Date) {
-            // Use local date methods to avoid timezone shift from toISOString()
-            const y = recDate.getUTCFullYear();
-            const m = String(recDate.getUTCMonth() + 1).padStart(2, '0');
-            const d = String(recDate.getUTCDate()).padStart(2, '0');
+            // Add 12 hours buffer so timezone shifts never cross date boundary
+            const fixedDate = new Date(recDate.getTime() + 12 * 60 * 60 * 1000);
+            const y = fixedDate.getUTCFullYear();
+            const m = String(fixedDate.getUTCMonth() + 1).padStart(2, '0');
+            const d = String(fixedDate.getUTCDate()).padStart(2, '0');
             recDate = `${y}-${m}-${d}`;
           } else {
-            recDate = String(recDate).trim();
+            const str = String(recDate).trim();
+            if (str.includes('/')) {
+              const parts = str.split('/');
+              if (parts.length === 3) {
+                if (parts[2].length === 4) {
+                  // D/M/YYYY or DD/MM/YYYY
+                  const d = parts[0].padStart(2, '0');
+                  const m = parts[1].padStart(2, '0');
+                  const y = parts[2];
+                  recDate = `${y}-${m}-${d}`;
+                } else if (parts[0].length === 4) {
+                  // YYYY/MM/DD
+                  const y = parts[0];
+                  const m = parts[1].padStart(2, '0');
+                  const d = parts[2].padStart(2, '0');
+                  recDate = `${y}-${m}-${d}`;
+                }
+              }
+            } else if (str.includes('-')) {
+              const parts = str.split('-');
+              if (parts.length === 3 && parts[2].length === 4) {
+                // DD-MM-YYYY
+                const d = parts[0].padStart(2, '0');
+                const m = parts[1].padStart(2, '0');
+                const y = parts[2];
+                recDate = `${y}-${m}-${d}`;
+              } else {
+                recDate = str;
+              }
+            } else {
+              recDate = str;
+            }
           }
 
           return {
             receiveDate: recDate,
-            numberOfChickens: parseInt(row[1]),
-            totalWeight: parseFloat(row[2])
+            numberOfChickens: parseInt(row[1]) || 0,
+            totalWeight: parseFloat(row[2]) || 0
           };
         });
 

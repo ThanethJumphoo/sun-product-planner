@@ -1,14 +1,16 @@
 import React from "react";
-import { ClipboardList, Package, ShoppingCart, Wand2, Save } from "lucide-react";
+import { ClipboardList, Package, ShoppingCart, Wand2, Save, FileSpreadsheet } from "lucide-react";
 import { MpsCalendarControls } from "./MpsCalendarControls";
 
 interface MpsHeaderProps {
   partName: string;
   isSaving: boolean;
+  isExporting?: boolean;
   openSupplyModal: () => void;
   openDemandModal: () => void;
   setIsGenerateModalOpen: (val: boolean) => void;
   handleSaveSupply: () => void;
+  handleExportExcel?: () => void;
   currentMonth: Date;
   setCurrentMonth: (date: Date) => void;
 }
@@ -16,10 +18,12 @@ interface MpsHeaderProps {
 export const MpsHeader = React.memo(function MpsHeader({ 
   partName, 
   isSaving, 
+  isExporting = false,
   openSupplyModal, 
   openDemandModal, 
   setIsGenerateModalOpen, 
   handleSaveSupply,
+  handleExportExcel,
   currentMonth,
   setCurrentMonth
 }: MpsHeaderProps) {
@@ -56,6 +60,17 @@ export const MpsHeader = React.memo(function MpsHeader({
             <Wand2 size={18} className="text-primary" />
             Generate Plan
           </button>
+          {handleExportExcel && (
+            <button 
+              onClick={handleExportExcel}
+              disabled={isExporting}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg shadow-sm hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Export MPS Production Schedule to Excel"
+            >
+              <FileSpreadsheet size={18} />
+              {isExporting ? "Exporting..." : "Export Excel"}
+            </button>
+          )}
           <button 
             onClick={handleSaveSupply}
             disabled={isSaving}

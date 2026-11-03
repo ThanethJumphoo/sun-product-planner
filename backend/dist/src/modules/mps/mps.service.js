@@ -269,6 +269,43 @@ let MpsService = class MpsService {
             }
             catch (e) { }
         }
+        try {
+            const toridasMachine = await prisma_1.default.machineMaster.findFirst({
+                where: { machineType: 'TORIDAS' },
+            });
+            if (toridasMachine) {
+                if (toridasMachine.workingHoursPerShift) {
+                    toridasCfg.hoursPerShift = Number(toridasMachine.workingHoursPerShift);
+                }
+                if (toridasMachine.machinesCount) {
+                    toridasCfg.machinesPerLine = toridasMachine.machinesCount;
+                }
+            }
+        }
+        catch (e) { }
+        const dynamicByProducts = [];
+        if (machineNodes.length > 0 && parentBoard?.edges) {
+            const byProductEdges = parentBoard.edges.filter((e) => e.source === machineNodes[0].id && e.sourceHandle === 'byproduct');
+            for (const e of byProductEdges) {
+                const targetNode = parentBoard.nodes.find((n) => n.id === e.target);
+                if (targetNode) {
+                    try {
+                        const tData = JSON.parse(targetNode.data || '{}');
+                        const yieldPercent = Number(tData['Yield Percent'] || 0);
+                        if (yieldPercent > 0) {
+                            dynamicByProducts.push({
+                                name: targetNode.name,
+                                yieldPercent,
+                            });
+                        }
+                    }
+                    catch (err) { }
+                }
+            }
+        }
+        if (dynamicByProducts.length > 0) {
+            toridasCfg.byProducts = dynamicByProducts;
+        }
         const [parentSupplies, monthlyRecs, weeklyRecs] = await Promise.all([
             prisma_1.default.mpsSupply.findMany({
                 where: {
@@ -750,11 +787,31 @@ let MpsService = class MpsService {
         itemsArr.forEach((i) => itemDescMap.set(i.erpItemCode, i.erpItemDesc));
         const specsMap = {};
         specsArr.forEach((s) => {
+            if (s.iCutSpeed !== null && s.iCutSpeed !== undefined && Number(s.iCutSpeed) > 0) {
+                icutItemSet.add(s.erpItemCode);
+            }
             specsMap[s.erpItemCode] = {
                 ...s,
                 itemDesc: itemDescMap.get(s.erpItemCode) || '',
             };
         });
+        try {
+            const icutMachine = await prisma_1.default.machineMaster.findFirst({
+                where: { machineType: 'ICUT' },
+            });
+            if (icutMachine) {
+                if (icutMachine.standardSpeedKgHr) {
+                    icutNodeConfig.defaultSpeedKgH = Number(icutMachine.standardSpeedKgHr);
+                }
+                if (icutMachine.workingHoursPerShift) {
+                    icutNodeConfig.hoursPerShift = Number(icutMachine.workingHoursPerShift);
+                }
+                if (icutMachine.shiftsCount) {
+                    icutNodeConfig.maxShifts = icutMachine.shiftsCount;
+                }
+            }
+        }
+        catch (e) { }
         const plansByDate = {};
         plans.forEach((p) => {
             const dateStr = (0, date_fns_1.format)(p.planDate, 'yyyy-MM-dd');

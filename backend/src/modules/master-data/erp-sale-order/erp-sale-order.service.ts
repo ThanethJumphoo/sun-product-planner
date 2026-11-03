@@ -65,9 +65,12 @@ export class ErpSaleOrderService implements OnModuleInit {
         .split(',')
         .map((s) => s.trim())
         .filter((s) => s);
+      const currentMonthStart = new Date();
+      currentMonthStart.setDate(1);
+      const defaultMinDate = currentMonthStart.toISOString().slice(0, 10);
       const minShipDate = await this.settingsService.getSettingByKey(
         'erp_min_ship_date',
-        '2026-10-01',
+        defaultMinDate,
       );
       const lookbackStr = await this.settingsService.getSettingByKey(
         'erp_lookback_days',
@@ -107,14 +110,16 @@ export class ErpSaleOrderService implements OnModuleInit {
                CUS.ATTRIBUTE1        AS ERP_CUSTOMER_GRADE,
                ODH.CREATION_DATE     AS ERP_CREATION_DATE,
                ODH.LAST_UPDATE_DATE  AS ERP_LAST_UPDATE_DATE,
-               ODH.FLOW_STATUS_CODE  AS ERP_ORDER_STATUS
+               CASE 
+                 WHEN ODH.CANCELLED_FLAG = 'Y' THEN 'CANCELLED'
+                 ELSE ODH.FLOW_STATUS_CODE
+               END                   AS ERP_ORDER_STATUS
         FROM   OE_ORDER_HEADERS_ALL ODH
                JOIN OE_TRANSACTION_TYPES_TL ODT ON ODT.TRANSACTION_TYPE_ID = ODH.ORDER_TYPE_ID
                LEFT JOIN AR_CUSTOMERS CUS ON CUS.CUSTOMER_ID = ODH.SOLD_TO_ORG_ID
         WHERE  (${typeConditions})
-        AND    ODH.CANCELLED_FLAG    = 'N'
         AND    ODH.ORG_ID            = :orgId
-        AND    ODH.FLOW_STATUS_CODE IN ('BOOKED', 'ENTERED')
+        AND    (ODH.FLOW_STATUS_CODE IN ('BOOKED', 'ENTERED', 'CLOSED', 'CANCELLED') OR ODH.CANCELLED_FLAG = 'Y')
         AND    ODH.LAST_UPDATE_DATE >= TO_DATE(:lastSync, 'YYYY-MM-DD HH24:MI:SS')
         AND    EXISTS (
                  SELECT 1 FROM OE_ORDER_LINES_ALL ODL 
@@ -210,9 +215,12 @@ export class ErpSaleOrderService implements OnModuleInit {
         .split(',')
         .map((s) => s.trim())
         .filter((s) => s);
+      const currentMonthStart = new Date();
+      currentMonthStart.setDate(1);
+      const defaultMinDate = currentMonthStart.toISOString().slice(0, 10);
       const minShipDate = await this.settingsService.getSettingByKey(
         'erp_min_ship_date',
-        '2026-10-01',
+        defaultMinDate,
       );
 
       const typeConditions = prefixes
@@ -233,16 +241,18 @@ export class ErpSaleOrderService implements OnModuleInit {
                CUS.ATTRIBUTE1        AS ERP_CUSTOMER_GRADE,
                ODH.CREATION_DATE     AS ERP_CREATION_DATE,
                ODH.LAST_UPDATE_DATE  AS ERP_LAST_UPDATE_DATE,
-               ODH.FLOW_STATUS_CODE  AS ERP_ORDER_STATUS
+               CASE 
+                 WHEN ODH.CANCELLED_FLAG = 'Y' THEN 'CANCELLED'
+                 ELSE ODH.FLOW_STATUS_CODE
+               END                   AS ERP_ORDER_STATUS
         FROM   OE_ORDER_HEADERS_ALL ODH
                JOIN OE_ORDER_LINES_ALL ODL ON ODL.HEADER_ID = ODH.HEADER_ID
                JOIN OE_TRANSACTION_TYPES_TL ODT ON ODT.TRANSACTION_TYPE_ID = ODH.ORDER_TYPE_ID
                LEFT JOIN AR_CUSTOMERS CUS ON CUS.CUSTOMER_ID = ODH.SOLD_TO_ORG_ID
         WHERE  (${typeConditions})
         AND    ODL.SCHEDULE_SHIP_DATE >= TO_DATE(:minShipDate, 'YYYY-MM-DD')
-        AND    ODH.CANCELLED_FLAG    = 'N'
         AND    ODH.ORG_ID            = :orgId
-        AND    ODH.FLOW_STATUS_CODE IN ('BOOKED', 'ENTERED')
+        AND    (ODH.FLOW_STATUS_CODE IN ('BOOKED', 'ENTERED', 'CLOSED', 'CANCELLED') OR ODH.CANCELLED_FLAG = 'Y')
         ORDER BY ERP_ORDER_NUMBER ASC
       `;
 
@@ -321,8 +331,7 @@ export class ErpSaleOrderService implements OnModuleInit {
                JOIN MTL_SYSTEM_ITEMS_B ITM ON ITM.INVENTORY_ITEM_ID = ODL.INVENTORY_ITEM_ID AND ITM.ORGANIZATION_ID = ODL.ORG_ID
         WHERE  (${typeConditions})
         AND    ODL.ORG_ID = :orgId
-        AND    ODH.CANCELLED_FLAG = 'N'
-        AND    ODH.FLOW_STATUS_CODE IN ('BOOKED', 'ENTERED')
+        AND    (ODH.FLOW_STATUS_CODE IN ('BOOKED', 'ENTERED', 'CLOSED', 'CANCELLED') OR ODH.CANCELLED_FLAG = 'Y')
         AND    ODL.SCHEDULE_SHIP_DATE >= TO_DATE(:minShipDate, 'YYYY-MM-DD')
       `;
 
@@ -425,7 +434,10 @@ export class ErpSaleOrderService implements OnModuleInit {
                  CUS.ATTRIBUTE1        AS ERP_CUSTOMER_GRADE,
                  ODH.CREATION_DATE     AS ERP_CREATION_DATE,
                  ODH.LAST_UPDATE_DATE  AS ERP_LAST_UPDATE_DATE,
-                 ODH.FLOW_STATUS_CODE  AS ERP_ORDER_STATUS
+                 CASE 
+                   WHEN ODH.CANCELLED_FLAG = 'Y' THEN 'CANCELLED'
+                   ELSE ODH.FLOW_STATUS_CODE
+                 END                   AS ERP_ORDER_STATUS
           FROM   OE_ORDER_HEADERS_ALL ODH
                  JOIN OE_TRANSACTION_TYPES_TL ODT ON ODT.TRANSACTION_TYPE_ID = ODH.ORDER_TYPE_ID
                  LEFT JOIN AR_CUSTOMERS CUS ON CUS.CUSTOMER_ID = ODH.SOLD_TO_ORG_ID

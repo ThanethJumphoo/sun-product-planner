@@ -54,7 +54,7 @@ let ProductSpecService = class ProductSpecService {
         const { partToItems, allAssignedItemCodes } = await this.getAssignedItemsByPart();
         if (partName === 'Item Unassigned') {
             const allItems = await prisma_1.default.erpItemMaster.findMany({
-                select: { erpItemCode: true, erpItemDesc: true }
+                select: { erpItemCode: true, erpItemDesc: true, erpItemUom: true, erpSecondaryUom: true, erpConversionRate: true }
             });
             const unassignedItems = allItems.filter(item => !allAssignedItemCodes.includes(item.erpItemCode));
             const unassignedCodes = unassignedItems.map(i => i.erpItemCode);
@@ -85,7 +85,7 @@ let ProductSpecService = class ProductSpecService {
             const targetItemCodes = Array.from(new Set(itemsMap.map(i => i.code)));
             const dbItems = await prisma_1.default.erpItemMaster.findMany({
                 where: { erpItemCode: { in: targetItemCodes } },
-                select: { erpItemCode: true, erpItemDesc: true }
+                select: { erpItemCode: true, erpItemDesc: true, erpItemUom: true, erpSecondaryUom: true, erpConversionRate: true }
             });
             const specs = await prisma_1.default.productSpec.findMany({
                 where: { erpItemCode: { in: targetItemCodes } },

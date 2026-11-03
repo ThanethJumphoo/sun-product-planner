@@ -132,7 +132,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
   const fetchPlannedDemands = useCallback(async () => {
     setIsLoadingPlannedDemands(true);
     try {
-      const res = await api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders`);
+      const res = await api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders?onlySelected=true`);
       const { product = [], coproduct = [], byproduct = [] } = res.data || {};
       const all = [
         ...product.map((p: any) => ({ ...p, category: 'product' })),
@@ -259,7 +259,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
             map[item.erpItemCode] = {
               erpItemCode: item.erpItemCode,
               itemCategory: spec.itemCategory || item.defaultItemCategory || 'product',
-              yieldPercent: spec.yieldPercent ?? item.yieldPercent ?? 80,
+              yieldPercent: spec.yieldPercent ?? item.yieldPercent ?? 100,
               rmSizesJson: spec.rmSizesJson || '[]',
               ...spec
             };
@@ -693,6 +693,36 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
       setIsClearingDemand(false);
     }
   };
+
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  const handleExportExcel = useCallback(async () => {
+    setIsExportingExcel(true);
+    const toastId = toast.loading("Generating MPS Production Schedule Excel...");
+    try {
+      const monthStr = format(currentMonth, 'yyyy-MM');
+      const res = await api.get(`/api/v1/mps/${encodeURIComponent(partName)}/export-schedule?month=${monthStr}`, {
+        responseType: 'blob'
+      });
+      const blob = new Blob([res.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `MPS_Schedule_${partName}_${monthStr}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success("Excel schedule exported successfully!", { id: toastId });
+    } catch (error: any) {
+      console.error("Export Excel error:", error);
+      toast.error(`Export failed: ${error?.message || 'Server error'}`, { id: toastId });
+    } finally {
+      setIsExportingExcel(false);
+    }
+  }, [currentMonth, partName]);
 
   const onRowSelected = (e: any) => {
     if (e.node.data) {
@@ -1583,10 +1613,12 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
       <MpsHeader
         partName={partName}
         isSaving={isSaving}
+        isExporting={isExportingExcel}
         openSupplyModal={openSupplyModal}
         openDemandModal={openDemandModal}
         setIsGenerateModalOpen={setIsGenerateModalOpen}
         handleSaveSupply={handleSaveSupply}
+        handleExportExcel={handleExportExcel}
         currentMonth={currentMonth}
         setCurrentMonth={setCurrentMonth}
       />

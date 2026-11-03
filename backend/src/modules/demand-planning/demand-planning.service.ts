@@ -17,6 +17,8 @@ export class DemandPlanningService {
     partName: string,
     startDate?: string,
     endDate?: string,
+    onlySelected?: boolean,
+    includeClosed?: boolean,
   ) {
     // 1. Get items for this part
     const items = await this.productSpecService.getItemsForPart(partName);
@@ -60,6 +62,14 @@ export class DemandPlanningService {
     const soLineWhere: any = {
       erpItemCode: { in: itemCodes },
     };
+
+    if (!includeClosed) {
+      soLineWhere.header = {
+        erpOrderStatus: {
+          notIn: ['CLOSED', 'CANCELLED'],
+        },
+      };
+    }
 
     const demandPlanWhere: any = { partName };
     const mpsTxWhere: any = { partName };
@@ -187,8 +197,19 @@ export class DemandPlanningService {
 
     // 4. Sort and map function
     const processGroup = (group: any[]) => {
+      let targetGroup = group;
+      if (onlySelected) {
+        targetGroup = group.filter((line) => {
+          const soNumber = line.header?.erpOrderNumber;
+          const lineNumber = line.erpLineNumber || '-';
+          const itemCode = line.erpItemCode;
+          const key = `${soNumber}_${lineNumber}_${itemCode}_${this.toDateKey(line.scheduleShipDate)}`;
+          return savedPlansMap.has(key);
+        });
+      }
+
       // Step A: Default sorting
-      group.sort((a, b) => {
+      targetGroup.sort((a, b) => {
         // 1. Ship date (compare date only, ignore time)
         const dateA = a.scheduleShipDate
           ? new Date(a.scheduleShipDate).setHours(0, 0, 0, 0)
@@ -237,7 +258,7 @@ export class DemandPlanningService {
       });
 
       // Step B: Map to line objects and apply saved overrides
-      const mappedGroup = group.map((line, index) => {
+      const mappedGroup = targetGroup.map((line, index) => {
         const soNumber = line.header.erpOrderNumber;
         const lineNumber = line.erpLineNumber || '-';
         const itemCode = line.erpItemCode;
@@ -342,6 +363,7 @@ export class DemandPlanningService {
           isLate,
           leadDaysBuffer,
           status,
+          orderStatus: line.header.erpOrderStatus,
           isSelected: !!saved,
           isManual,
           orderType,
@@ -355,8 +377,11 @@ export class DemandPlanningService {
         };
       });
 
-      // Step C: Sort by final priority
+      // Step C: Sort by final priority and re-index sequentially to eliminate gaps
       mappedGroup.sort((a, b) => a.priority - b.priority);
+      mappedGroup.forEach((item, index) => {
+        item.priority = index + 1;
+      });
       return mappedGroup;
     };
 

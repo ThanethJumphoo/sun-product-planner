@@ -15,6 +15,9 @@ export declare class ProductSpecController {
         } | null;
         erpItemCode: string;
         erpItemDesc: string;
+        erpItemUom: string;
+        erpSecondaryUom: string | null;
+        erpConversionRate: number | null;
     }[]>;
     getSpec(itemCode: string): Promise<{
         id: number;

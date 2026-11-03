@@ -3,7 +3,7 @@ import { ProductSpecService } from '../master-data/product-spec/product-spec.ser
 export declare class DemandPlanningService {
     private readonly productSpecService;
     constructor(productSpecService: ProductSpecService);
-    getSalesOrdersForPart(partName: string, startDate?: string, endDate?: string): Promise<{
+    getSalesOrdersForPart(partName: string, startDate?: string, endDate?: string, onlySelected?: boolean, includeClosed?: boolean): Promise<{
         product: {
             id: any;
             priority: any;
@@ -29,6 +29,7 @@ export declare class DemandPlanningService {
             isLate: boolean;
             leadDaysBuffer: number | null;
             status: "UNPLANNED" | "PARTIAL" | "COMPLETED";
+            orderStatus: any;
             isSelected: boolean;
             isManual: boolean;
             orderType: any;
@@ -59,6 +60,7 @@ export declare class DemandPlanningService {
             isLate: boolean;
             leadDaysBuffer: number | null;
             status: "UNPLANNED" | "PARTIAL" | "COMPLETED";
+            orderStatus: any;
             isSelected: boolean;
             isManual: boolean;
             orderType: any;
@@ -89,6 +91,7 @@ export declare class DemandPlanningService {
             isLate: boolean;
             leadDaysBuffer: number | null;
             status: "UNPLANNED" | "PARTIAL" | "COMPLETED";
+            orderStatus: any;
             isSelected: boolean;
             isManual: boolean;
             orderType: any;

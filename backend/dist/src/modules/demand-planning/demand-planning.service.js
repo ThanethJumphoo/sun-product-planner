@@ -24,7 +24,7 @@ let DemandPlanningService = class DemandPlanningService {
     constructor(productSpecService) {
         this.productSpecService = productSpecService;
     }
-    async getSalesOrdersForPart(partName, startDate, endDate) {
+    async getSalesOrdersForPart(partName, startDate, endDate, onlySelected, includeClosed) {
         const items = await this.productSpecService.getItemsForPart(partName);
         const itemCodes = items.map((i) => i.erpItemCode);
         if (itemCodes.length === 0) {
@@ -55,6 +55,13 @@ let DemandPlanningService = class DemandPlanningService {
         const soLineWhere = {
             erpItemCode: { in: itemCodes },
         };
+        if (!includeClosed) {
+            soLineWhere.header = {
+                erpOrderStatus: {
+                    notIn: ['CLOSED', 'CANCELLED'],
+                },
+            };
+        }
         const demandPlanWhere = { partName };
         const mpsTxWhere = { partName };
         if (startDate && endDate) {
@@ -151,7 +158,17 @@ let DemandPlanningService = class DemandPlanningService {
             }
         });
         const processGroup = (group) => {
-            group.sort((a, b) => {
+            let targetGroup = group;
+            if (onlySelected) {
+                targetGroup = group.filter((line) => {
+                    const soNumber = line.header?.erpOrderNumber;
+                    const lineNumber = line.erpLineNumber || '-';
+                    const itemCode = line.erpItemCode;
+                    const key = `${soNumber}_${lineNumber}_${itemCode}_${this.toDateKey(line.scheduleShipDate)}`;
+                    return savedPlansMap.has(key);
+                });
+            }
+            targetGroup.sort((a, b) => {
                 const dateA = a.scheduleShipDate
                     ? new Date(a.scheduleShipDate).setHours(0, 0, 0, 0)
                     : 0;
@@ -191,7 +208,7 @@ let DemandPlanningService = class DemandPlanningService {
                     return orderDateA - orderDateB;
                 return a.header.erpOrderNumber.localeCompare(b.header.erpOrderNumber);
             });
-            const mappedGroup = group.map((line, index) => {
+            const mappedGroup = targetGroup.map((line, index) => {
                 const soNumber = line.header.erpOrderNumber;
                 const lineNumber = line.erpLineNumber || '-';
                 const itemCode = line.erpItemCode;
@@ -275,6 +292,7 @@ let DemandPlanningService = class DemandPlanningService {
                     isLate,
                     leadDaysBuffer,
                     status,
+                    orderStatus: line.header.erpOrderStatus,
                     isSelected: !!saved,
                     isManual,
                     orderType,
@@ -287,6 +305,9 @@ let DemandPlanningService = class DemandPlanningService {
                 };
             });
             mappedGroup.sort((a, b) => a.priority - b.priority);
+            mappedGroup.forEach((item, index) => {
+                item.priority = index + 1;
+            });
             return mappedGroup;
         };
         return {

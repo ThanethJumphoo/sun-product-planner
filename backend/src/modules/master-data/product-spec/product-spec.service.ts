@@ -56,7 +56,7 @@ export class ProductSpecService {
     if (partName === 'Item Unassigned') {
       // Find all ERP items that are NOT in allAssignedItemCodes
       const allItems = await prisma.erpItemMaster.findMany({
-        select: { erpItemCode: true, erpItemDesc: true }
+        select: { erpItemCode: true, erpItemDesc: true, erpItemUom: true, erpSecondaryUom: true, erpConversionRate: true }
       });
       const unassignedItems = allItems.filter(item => !allAssignedItemCodes.includes(item.erpItemCode));
       const unassignedCodes = unassignedItems.map(i => i.erpItemCode);
@@ -91,7 +91,7 @@ export class ProductSpecService {
       // Fetch full item details
       const dbItems = await prisma.erpItemMaster.findMany({
         where: { erpItemCode: { in: targetItemCodes } },
-        select: { erpItemCode: true, erpItemDesc: true }
+        select: { erpItemCode: true, erpItemDesc: true, erpItemUom: true, erpSecondaryUom: true, erpConversionRate: true }
       });
 
       const specs = await prisma.productSpec.findMany({

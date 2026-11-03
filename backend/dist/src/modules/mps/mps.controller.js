@@ -15,11 +15,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MpsController = void 0;
 const common_1 = require("@nestjs/common");
 const mps_service_1 = require("./mps.service");
+const mps_export_service_1 = require("./services/mps-export.service");
 const jwt_auth_guard_1 = require("../../core/guards/jwt-auth.guard");
 let MpsController = class MpsController {
     mpsService;
-    constructor(mpsService) {
+    exportService;
+    constructor(mpsService, exportService) {
         this.mpsService = mpsService;
+        this.exportService = exportService;
+    }
+    async exportSchedule(partName, month, res) {
+        const buffer = await this.exportService.generateProductionScheduleExcel(partName, month);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="MPS_Schedule_${partName}_${month || 'all'}.xlsx"`);
+        res.send(buffer);
     }
     async saveMpsSupply(partName, payload) {
         return this.mpsService.saveMpsSupply(partName, payload);
@@ -56,6 +65,15 @@ let MpsController = class MpsController {
     }
 };
 exports.MpsController = MpsController;
+__decorate([
+    (0, common_1.Get)(':partName/export-schedule'),
+    __param(0, (0, common_1.Param)('partName')),
+    __param(1, (0, common_1.Query)('month')),
+    __param(2, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", Promise)
+], MpsController.prototype, "exportSchedule", null);
 __decorate([
     (0, common_1.Post)(':partName/supply'),
     __param(0, (0, common_1.Param)('partName')),
@@ -152,6 +170,7 @@ __decorate([
 exports.MpsController = MpsController = __decorate([
     (0, common_1.Controller)('api/v1/mps'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    __metadata("design:paramtypes", [mps_service_1.MpsService])
+    __metadata("design:paramtypes", [mps_service_1.MpsService,
+        mps_export_service_1.MpsExportService])
 ], MpsController);
 //# sourceMappingURL=mps.controller.js.map

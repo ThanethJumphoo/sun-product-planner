@@ -27,9 +27,9 @@ export declare class MachineCapacityController {
         machineType: string;
         standardSpeedKgHr: import("@prisma/client/runtime/library").Decimal;
         orderIndex: number;
-        machinesCount: number;
         machineCode: string;
         machineName: string;
+        machinesCount: number;
         targetUtilizationPct: import("@prisma/client/runtime/library").Decimal;
     }>;
     updateMachine(id: string, dto: UpdateMachineMasterDto): Promise<{
@@ -43,9 +43,9 @@ export declare class MachineCapacityController {
         machineType: string;
         standardSpeedKgHr: import("@prisma/client/runtime/library").Decimal;
         orderIndex: number;
-        machinesCount: number;
         machineCode: string;
         machineName: string;
+        machinesCount: number;
         targetUtilizationPct: import("@prisma/client/runtime/library").Decimal;
     }>;
     deleteMachine(id: string): Promise<{
@@ -59,9 +59,9 @@ export declare class MachineCapacityController {
         machineType: string;
         standardSpeedKgHr: import("@prisma/client/runtime/library").Decimal;
         orderIndex: number;
-        machinesCount: number;
         machineCode: string;
         machineName: string;
+        machinesCount: number;
         targetUtilizationPct: import("@prisma/client/runtime/library").Decimal;
     }>;
     getDailyPlanDirect(month?: string, partName?: string): Promise<{
@@ -270,9 +270,9 @@ export declare class MachineCapacityController {
         machineType: string;
         standardSpeedKgHr: import("@prisma/client/runtime/library").Decimal;
         orderIndex: number;
-        machinesCount: number;
         machineCode: string;
         machineName: string;
+        machinesCount: number;
         targetUtilizationPct: import("@prisma/client/runtime/library").Decimal;
     }>;
     getDailyPlan(partName: string, month: string): Promise<{

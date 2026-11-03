@@ -102,7 +102,7 @@ export function ICutStatusCard({ selectedDate, dailyPlans = [], specs = {}, isLo
       if (isDefaultSpeed) hasDefaultSpeedItems = true;
 
       const hours = speed > 0 ? qty / speed : 0;
-      const yieldPct = Number(spec?.yieldPercent) || 80;
+      const yieldPct = Number(spec?.yieldPercent) || 100;
       const rmReq = qty / (yieldPct / 100);
 
       totalPlannedKg += qty;

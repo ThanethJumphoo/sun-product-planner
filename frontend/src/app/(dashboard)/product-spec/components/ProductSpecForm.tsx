@@ -9,6 +9,9 @@ interface Item {
   erpItemCode: string;
   erpItemDesc: string;
   defaultItemCategory?: string | null;
+  erpItemUom?: string | null;
+  erpSecondaryUom?: string | null;
+  erpConversionRate?: number | null;
 }
 
 export interface RmSizeRule {
@@ -119,12 +122,12 @@ export function ProductSpecForm({ partName }: { partName: string }) {
               rules = parsed.map((r: any, idx: number) => {
                 let sizeVal = '';
                 let priorityVal = idx + 1;
-                let yieldVal = res.data.yieldPercent || 80.0;
+                let yieldVal = res.data.yieldPercent !== null && res.data.yieldPercent !== undefined ? res.data.yieldPercent : 100.0;
 
                 if (typeof r === 'object' && r !== null) {
                   priorityVal = r.priority !== undefined ? Number(r.priority) : idx + 1;
                   sizeVal = String(r.rmSize || '');
-                  yieldVal = r.yieldPercent !== undefined ? Number(r.yieldPercent) : (res.data.yieldPercent || 80.0);
+                  yieldVal = r.yieldPercent !== undefined ? Number(r.yieldPercent) : (res.data.yieldPercent ?? 100.0);
                 } else {
                   sizeVal = String(r);
                 }
@@ -220,7 +223,7 @@ export function ProductSpecForm({ partName }: { partName: string }) {
       ...spec,
       rmSizesJson: [
         ...currentRules,
-        { priority: nextPriority, rmSize: defaultRm, yieldPercent: spec.yieldPercent || 80.0 }
+        { priority: nextPriority, rmSize: defaultRm, yieldPercent: spec.yieldPercent ?? 100.0 }
       ]
     });
   };
@@ -296,7 +299,14 @@ export function ProductSpecForm({ partName }: { partName: string }) {
                     : 'hover:bg-slate-200 text-slate-700'
                 }`}
               >
-                <div className="font-bold">{item.erpItemCode}</div>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold">{item.erpItemCode}</span>
+                  {item.erpConversionRate && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-emerald-100 text-emerald-800">
+                      {item.erpConversionRate}kg/{item.erpSecondaryUom || 'หน่วย'}
+                    </span>
+                  )}
+                </div>
                 <div className="truncate opacity-80">{item.erpItemDesc}</div>
               </button>
             ))
@@ -314,8 +324,19 @@ export function ProductSpecForm({ partName }: { partName: string }) {
           <form onSubmit={handleSave} className="flex flex-col h-full">
             <div className="p-4 border-b border-border flex items-center justify-between bg-slate-50">
               <div>
-                <h3 className="font-bold text-lg text-slate-900">{selectedItem.erpItemCode}</h3>
-                <p className="text-sm text-muted-foreground">{selectedItem.erpItemDesc}</p>
+                <div className="flex items-center gap-3">
+                  <h3 className="font-bold text-lg text-slate-900">{selectedItem.erpItemCode}</h3>
+                  {selectedItem.erpConversionRate ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      หน่วย 2: {selectedItem.erpSecondaryUom || 'ถุง/ลัง'} ({selectedItem.erpConversionRate} kg/{selectedItem.erpSecondaryUom || 'หน่วย 2'})
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs text-slate-500 bg-slate-200">
+                      ไม่มีหน่วย 2 (ตัดตาม กก.)
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mt-0.5">{selectedItem.erpItemDesc}</p>
               </div>
               <button
                 type="submit"

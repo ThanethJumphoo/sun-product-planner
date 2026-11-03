@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const prisma_1 = __importDefault(require("../../lib/prisma"));
 const date_fns_1 = require("date-fns");
 const icutCapacity_1 = require("../mps/utils/icutCapacity");
+const toridasCapacity_1 = require("../mps/utils/toridasCapacity");
 class CreateMachineMasterDto {
     partName;
     machineCode;
@@ -252,10 +253,18 @@ let MachineCapacityService = class MachineCapacityService {
         const monthEnd = (0, date_fns_1.endOfMonth)(targetDate);
         const resolvedMonth = (0, date_fns_1.format)(targetDate, 'yyyy-MM');
         const machines = await this.getAllMachines(partFilter);
-        const neededParts = Array.from(new Set(machines.map((m) => m.partName).filter(Boolean)));
+        let neededParts = Array.from(new Set(machines.map((m) => m.partName).filter(Boolean)));
+        if (neededParts.length === 0) {
+            const allActiveMachines = await prisma_1.default.machineMaster.findMany({
+                where: { partName: { not: '' } },
+                select: { partName: true },
+                distinct: ['partName'],
+            });
+            neededParts = allActiveMachines.map((m) => m.partName).filter(Boolean);
+        }
         const mpsPlans = await prisma_1.default.mpsProductionTransaction.findMany({
             where: {
-                partName: { in: neededParts.length > 0 ? neededParts : ['BL', 'BIL'] },
+                ...(neededParts.length > 0 ? { partName: { in: neededParts } } : {}),
                 planDate: { gte: monthStart, lte: monthEnd },
                 plannedQty: { gt: 0 },
             },
@@ -282,6 +291,40 @@ let MachineCapacityService = class MachineCapacityService {
             end: monthEnd,
         });
         const days = daysInterval.map((d) => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
+        const [mpsSupplies, monthlyRecs, weeklyRecs] = await Promise.all([
+            prisma_1.default.mpsSupply.findMany({
+                where: {
+                    partName: { in: neededParts.length > 0 ? neededParts : ['BIL'] },
+                    planDate: { gte: monthStart, lte: monthEnd },
+                },
+            }),
+            prisma_1.default.monthlyChickenReceiving.findMany({
+                where: { receiveDate: { gte: monthStart, lte: monthEnd } },
+            }),
+            prisma_1.default.weeklyChickenReceiving.findMany({
+                where: { receiveDate: { gte: monthStart, lte: monthEnd } },
+            }),
+        ]);
+        const supplyMap = new Map();
+        mpsSupplies.forEach((s) => {
+            supplyMap.set(`${(0, date_fns_1.format)(new Date(s.planDate), 'yyyy-MM-dd')}_${s.partName}`, Number(s.supplyWeight));
+        });
+        const avgWeightMap = new Map();
+        days.forEach((dStr) => {
+            const wForDay = weeklyRecs.filter((w) => (0, date_fns_1.format)(new Date(w.receiveDate), 'yyyy-MM-dd') === dStr);
+            const mForDay = monthlyRecs.find((m) => (0, date_fns_1.format)(new Date(m.receiveDate), 'yyyy-MM-dd') === dStr);
+            let avgWt = 2.8;
+            if (wForDay.length > 0) {
+                const totalCount = wForDay.reduce((sum, r) => sum + Number(r.totalCount || 0), 0);
+                const totalWeight = wForDay.reduce((sum, r) => sum + Number(r.totalWeight || 0), 0);
+                if (totalCount > 0)
+                    avgWt = totalWeight / totalCount;
+            }
+            else if (mForDay) {
+                avgWt = Number(mForDay.averageWeight || 2.8);
+            }
+            avgWeightMap.set(dStr, avgWt);
+        });
         const plansByDateAndPart = {};
         days.forEach((dStr) => {
             plansByDateAndPart[dStr] = {};
@@ -346,20 +389,45 @@ let MachineCapacityService = class MachineCapacityService {
                     }
                 }
                 else if (machine.machineType === 'TORIDAS') {
-                    const totalBilOutput = partPlansToday.reduce((sum, p) => sum + Number(p.plannedQty || 0), 0);
-                    plannedLoadKg = totalBilOutput > 0 ? Math.round(totalBilOutput / 0.8) : 0;
-                    const lineSpeed = (machine.standardSpeedKgHr || 2100.0) * machinesCount;
-                    if (plannedLoadKg > 0 && lineSpeed > 0) {
-                        requiredHours = plannedLoadKg / lineSpeed;
-                    }
-                    if (partPlansToday.length > 0) {
+                    const offeredWeightKg = supplyMap.get(`${dStr}_${machine.partName}`) || 0;
+                    const avgWeight = avgWeightMap.get(dStr) || 2.8;
+                    if (offeredWeightKg > 0) {
+                        const toridasCfg = {
+                            speedPerMachineHr: 1500,
+                            machinesPerLine: 4,
+                            totalLines: machine.machinesCount || 3,
+                            effectiveHoursPerShift: machine.workingHoursPerShift ? Number(machine.workingHoursPerShift) : 9.58,
+                            deboningYieldPercent: 80,
+                        };
+                        const toridasRes = (0, toridasCapacity_1.calculateToridasCapacity)(offeredWeightKg, avgWeight, toridasCfg, dStr);
+                        plannedLoadKg = Math.round(toridasRes.toridasInputKg);
+                        shiftsCount = toridasRes.shiftsNeeded;
+                        availableHours = Math.round(shiftsCount * workHours * machinesCount * 100) / 100;
+                        requiredHours = Math.round(((toridasRes.capacityUtilizationPct / 100) * availableHours) * 100) / 100;
                         itemBreakdowns.push({
                             itemCode: 'BIL-FEED',
-                            itemName: 'วัตถุดิบสะโพกป้อน Toridas',
+                            itemName: `เครื่องเลาะ Toridas (เลาะเนื้อ BL ได้ ${Math.round(toridasRes.bonelessOutputKg).toLocaleString()} กก., ${toridasRes.linesNeeded} ไลน์, ${toridasRes.shiftsNeeded} กะ)`,
                             plannedQty: plannedLoadKg,
-                            speedKgHr: lineSpeed,
-                            machineHours: Math.round(requiredHours * 100) / 100,
+                            speedKgHr: (toridasCfg.speedPerMachineHr || 1500) * (toridasCfg.machinesPerLine || 4),
+                            machineHours: requiredHours,
                         });
+                    }
+                    else {
+                        const totalBilOutput = partPlansToday.reduce((sum, p) => sum + Number(p.plannedQty || 0), 0);
+                        plannedLoadKg = totalBilOutput > 0 ? Math.round(totalBilOutput / 0.8) : 0;
+                        const lineSpeed = (machine.standardSpeedKgHr || 2100.0) * machinesCount;
+                        if (plannedLoadKg > 0 && lineSpeed > 0) {
+                            requiredHours = plannedLoadKg / lineSpeed;
+                        }
+                        if (partPlansToday.length > 0) {
+                            itemBreakdowns.push({
+                                itemCode: 'BIL-FEED',
+                                itemName: 'วัตถุดิบสะโพกป้อน Toridas',
+                                plannedQty: plannedLoadKg,
+                                speedKgHr: lineSpeed,
+                                machineHours: Math.round(requiredHours * 100) / 100,
+                            });
+                        }
                     }
                 }
                 else if (machine.machineType === 'BELT_GATE') {

@@ -43,11 +43,11 @@ function SupplySummaryPanelComponent({
           api.get('/chicken-receiving/monthly', { params: { dateFrom: dateStr, dateTo: dateStr, limit: 1000 } })
         ];
 
-        // 2. Fetch Toridas Metrics for BIL only (only if month changed or not loaded)
-        const shouldFetchToridas = partName.toUpperCase() === 'BIL' && toridasMonthRef.current !== monthStr;
+        // 2. Dynamically fetch Toridas Metrics for this part or parent
+        const shouldFetchToridas = toridasMonthRef.current !== monthStr && (partName.toUpperCase() === 'BIL' || partName.toUpperCase() === 'BL');
         if (shouldFetchToridas) {
           promises.push(
-            api.get(`/api/v1/mps/BIL/toridas-metrics`, { params: { currentMonth: dateStr } })
+            api.get(`/api/v1/mps/${encodeURIComponent(partName)}/toridas-metrics`, { params: { currentMonth: dateStr } })
               .catch(e => {
                 console.error("Failed to fetch toridas metrics:", e);
                 return null;
@@ -202,16 +202,19 @@ function SupplySummaryPanelComponent({
         </div>
       </div>
 
-      {/* Toridas Machine Status Card (for BIL only) */}
-      {partName.toUpperCase() === 'BIL' && (
+      {/* Toridas Machine Status Card (dynamically shown if metrics exist for selected date) */}
+      {toridasMetrics?.daily?.[format(selectedDate, 'yyyy-MM-dd')] && (
         <ToridasStatusCard 
           metrics={toridasMetrics?.daily?.[format(selectedDate, 'yyyy-MM-dd')]} 
           isLoading={isLoading} 
         />
       )}
 
-      {/* I-CUT Machine Status Card (for BL only) */}
-      {partName.toUpperCase() === 'BL' && (
+      {/* I-CUT Machine Status Card (dynamically shown if part is BL or any planned item uses I-Cut) */}
+      {(partName.toUpperCase() === 'BL' || (dailyPlans && dailyPlans.some((p: any) => {
+        const s = specs?.[p.itemCode];
+        return (s && Number(s.iCutSpeed) > 0) || (p.itemDesc && (p.itemDesc.includes('BLK') || p.itemDesc.includes('ICUT')));
+      }))) && (
         <ICutStatusCard 
           selectedDate={selectedDate}
           dailyPlans={dailyPlans}

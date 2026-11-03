@@ -17,6 +17,7 @@ export declare class ErpItemMasterController {
             erpItemType: string;
             erpItemUom: string;
             erpSecondaryUom: string | null;
+            erpConversionRate: number | null;
             erpIsActive: boolean;
             erpUpdatedAt: Date | null;
             lastSyncedAt: Date;

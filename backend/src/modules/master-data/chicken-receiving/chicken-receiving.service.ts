@@ -53,7 +53,14 @@ export class ChickenReceivingService {
 
   async bulkCreateMonthlyRecords(records: any[]) {
     const formattedRecords = records.map((data) => {
-      const receiveDate = new Date(data.receiveDate);
+      let receiveDate: Date;
+      if (typeof data.receiveDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.receiveDate)) {
+        const [y, m, d] = data.receiveDate.split('-').map(Number);
+        receiveDate = new Date(Date.UTC(y, m - 1, d));
+      } else {
+        receiveDate = new Date(data.receiveDate);
+      }
+
       const totalWeight = Number(data.totalWeight);
       const numberOfChickens = Number(data.numberOfChickens);
       const averageWeight =
@@ -66,6 +73,11 @@ export class ChickenReceivingService {
         totalWeight,
         averageWeight,
       };
+    });
+
+    const dates = formattedRecords.map((r) => r.receiveDate);
+    await prisma.monthlyChickenReceiving.deleteMany({
+      where: { receiveDate: { in: dates } },
     });
 
     return prisma.monthlyChickenReceiving.createMany({

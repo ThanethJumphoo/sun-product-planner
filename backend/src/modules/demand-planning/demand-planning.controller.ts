@@ -22,8 +22,16 @@ export class DemandPlanningController {
     @Param('partName') partName: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('onlySelected') onlySelected?: string,
+    @Query('includeClosed') includeClosed?: string,
   ) {
-    return this.service.getSalesOrdersForPart(partName, startDate, endDate);
+    return this.service.getSalesOrdersForPart(
+      partName,
+      startDate,
+      endDate,
+      onlySelected === 'true',
+      includeClosed === 'true',
+    );
   }
 
   @Post(':partName/sales-orders')

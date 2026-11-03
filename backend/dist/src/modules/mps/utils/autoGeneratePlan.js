@@ -15,33 +15,39 @@ const MAX_ICUT_HOURS_PER_DAY = 37.0;
 function isItemNode(n) {
     if (!n)
         return false;
-    const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
-    return code === 'ITEM' || n.nodeTypeId === 3002 || n.nodeTypeId === 3001;
+    const code = (n.nodeType?.typeCode || n.data?.nodeTypeCode || '').toUpperCase();
+    return code === 'ITEM' || code === 'PRODUCT' || n.nodeTypeId === 3002 || n.nodeTypeId === 3001;
 }
 function isRmNode(n) {
     if (!n)
         return false;
-    const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
+    const code = (n.nodeType?.typeCode || n.data?.nodeTypeCode || '').toUpperCase();
     return (code === 'RM' ||
         code === 'RAW_MATERIAL' ||
+        code === 'MATERIAL' ||
         n.nodeTypeId === 2002 ||
         n.nodeTypeId === 2001);
 }
 function isProcessNode(n) {
     if (!n)
         return false;
-    const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
-    return code === 'PROCESS' || n.nodeTypeId === 1004 || n.nodeTypeId === 1001;
+    const code = (n.nodeType?.typeCode || n.data?.nodeTypeCode || '').toUpperCase();
+    return (code === 'PROCESS' ||
+        code === 'OPERATION' ||
+        n.nodeTypeId === 1004 ||
+        n.nodeTypeId === 1001);
 }
 function isMachineNode(n) {
     if (!n)
         return false;
-    const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
+    const code = (n.nodeType?.typeCode || n.data?.nodeTypeCode || '').toUpperCase();
     return (code === 'MACHINE' ||
+        code === 'EQUIPMENT' ||
         n.nodeTypeId === 1003 ||
         n.nodeTypeId === 2004 ||
         n.name?.toLowerCase().includes('machine') ||
-        n.name?.toLowerCase().includes('icut'));
+        n.name?.toLowerCase().includes('icut') ||
+        n.name?.toLowerCase().includes('toridas'));
 }
 async function generateAutoPlanOnServer(partName, currentMonthStr) {
     const currentMonth = new Date(currentMonthStr);
@@ -50,7 +56,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
     const dateFrom = (0, date_fns_1.format)(monthStart, 'yyyy-MM-dd');
     const dateTo = (0, date_fns_1.format)(monthEnd, 'yyyy-MM-dd');
     console.log('autoGeneratePlan: Fetching DB data...');
-    const [supplies, plannedDemandsDb, specsArr, chickenWeights, rmSizes, distributions, weeklyRecords, monthlyRecords, monthlyPlans, flowBoards, externalSupplies, dateLocks,] = await Promise.all([
+    const [supplies, plannedDemandsDb, specsArr, chickenWeights, rmSizes, distributions, weeklyRecords, monthlyRecords, monthlyPlans, flowBoards, externalSupplies, dateLocks, itemMasters, inactiveHeaders,] = await Promise.all([
         prisma_1.default.mpsSupply.findMany({
             where: { partName, planDate: { gte: monthStart, lte: monthEnd } },
         }),
@@ -98,7 +104,22 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                 isLocked: true,
             },
         }),
+        prisma_1.default.erpItemMaster.findMany({
+            select: { erpItemCode: true, erpConversionRate: true },
+        }),
+        prisma_1.default.erpSaleOrderHeader.findMany({
+            where: {
+                erpOrderStatus: { in: ['CLOSED', 'CANCELLED'] },
+            },
+            select: { erpOrderNumber: true },
+        }),
     ]);
+    const itemConversionMap = new Map();
+    itemMasters.forEach((im) => {
+        if (im.erpConversionRate && Number(im.erpConversionRate) > 0) {
+            itemConversionMap.set(im.erpItemCode, Number(im.erpConversionRate));
+        }
+    });
     const wdMatrixRecords = chickenWeights.map((cw) => {
         return {
             chickenWeight: cw,
@@ -183,8 +204,10 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
             catch (e) { }
         });
     });
-    const soNumbers = Array.from(new Set(plannedDemandsDb.map((d) => d.soNumber))).filter((s) => s && s.trim());
-    const itemCodes = Array.from(new Set(plannedDemandsDb.map((d) => d.itemCode))).filter((i) => i && i.trim());
+    const inactiveOrderNumbers = new Set(inactiveHeaders.map((h) => h.erpOrderNumber));
+    const activePlannedDemandsDb = plannedDemandsDb.filter((d) => !inactiveOrderNumbers.has(d.soNumber));
+    const soNumbers = Array.from(new Set(activePlannedDemandsDb.map((d) => d.soNumber))).filter((s) => s && s.trim());
+    const itemCodes = Array.from(new Set(activePlannedDemandsDb.map((d) => d.itemCode))).filter((i) => i && i.trim());
     const soLines = [];
     const chunkSize = 500;
     for (let i = 0; i < soNumbers.length; i += chunkSize) {
@@ -215,7 +238,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
             soLineMap.set(`${line.header.erpOrderNumber}_${lineNumStr}_${line.erpItemCode}`, line.scheduleShipDate);
         }
     }
-    const plannedDemands = plannedDemandsDb.map((d) => ({
+    const plannedDemands = activePlannedDemandsDb.map((d) => ({
         ...d,
         shipDate: soLineMap.get(`${d.soNumber}_${d.lineNumber}_${d.itemCode}`) || null,
     }));
@@ -771,10 +794,21 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                     maxRmByICut = maxKgByICut / (currentYield / 100);
                 }
                 const rmToTake = Math.min(reqForRemaining, availableRM, maxRmByICut);
-                const qtyProduced = rmToTake * (currentYield / 100);
+                let qtyProduced = rmToTake * (currentYield / 100);
                 if (rmToTake <= 0.01 || qtyProduced <= 0.01)
                     continue;
-                bucket.remaining -= rmToTake;
+                const batchSize = itemConversionMap.get(demand.itemCode) || 0;
+                let actualRmUsed = rmToTake;
+                if (batchSize > 0) {
+                    const fullBatches = Math.floor(qtyProduced / batchSize);
+                    const qtyAligned = fullBatches * batchSize;
+                    if (qtyAligned <= 0.01) {
+                        continue;
+                    }
+                    qtyProduced = qtyAligned;
+                    actualRmUsed = qtyProduced / (currentYield / 100);
+                }
+                bucket.remaining -= actualRmUsed;
                 remainingPlanQty -= qtyProduced;
                 if (isICut) {
                     const hrs = qtyProduced / iCutSpeed;
@@ -799,7 +833,7 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                 newlyPlannedMap.set(key, (newlyPlannedMap.get(key) || 0) + qtyFinal);
                 if (mainToPoolMap[demand.itemCode]) {
                     for (const gp of mainToPoolMap[demand.itemCode]) {
-                        const poolWeight = rmToTake * (gp.yieldPercent / 100);
+                        const poolWeight = actualRmUsed * (gp.yieldPercent / 100);
                         if (!dailyPoolSupply[dateStr])
                             dailyPoolSupply[dateStr] = {};
                         if (!dailyPoolSupply[dateStr][gp.poolId])

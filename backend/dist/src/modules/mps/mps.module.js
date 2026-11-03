@@ -10,13 +10,17 @@ exports.MpsModule = void 0;
 const common_1 = require("@nestjs/common");
 const mps_controller_1 = require("./mps.controller");
 const mps_service_1 = require("./mps.service");
+const mps_export_service_1 = require("./services/mps-export.service");
+const manpower_module_1 = require("../manpower/manpower.module");
 let MpsModule = class MpsModule {
 };
 exports.MpsModule = MpsModule;
 exports.MpsModule = MpsModule = __decorate([
     (0, common_1.Module)({
+        imports: [manpower_module_1.ManpowerModule],
         controllers: [mps_controller_1.MpsController],
-        providers: [mps_service_1.MpsService]
+        providers: [mps_service_1.MpsService, mps_export_service_1.MpsExportService],
+        exports: [mps_service_1.MpsService, mps_export_service_1.MpsExportService],
     })
 ], MpsModule);
 //# sourceMappingURL=mps.module.js.map

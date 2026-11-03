@@ -10,16 +10,48 @@ import toast from "react-hot-toast";
 export default function ItemMasterPage() {
   const [rowData, setRowData] = useState<any[]>([]);
   const [lastSyncedGlobal, setLastSyncedGlobal] = useState<string>("Never");
+  const [quickFilterText, setQuickFilterText] = useState<string>("");
 
   const [colDefs] = useState<ColDef[]>([
-    { field: "erpItemCode", headerName: "Item Code", sortable: true, filter: true },
-    { field: "erpItemDesc", headerName: "Item Name", sortable: true, filter: true, flex: 2 },
-    { field: "erpItemType", headerName: "Category", sortable: true, filter: true },
-    { field: "erpItemUom", headerName: "UOM", sortable: true, filter: true, width: 100 },
+    { field: "erpItemCode", headerName: "Item Code", sortable: true, filter: true, width: 140 },
+    { field: "erpItemDesc", headerName: "Item Name", sortable: true, filter: true, flex: 2, minWidth: 220 },
+    { field: "erpItemType", headerName: "Category", sortable: true, filter: true, width: 110 },
+    { field: "erpItemUom", headerName: "Primary UOM", sortable: true, filter: true, width: 120 },
+    { 
+      field: "erpSecondaryUom", 
+      headerName: "Secondary UOM (หน่วย 2)", 
+      sortable: true, 
+      filter: true, 
+      width: 170,
+      cellRenderer: (params: any) => {
+        if (!params.value) return <span className="text-slate-400 italic text-xs">ไม่มี (Bulk/Kg)</span>;
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+            {params.value}
+          </span>
+        );
+      }
+    },
+    { 
+      field: "erpConversionRate", 
+      headerName: "Conversion Rate (กก./หน่วย 2)", 
+      sortable: true, 
+      filter: true, 
+      width: 190,
+      cellRenderer: (params: any) => {
+        if (!params.value) return <span className="text-slate-400 italic text-xs">-</span>;
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            {params.value} kg / {params.data?.erpSecondaryUom || 'หน่วย 2'}
+          </span>
+        );
+      }
+    },
     { 
       field: "erpUpdatedAt", 
       headerName: "Last Synced", 
       sortable: true,
+      width: 170,
       valueFormatter: (params) => {
         if (!params.value) return "-";
         return new Date(params.value).toLocaleString();
@@ -33,7 +65,9 @@ export default function ItemMasterPage() {
 
   const fetchItems = async () => {
     try {
-      const response = await api.get('/api/v1/erp/item-master');
+      const response = await api.get('/api/v1/erp/item-master', {
+        params: { limit: 1000 }
+      });
       // Backend returns { data, total, page, limit, totalPages }
       const items = response.data.data || [];
       setRowData(items);
@@ -130,25 +164,28 @@ export default function ItemMasterPage() {
       <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden flex flex-col min-h-[500px]">
         {/* Toolbar */}
         <div className="p-4 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 bg-slate-50/50">
-          <div className="relative w-72">
+          <div className="relative w-80">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input 
               type="text" 
-              placeholder="Search items by code or name..." 
-              className="w-full pl-9 pr-4 py-2 rounded-lg border border-input text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+              placeholder="Search code, name, UOM, or rate..." 
+              value={quickFilterText}
+              onChange={(e) => setQuickFilterText(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 rounded-lg border border-input text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all bg-white"
             />
           </div>
           <div className="text-sm text-muted-foreground">
-            Last synced: {lastSyncedGlobal}
+            Total items: <span className="font-semibold text-slate-800">{rowData.length}</span> | Last synced: {lastSyncedGlobal}
           </div>
         </div>
 
         {/* AG Grid */}
-        <div className="flex-1 w-full h-full ">
+        <div className="flex-1 w-full h-[650px]">
           <AgGridReact
             theme={themeAlpine}
             rowData={rowData}
             columnDefs={colDefs}
+            quickFilterText={quickFilterText}
             defaultColDef={{
               sortable: true,
               filter: true,
@@ -156,7 +193,7 @@ export default function ItemMasterPage() {
               flex: 1,
             }}
             pagination={true}
-            paginationPageSize={20}
+            paginationPageSize={25}
             rowSelection={{ mode: "singleRow" }}
             animateRows={true}
           />

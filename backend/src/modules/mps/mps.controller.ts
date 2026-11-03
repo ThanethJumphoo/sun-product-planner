@@ -7,14 +7,42 @@ import {
   Query,
   UseGuards,
   Delete,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { MpsService } from './mps.service';
+import { MpsExportService } from './services/mps-export.service';
 import { JwtAuthGuard } from '../../core/guards/jwt-auth.guard';
 
 @Controller('api/v1/mps')
 @UseGuards(JwtAuthGuard)
 export class MpsController {
-  constructor(private readonly mpsService: MpsService) {}
+  constructor(
+    private readonly mpsService: MpsService,
+    private readonly exportService: MpsExportService,
+  ) {}
+
+  @Get(':partName/export-schedule')
+  async exportSchedule(
+    @Param('partName') partName: string,
+    @Query('month') month: string,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.exportService.generateProductionScheduleExcel(
+      partName,
+      month,
+    );
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="MPS_Schedule_${partName}_${month || 'all'}.xlsx"`,
+    );
+    res.send(buffer);
+  }
 
   @Post(':partName/supply')
   async saveMpsSupply(

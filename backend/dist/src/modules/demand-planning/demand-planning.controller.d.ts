@@ -14,7 +14,7 @@ export declare class DemandPlanningController {
         totalQuantity: number;
         soNumbers: string[];
     }>;
-    getSalesOrdersForPart(partName: string, startDate?: string, endDate?: string): Promise<{
+    getSalesOrdersForPart(partName: string, startDate?: string, endDate?: string, onlySelected?: string, includeClosed?: string): Promise<{
         product: {
             id: any;
             priority: any;
@@ -40,6 +40,7 @@ export declare class DemandPlanningController {
             isLate: boolean;
             leadDaysBuffer: number | null;
             status: "UNPLANNED" | "PARTIAL" | "COMPLETED";
+            orderStatus: any;
             isSelected: boolean;
             isManual: boolean;
             orderType: any;
@@ -70,6 +71,7 @@ export declare class DemandPlanningController {
             isLate: boolean;
             leadDaysBuffer: number | null;
             status: "UNPLANNED" | "PARTIAL" | "COMPLETED";
+            orderStatus: any;
             isSelected: boolean;
             isManual: boolean;
             orderType: any;
@@ -100,6 +102,7 @@ export declare class DemandPlanningController {
             isLate: boolean;
             leadDaysBuffer: number | null;
             status: "UNPLANNED" | "PARTIAL" | "COMPLETED";
+            orderStatus: any;
             isSelected: boolean;
             isManual: boolean;
             orderType: any;

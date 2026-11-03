@@ -15,16 +15,17 @@ const MAX_ICUT_HOURS_PER_DAY = 37.0;
 
 export function isItemNode(n: any): boolean {
   if (!n) return false;
-  const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
-  return code === 'ITEM' || n.nodeTypeId === 3002 || n.nodeTypeId === 3001;
+  const code = (n.nodeType?.typeCode || n.data?.nodeTypeCode || '').toUpperCase();
+  return code === 'ITEM' || code === 'PRODUCT' || n.nodeTypeId === 3002 || n.nodeTypeId === 3001;
 }
 
 export function isRmNode(n: any): boolean {
   if (!n) return false;
-  const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
+  const code = (n.nodeType?.typeCode || n.data?.nodeTypeCode || '').toUpperCase();
   return (
     code === 'RM' ||
     code === 'RAW_MATERIAL' ||
+    code === 'MATERIAL' ||
     n.nodeTypeId === 2002 ||
     n.nodeTypeId === 2001
   );
@@ -32,19 +33,26 @@ export function isRmNode(n: any): boolean {
 
 export function isProcessNode(n: any): boolean {
   if (!n) return false;
-  const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
-  return code === 'PROCESS' || n.nodeTypeId === 1004 || n.nodeTypeId === 1001;
+  const code = (n.nodeType?.typeCode || n.data?.nodeTypeCode || '').toUpperCase();
+  return (
+    code === 'PROCESS' ||
+    code === 'OPERATION' ||
+    n.nodeTypeId === 1004 ||
+    n.nodeTypeId === 1001
+  );
 }
 
 export function isMachineNode(n: any): boolean {
   if (!n) return false;
-  const code = n.nodeType?.typeCode || n.data?.nodeTypeCode;
+  const code = (n.nodeType?.typeCode || n.data?.nodeTypeCode || '').toUpperCase();
   return (
     code === 'MACHINE' ||
+    code === 'EQUIPMENT' ||
     n.nodeTypeId === 1003 ||
     n.nodeTypeId === 2004 ||
     n.name?.toLowerCase().includes('machine') ||
-    n.name?.toLowerCase().includes('icut')
+    n.name?.toLowerCase().includes('icut') ||
+    n.name?.toLowerCase().includes('toridas')
   );
 }
 
@@ -73,6 +81,8 @@ export async function generateAutoPlanOnServer(
     flowBoards,
     externalSupplies,
     dateLocks,
+    itemMasters,
+    inactiveHeaders,
   ] = await Promise.all([
     // getMpsSupply equivalent
     prisma.mpsSupply.findMany({
@@ -131,7 +141,26 @@ export async function generateAutoPlanOnServer(
         isLocked: true,
       },
     }),
+    // item masters with conversion rate from MTL_UOM_CLASS_CONVERSIONS
+    prisma.erpItemMaster.findMany({
+      select: { erpItemCode: true, erpConversionRate: true },
+    }),
+    // Inactive orders (CLOSED / CANCELLED) to exclude from plan
+    prisma.erpSaleOrderHeader.findMany({
+      where: {
+        erpOrderStatus: { in: ['CLOSED', 'CANCELLED'] },
+      },
+      select: { erpOrderNumber: true },
+    }),
   ]);
+
+  // Build lookup map for Secondary UOM conversion rate (MTL_UOM_CLASS_CONVERSIONS)
+  const itemConversionMap = new Map<string, number>();
+  itemMasters.forEach((im) => {
+    if (im.erpConversionRate && Number(im.erpConversionRate) > 0) {
+      itemConversionMap.set(im.erpItemCode, Number(im.erpConversionRate));
+    }
+  });
 
   // Construct wdMatrix
   const wdMatrixRecords = chickenWeights.map((cw: any) => {
@@ -233,11 +262,18 @@ export async function generateAutoPlanOnServer(
     });
   });
 
+  const inactiveOrderNumbers = new Set(
+    inactiveHeaders.map((h: any) => h.erpOrderNumber),
+  );
+  const activePlannedDemandsDb = plannedDemandsDb.filter(
+    (d: any) => !inactiveOrderNumbers.has(d.soNumber),
+  );
+
   const soNumbers = Array.from(
-    new Set(plannedDemandsDb.map((d: any) => d.soNumber)),
+    new Set(activePlannedDemandsDb.map((d: any) => d.soNumber)),
   ).filter((s) => s && s.trim());
   const itemCodes = Array.from(
-    new Set(plannedDemandsDb.map((d: any) => d.itemCode)),
+    new Set(activePlannedDemandsDb.map((d: any) => d.itemCode)),
   ).filter((i) => i && i.trim());
 
   const soLines: any[] = [];
@@ -275,7 +311,7 @@ export async function generateAutoPlanOnServer(
     }
   }
 
-  const plannedDemands = plannedDemandsDb.map((d: any) => ({
+  const plannedDemands = activePlannedDemandsDb.map((d: any) => ({
     ...d,
     shipDate:
       soLineMap.get(`${d.soNumber}_${d.lineNumber}_${d.itemCode}`) || null,
@@ -1006,11 +1042,29 @@ export async function generateAutoPlanOnServer(
         }
 
         const rmToTake = Math.min(reqForRemaining, availableRM, maxRmByICut);
-        const qtyProduced = rmToTake * (currentYield / 100);
+        let qtyProduced = rmToTake * (currentYield / 100);
 
         if (rmToTake <= 0.01 || qtyProduced <= 0.01) continue;
 
-        bucket.remaining -= rmToTake;
+        const batchSize = itemConversionMap.get(demand.itemCode) || 0;
+        let actualRmUsed = rmToTake;
+
+        if (batchSize > 0) {
+          // Round down to full units of Secondary UOM (CONVERSION_RATE from MTL_UOM_CLASS_CONVERSIONS)
+          const fullBatches = Math.floor(qtyProduced / batchSize);
+          const qtyAligned = fullBatches * batchSize;
+
+          // If available RM in this bucket isn't enough to make at least 1 full batch,
+          // leave the RM in bucket.remaining for subsequent items (Option A) and continue.
+          if (qtyAligned <= 0.01) {
+            continue;
+          }
+
+          qtyProduced = qtyAligned;
+          actualRmUsed = qtyProduced / (currentYield / 100);
+        }
+
+        bucket.remaining -= actualRmUsed;
         remainingPlanQty -= qtyProduced;
 
         if (isICut) {
@@ -1041,7 +1095,7 @@ export async function generateAutoPlanOnServer(
 
         if (mainToPoolMap[demand.itemCode]) {
           for (const gp of mainToPoolMap[demand.itemCode]) {
-            const poolWeight = rmToTake * (gp.yieldPercent / 100);
+            const poolWeight = actualRmUsed * (gp.yieldPercent / 100);
             if (!dailyPoolSupply[dateStr]) dailyPoolSupply[dateStr] = {};
             if (!dailyPoolSupply[dateStr][gp.poolId])
               dailyPoolSupply[dateStr][gp.poolId] = 0;

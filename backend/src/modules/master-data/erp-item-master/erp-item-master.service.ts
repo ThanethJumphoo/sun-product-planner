@@ -101,6 +101,12 @@ export class ErpItemMasterService implements OnModuleInit {
                    ITM.DESCRIPTION       AS ERP_ITEM_DESC,
                    ITM.PRIMARY_UOM_CODE  AS ERP_ITEM_UOM,
                    ITM.SECONDARY_UOM_CODE AS ERP_SECONDARY_UOM,
+                   (
+                     SELECT MAX(MUC.CONVERSION_RATE)
+                     FROM   MTL_UOM_CLASS_CONVERSIONS MUC
+                     WHERE  MUC.INVENTORY_ITEM_ID = ITM.INVENTORY_ITEM_ID
+                     AND    (MUC.DISABLE_DATE IS NULL OR MUC.DISABLE_DATE > SYSDATE)
+                   )                     AS ERP_CONVERSION_RATE,
                    ITM.CREATION_DATE     AS ERP_CREATION_DATE,
                    ITM.LAST_UPDATE_DATE  AS ERP_LAST_UPDATE_DATE,
                    ITM.ENABLED_FLAG      AS ERP_ENABLED_FLAG
@@ -141,6 +147,11 @@ export class ErpItemMasterService implements OnModuleInit {
             erpItemType: item.ERP_ITEM_TYPE || '',
             erpItemUom: item.ERP_ITEM_UOM || '',
             erpSecondaryUom: item.ERP_SECONDARY_UOM || null,
+            erpConversionRate:
+              item.ERP_CONVERSION_RATE !== null &&
+              item.ERP_CONVERSION_RATE !== undefined
+                ? Number(item.ERP_CONVERSION_RATE)
+                : null,
             erpIsActive: item.ERP_ENABLED_FLAG === 'Y',
             erpUpdatedAt: item.ERP_LAST_UPDATE_DATE
               ? new Date(item.ERP_LAST_UPDATE_DATE)
@@ -154,6 +165,11 @@ export class ErpItemMasterService implements OnModuleInit {
             erpItemType: item.ERP_ITEM_TYPE || '',
             erpItemUom: item.ERP_ITEM_UOM || '',
             erpSecondaryUom: item.ERP_SECONDARY_UOM || null,
+            erpConversionRate:
+              item.ERP_CONVERSION_RATE !== null &&
+              item.ERP_CONVERSION_RATE !== undefined
+                ? Number(item.ERP_CONVERSION_RATE)
+                : null,
             erpIsActive: item.ERP_ENABLED_FLAG === 'Y',
             erpUpdatedAt: item.ERP_LAST_UPDATE_DATE
               ? new Date(item.ERP_LAST_UPDATE_DATE)
@@ -206,6 +222,12 @@ export class ErpItemMasterService implements OnModuleInit {
                    ITM.DESCRIPTION       AS ERP_ITEM_DESC,
                    ITM.PRIMARY_UOM_CODE  AS ERP_ITEM_UOM,
                    ITM.SECONDARY_UOM_CODE AS ERP_SECONDARY_UOM,
+                   (
+                     SELECT MAX(MUC.CONVERSION_RATE)
+                     FROM   MTL_UOM_CLASS_CONVERSIONS MUC
+                     WHERE  MUC.INVENTORY_ITEM_ID = ITM.INVENTORY_ITEM_ID
+                     AND    (MUC.DISABLE_DATE IS NULL OR MUC.DISABLE_DATE > SYSDATE)
+                   )                     AS ERP_CONVERSION_RATE,
                    ITM.CREATION_DATE     AS ERP_CREATION_DATE,
                    ITM.LAST_UPDATE_DATE  AS ERP_LAST_UPDATE_DATE,
                    ITM.ENABLED_FLAG      AS ERP_ENABLED_FLAG

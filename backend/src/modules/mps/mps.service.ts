@@ -326,6 +326,47 @@ export class MpsService {
       } catch (e) {}
     }
 
+    // Check MachineMaster for TORIDAS machine configuration overrides
+    try {
+      const toridasMachine = await prisma.machineMaster.findFirst({
+        where: { machineType: 'TORIDAS' },
+      });
+      if (toridasMachine) {
+        if (toridasMachine.workingHoursPerShift) {
+          toridasCfg.hoursPerShift = Number(toridasMachine.workingHoursPerShift);
+        }
+        if (toridasMachine.machinesCount) {
+          toridasCfg.machinesPerLine = toridasMachine.machinesCount;
+        }
+      }
+    } catch (e) {}
+
+    // Extract dynamic by-products from Flow Board edges if present
+    const dynamicByProducts: any[] = [];
+    if (machineNodes.length > 0 && parentBoard?.edges) {
+      const byProductEdges = parentBoard.edges.filter(
+        (e) => e.source === machineNodes[0].id && e.sourceHandle === 'byproduct'
+      );
+      for (const e of byProductEdges) {
+        const targetNode = parentBoard.nodes.find((n) => n.id === e.target);
+        if (targetNode) {
+          try {
+            const tData = JSON.parse(targetNode.data || '{}');
+            const yieldPercent = Number(tData['Yield Percent'] || 0);
+            if (yieldPercent > 0) {
+              dynamicByProducts.push({
+                name: targetNode.name,
+                yieldPercent,
+              });
+            }
+          } catch (err) {}
+        }
+      }
+    }
+    if (dynamicByProducts.length > 0) {
+      (toridasCfg as any).byProducts = dynamicByProducts;
+    }
+
     // 4. Fetch daily parent supplies & receiving
     const [parentSupplies, monthlyRecs, weeklyRecs] = await Promise.all([
       prisma.mpsSupply.findMany({
@@ -913,11 +954,32 @@ export class MpsService {
 
     const specsMap: Record<string, any> = {};
     specsArr.forEach((s) => {
+      if (s.iCutSpeed !== null && s.iCutSpeed !== undefined && Number(s.iCutSpeed) > 0) {
+        icutItemSet.add(s.erpItemCode);
+      }
       specsMap[s.erpItemCode] = {
         ...s,
         itemDesc: itemDescMap.get(s.erpItemCode) || '',
       };
     });
+
+    // Check MachineMaster for ICUT machine configuration if exists
+    try {
+      const icutMachine = await prisma.machineMaster.findFirst({
+        where: { machineType: 'ICUT' },
+      });
+      if (icutMachine) {
+        if (icutMachine.standardSpeedKgHr) {
+          icutNodeConfig.defaultSpeedKgH = Number(icutMachine.standardSpeedKgHr);
+        }
+        if (icutMachine.workingHoursPerShift) {
+          icutNodeConfig.hoursPerShift = Number(icutMachine.workingHoursPerShift);
+        }
+        if (icutMachine.shiftsCount) {
+          icutNodeConfig.maxShifts = icutMachine.shiftsCount;
+        }
+      }
+    } catch (e) {}
 
     // 3. Group plans by dateStr
     const plansByDate: Record<

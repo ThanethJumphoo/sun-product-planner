@@ -229,7 +229,7 @@ export default function WeeklyChickenReceivingPage() {
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1 });
 
-        const rows = data.slice(1).filter(row => row.length >= 3 && row[0] && row[1] && row[2]);
+        const rows = data.slice(1).filter(row => row && row.length >= 3 && row[0] !== undefined && row[0] !== null && String(row[0]).trim() !== '');
 
         if (rows.length === 0) {
           toast.error("No valid data found in Excel file.");
@@ -247,7 +247,35 @@ export default function WeeklyChickenReceivingPage() {
             const d = String(fixedDate.getUTCDate()).padStart(2, '0');
             recDate = `${y}-${m}-${d}`;
           } else {
-            recDate = String(recDate).trim();
+            const str = String(recDate).trim();
+            if (str.includes('/')) {
+              const parts = str.split('/');
+              if (parts.length === 3) {
+                if (parts[2].length === 4) {
+                  const d = parts[0].padStart(2, '0');
+                  const m = parts[1].padStart(2, '0');
+                  const y = parts[2];
+                  recDate = `${y}-${m}-${d}`;
+                } else if (parts[0].length === 4) {
+                  const y = parts[0];
+                  const m = parts[1].padStart(2, '0');
+                  const d = parts[2].padStart(2, '0');
+                  recDate = `${y}-${m}-${d}`;
+                }
+              }
+            } else if (str.includes('-')) {
+              const parts = str.split('-');
+              if (parts.length === 3 && parts[2].length === 4) {
+                const d = parts[0].padStart(2, '0');
+                const m = parts[1].padStart(2, '0');
+                const y = parts[2];
+                recDate = `${y}-${m}-${d}`;
+              } else {
+                recDate = str;
+              }
+            } else {
+              recDate = str;
+            }
           }
 
           const totalCount = parseInt(row[1]) || 0;

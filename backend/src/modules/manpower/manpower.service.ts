@@ -233,14 +233,37 @@ export class ManpowerService {
           standardSpeedKgHr: 45.0,
           orderIndex: 1,
         },
+      );
+
+      // Dynamically discover and register machine operator roles for this part
+      const partMachines = await prisma.machineMaster.findMany({
+        where: { partName },
+        orderBy: { orderIndex: 'asc' },
+      });
+
+      let orderIdx = 2;
+      for (const m of partMachines) {
+        defaultList.push({
+          partName,
+          roleName: `คนคุมเครื่องจักร ${m.machineName} (${m.machineCode})`,
+          calculationType: 'MACHINE',
+          machineType: m.machineType,
+          defaultWorkers: 2.0,
+          workingHoursPerShift: Number(m.workingHoursPerShift) || 8.0,
+          shiftsCount: m.shiftsCount || 1,
+          orderIndex: orderIdx++,
+        });
+      }
+
+      defaultList.push(
         {
           partName,
-          roleName: `คนประจำสถานี ${partName} (Station Workers)`,
+          roleName: `คนประจำสถานี & สนับสนุน ${partName} (Station Workers)`,
           calculationType: 'FIXED_OVERRIDE',
           defaultWorkers: 28.0,
           workingHoursPerShift: 10.0,
           shiftsCount: 1,
-          orderIndex: 2,
+          orderIndex: orderIdx,
         },
       );
     }

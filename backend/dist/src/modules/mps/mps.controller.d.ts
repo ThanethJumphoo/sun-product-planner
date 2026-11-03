@@ -1,7 +1,11 @@
+import type { Response } from 'express';
 import { MpsService } from './mps.service';
+import { MpsExportService } from './services/mps-export.service';
 export declare class MpsController {
     private readonly mpsService;
-    constructor(mpsService: MpsService);
+    private readonly exportService;
+    constructor(mpsService: MpsService, exportService: MpsExportService);
+    exportSchedule(partName: string, month: string, res: Response): Promise<void>;
     saveMpsSupply(partName: string, payload: {
         date: string;
         weight: number;
