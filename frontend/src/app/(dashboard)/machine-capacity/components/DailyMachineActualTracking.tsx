@@ -399,7 +399,8 @@ export function DailyMachineActualTracking({
           {formData?.summary.recordedCount ? (
             <button
               onClick={handleDeleteRecords}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors border border-transparent hover:border-red-200"
+              disabled={isSaving || isLoading}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors border border-transparent hover:border-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
               title="ลบข้อมูลบันทึกของวันนี้"
             >
               <Trash2 size={15} />
@@ -408,8 +409,8 @@ export function DailyMachineActualTracking({
 
           <button
             onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold bg-primary text-white hover:bg-primary/90 transition-colors shadow-2xs disabled:opacity-50"
+            disabled={isSaving || isLoading || !formData}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold bg-primary text-white hover:bg-primary/90 transition-colors shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save size={14} />
             <span>{isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลจริง'}</span>

@@ -14,6 +14,7 @@ interface MpsGenerateModalProps {
   fetchCalendarData: () => Promise<void>;
   fetchPlannedDemands: () => Promise<void>;
   setIsGenerating: (val: boolean) => void;
+  isGenerating?: boolean;
   lockedDatesCount?: number;
   lockedPlansCount?: number;
 }
@@ -28,9 +29,12 @@ export function MpsGenerateModal({
   fetchCalendarData,
   fetchPlannedDemands,
   setIsGenerating,
+  isGenerating = false,
   lockedDatesCount,
   lockedPlansCount
 }: MpsGenerateModalProps) {
+  const [isClearing, setIsClearing] = React.useState(false);
+
   if (!isOpen) return null;
 
   const handleClearPlans = async () => {
@@ -40,7 +44,7 @@ export function MpsGenerateModal({
       : `Are you sure you want to clear all plans for ${format(currentMonth, 'MMMM yyyy')}?`;
 
     if (confirm(confirmMsg)) {
-      onClose();
+      setIsClearing(true);
       const toastId = toast.loading('Clearing plans...');
       try {
         const startDate = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
@@ -52,9 +56,12 @@ export function MpsGenerateModal({
         toast.success("Plans cleared successfully.");
         await fetchCalendarData();
         await fetchPlannedDemands();
+        onClose();
       } catch (err: any) {
         toast.dismiss(toastId);
         toast.error(`Failed to clear plans: ${err.message}`);
+      } finally {
+        setIsClearing(false);
       }
     }
   };
@@ -190,24 +197,31 @@ export function MpsGenerateModal({
         <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex justify-between gap-3">
           <button 
             onClick={handleClearPlans}
-            className="px-4 py-2 bg-white text-red-600 border border-red-200 font-medium rounded-lg hover:bg-red-50 shadow-sm transition-colors flex items-center gap-2"
+            disabled={isGenerating || isClearing}
+            className="px-4 py-2 bg-white text-red-600 border border-red-200 font-medium rounded-lg hover:bg-red-50 shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Trash2 size={16} />
-            Clear Orders
+            {isClearing ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+            ) : (
+              <Trash2 size={16} />
+            )}
+            <span>Clear Orders</span>
           </button>
           <div className="flex gap-3">
             <button 
               onClick={onClose}
-              className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1"
+              disabled={isGenerating || isClearing}
+              className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button 
               onClick={handleStartGeneration}
-              className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors flex items-center gap-2"
+              disabled={isGenerating || isClearing || plannedDemands.length === 0 || Object.keys(calculatedSupply).length === 0}
+              className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Wand2 size={18} />
-              Start Generation
+              <span>Start Generation</span>
             </button>
           </div>
         </div>

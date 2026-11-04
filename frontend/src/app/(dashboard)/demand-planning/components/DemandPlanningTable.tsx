@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import api from '@/lib/api';
-import { Settings, FileSpreadsheet, Save, Wand2, Plus, Trash2, Calendar, Search, AlertCircle, Clock, X } from 'lucide-react';
+import { Settings, FileSpreadsheet, Save, Wand2, Plus, Trash2, Calendar, Search, AlertCircle, Clock, X, ListOrdered } from 'lucide-react';
 import { format } from 'date-fns';
 import { ManualOrderModal } from './ManualOrderModal';
 import { ExcelImportModal } from './ExcelImportModal';
@@ -45,6 +45,7 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
   const [activeTab, setActiveTab] = useState<'product' | 'coproduct' | 'byproduct'>('product');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'INCOMPLETE' | 'UNPLANNED' | 'PARTIAL' | 'COMPLETED'>('ALL');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,12 +116,26 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
   };
 
   const handleAutoSort = () => {
+    if (isLoading || isSaving) return;
     // Just fetch from server again, server already sorts them automatically
     fetchDemandData();
     toast.success("Auto sorted based on system priority!");
   };
 
+  const handleReindexPriority = () => {
+    if (isLoading || isSaving) return;
+    const newData = { ...data };
+    const lines = [...(newData[activeTab] || [])];
+    lines.forEach((line, idx) => {
+      line.priority = idx + 1;
+    });
+    newData[activeTab] = lines;
+    setData(newData);
+    toast.success(`Re-indexed priority 1 to ${lines.length} for ${activeTab}. Click "Save" to persist.`);
+  };
+
   const handleDeleteManualOrder = async (soNumber: string) => {
+    if (isLoading || isSaving) return;
     if (!confirm(`Are you sure you want to delete manual order "${soNumber}"?`)) {
       return;
     }
@@ -139,8 +154,30 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
   };
 
   const handleSave = async () => {
+    if (isLoading || isSaving) return;
+
+    // Gather lines across all categories so other tabs are preserved
+    const allLines = [
+      ...(data.product || []),
+      ...(data.coproduct || []),
+      ...(data.byproduct || []),
+    ];
+
+    if (allLines.length === 0) {
+      toast.error('No demand data to save');
+      return;
+    }
+
+    setIsSaving(true);
     try {
-      const payload = currentLines.map(line => ({
+      const params = new URLSearchParams();
+      if (startDateFilter && endDateFilter) {
+        params.append('startDate', startDateFilter);
+        params.append('endDate', endDateFilter);
+      }
+      const qs = params.toString() ? `?${params.toString()}` : '';
+
+      const payload = allLines.map(line => ({
         soNumber: line.soNumber,
         lineNumber: line.lineNumber,
         itemCode: line.itemCode,
@@ -149,14 +186,16 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
         planQty: line.planQty !== null && line.planQty !== '' && line.planQty !== undefined ? Number(line.planQty) : null
       }));
 
-      await api.post(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders`, payload);
+      await api.post(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders${qs}`, payload);
       toast.success('Demand plan saved successfully!');
       
       // Re-fetch to get updated and sorted data
-      fetchDemandData();
-    } catch (err) {
+      await fetchDemandData();
+    } catch (err: any) {
       console.error(err);
-      toast.error('Failed to save demand plan');
+      toast.error(err.response?.data?.message || err.message || 'Failed to save demand plan');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -216,31 +255,48 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
         <div className="flex items-center gap-2">
           <button 
             onClick={() => setIsExcelModalOpen(true)}
-            className="flex items-center gap-1.5 text-sm text-emerald-700 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 px-3.5 py-1.5 rounded-lg shadow-xs font-semibold transition-colors"
+            disabled={isLoading || isSaving}
+            className="flex items-center gap-1.5 text-sm text-emerald-700 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 px-3.5 py-1.5 rounded-lg shadow-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <FileSpreadsheet size={15} />
             <span>Import Excel</span>
           </button>
           <button 
             onClick={() => setIsManualModalOpen(true)}
-            className="flex items-center gap-1.5 text-sm text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3.5 py-1.5 rounded-lg shadow-xs font-semibold transition-colors"
+            disabled={isLoading || isSaving}
+            className="flex items-center gap-1.5 text-sm text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3.5 py-1.5 rounded-lg shadow-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus size={15} />
             <span>Create Manual Order</span>
           </button>
           <button 
             onClick={handleAutoSort}
-            className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 bg-white border border-slate-200 px-3 py-1.5 rounded shadow-sm hover:border-blue-300 transition-colors"
+            disabled={isLoading || isSaving}
+            className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 bg-white border border-slate-200 px-3 py-1.5 rounded shadow-sm hover:border-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Wand2 size={14} />
             <span>Auto</span>
           </button>
           <button 
-            onClick={handleSave}
-            className="flex items-center gap-2 text-sm text-white bg-primary hover:bg-primary/90 px-4 py-1.5 rounded shadow-sm transition-colors"
+            onClick={handleReindexPriority}
+            disabled={isLoading || isSaving || (data[activeTab] || []).length === 0}
+            title="Re-index priority 1, 2, 3... sequentially for the current list"
+            className="flex items-center gap-1.5 text-sm text-slate-700 hover:text-emerald-700 bg-white border border-slate-200 hover:border-emerald-300 px-3 py-1.5 rounded shadow-sm transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Save size={14} />
-            <span>Save</span>
+            <ListOrdered size={14} />
+            <span>Re-index 1..N</span>
+          </button>
+          <button 
+            onClick={handleSave}
+            disabled={isLoading || isSaving || (data.product.length === 0 && data.coproduct.length === 0 && data.byproduct.length === 0)}
+            className="flex items-center gap-2 text-sm text-white bg-primary hover:bg-primary/90 px-4 py-1.5 rounded shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[90px] justify-center"
+          >
+            {isSaving ? (
+              <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Save size={14} />
+            )}
+            <span>{isSaving ? 'Saving...' : 'Save'}</span>
           </button>
         </div>
       </div>
@@ -250,7 +306,8 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
         <div className="flex gap-4">
           <button
             onClick={() => setActiveTab('product')}
-            className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
+            disabled={isLoading || isSaving}
+            className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               activeTab === 'product'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
@@ -260,7 +317,8 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
           </button>
           <button
             onClick={() => setActiveTab('coproduct')}
-            className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
+            disabled={isLoading || isSaving}
+            className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               activeTab === 'coproduct'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
@@ -270,7 +328,8 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
           </button>
           <button
             onClick={() => setActiveTab('byproduct')}
-            className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
+            disabled={isLoading || isSaving}
+            className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               activeTab === 'byproduct'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
@@ -293,7 +352,8 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
             <button
               key={s.id}
               onClick={() => setStatusFilter(s.id as any)}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 border ${
+              disabled={isLoading || isSaving}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 border disabled:opacity-50 disabled:cursor-not-allowed ${
                 statusFilter === s.id
                   ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
                   : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
@@ -343,20 +403,23 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
           <input
             type="date"
             value={startDateFilter}
+            disabled={isLoading || isSaving}
             onChange={(e) => setStartDateFilter(e.target.value)}
-            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-primary shadow-2xs"
+            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-primary shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <span className="text-slate-400">-</span>
           <input
             type="date"
             value={endDateFilter}
+            disabled={isLoading || isSaving}
             onChange={(e) => setEndDateFilter(e.target.value)}
-            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-primary shadow-2xs"
+            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-primary shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <button
             type="button"
             onClick={() => fetchDemandData()}
-            className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 rounded font-semibold transition-colors shadow-2xs cursor-pointer"
+            disabled={isLoading || isSaving}
+            className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 rounded font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Filter
           </button>
@@ -364,7 +427,8 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
             <button
               type="button"
               onClick={() => handleApplyPreset('all')}
-              className="px-1.5 py-1 text-slate-500 hover:text-red-600 text-xs cursor-pointer underline"
+              disabled={isLoading || isSaving}
+              className="px-1.5 py-1 text-slate-500 hover:text-red-600 text-xs cursor-pointer underline disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Clear
             </button>
@@ -374,14 +438,16 @@ export function DemandPlanningTable({ partName }: { partName: string }) {
             <button
               type="button"
               onClick={() => handleApplyPreset('this_month')}
-              className="px-2 py-0.5 rounded text-[11px] font-medium bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 transition-colors shadow-2xs cursor-pointer"
+              disabled={isLoading || isSaving}
+              className="px-2 py-0.5 rounded text-[11px] font-medium bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 transition-colors shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               This Month
             </button>
             <button
               type="button"
               onClick={() => handleApplyPreset('next_month')}
-              className="px-2 py-0.5 rounded text-[11px] font-medium bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 transition-colors shadow-2xs cursor-pointer"
+              disabled={isLoading || isSaving}
+              className="px-2 py-0.5 rounded text-[11px] font-medium bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 transition-colors shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Next Month
             </button>

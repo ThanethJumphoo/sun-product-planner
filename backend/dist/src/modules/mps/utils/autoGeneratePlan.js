@@ -56,12 +56,18 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
     const dateFrom = (0, date_fns_1.format)(monthStart, 'yyyy-MM-dd');
     const dateTo = (0, date_fns_1.format)(monthEnd, 'yyyy-MM-dd');
     console.log('autoGeneratePlan: Fetching DB data...');
-    const [supplies, plannedDemandsDb, specsArr, chickenWeights, rmSizes, distributions, weeklyRecords, monthlyRecords, monthlyPlans, flowBoards, externalSupplies, dateLocks, itemMasters, inactiveHeaders,] = await Promise.all([
+    const [supplies, plannedDemandsDb, specsArr, chickenWeights, rmSizes, distributions, weeklyRecords, monthlyRecords, monthlyPlans, flowBoards, externalSupplies, dateLocks, itemMasters, inactiveHeaders, pastTransactions,] = await Promise.all([
         prisma_1.default.mpsSupply.findMany({
             where: { partName, planDate: { gte: monthStart, lte: monthEnd } },
         }),
         prisma_1.default.demandPlanLine.findMany({
-            where: { partName },
+            where: {
+                partName,
+                shipDate: {
+                    gte: (0, date_fns_1.subDays)(monthStart, 35),
+                    lte: (0, date_fns_1.addDays)(monthEnd, 7),
+                },
+            },
         }),
         prisma_1.default.productSpec.findMany(),
         prisma_1.default.chickenWeight.findMany({ orderBy: { minWeight: 'asc' } }),
@@ -112,6 +118,13 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                 erpOrderStatus: { in: ['CLOSED', 'CANCELLED'] },
             },
             select: { erpOrderNumber: true },
+        }),
+        prisma_1.default.mpsProductionTransaction.findMany({
+            where: {
+                partName,
+                planDate: { gte: (0, date_fns_1.subDays)(monthStart, 45), lt: monthStart },
+            },
+            select: { soNumber: true, itemCode: true, plannedQty: true },
         }),
     ]);
     const itemConversionMap = new Map();
@@ -612,6 +625,10 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
             if (poolsCountA !== poolsCountB)
                 return poolsCountA - poolsCountB;
         }
+        const isBacklogA = a.shipDate && new Date(a.shipDate) < monthStart ? 1 : 0;
+        const isBacklogB = b.shipDate && new Date(b.shipDate) < monthStart ? 1 : 0;
+        if (isBacklogA !== isBacklogB)
+            return isBacklogB - isBacklogA;
         return Number(a.priority || 999) - Number(b.priority || 999);
     });
     const generatedTransactions = [];
@@ -619,6 +636,11 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
     let skipNoShipDate = 0;
     let skipOutMonth = 0;
     let skipNoSupply = 0;
+    const pastPlansMap = new Map();
+    pastTransactions.forEach((pt) => {
+        const key = `${pt.soNumber}_${pt.itemCode}`;
+        pastPlansMap.set(key, (pastPlansMap.get(key) || 0) + Number(pt.plannedQty || 0));
+    });
     const monthlyPlansMap = new Map();
     const dailyICutHoursUsed = {};
     for (const p of lockedPlans) {
@@ -642,10 +664,11 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
         if (!spec)
             continue;
         const key = `${demand.soNumber}_${demand.itemCode}`;
+        const pastPlanned = pastPlansMap.get(key) || 0;
         const alreadyPlanned = monthlyPlansMap.get(key) || 0;
         const newlyPlanned = newlyPlannedMap.get(key) || 0;
-        let remainingPlanQty = Number(demand.planQty) - alreadyPlanned - newlyPlanned;
-        if (remainingPlanQty <= 0)
+        let remainingPlanQty = Number(demand.planQty) - pastPlanned - alreadyPlanned - newlyPlanned;
+        if (remainingPlanQty <= 0.01)
             continue;
         if (!demand.shipDate) {
             skipNoShipDate++;
@@ -669,26 +692,42 @@ async function generateAutoPlanOnServer(partName, currentMonthStr) {
                 leadMaxDays = Math.max(leadMaxDays, daysNeededForICut + leadMinDays);
             }
         }
-        const targetStartDate = (0, date_fns_1.subDays)(shipDate, leadMaxDays);
-        const targetEndDate = (0, date_fns_1.subDays)(shipDate, leadMinDays);
         const validTargetDates = [];
-        const currDate = new Date(targetStartDate);
-        let safeguard = 0;
         const currentMonthNum = currentMonth.getMonth();
         const currentYearNum = currentMonth.getFullYear();
-        while (currDate <= targetEndDate && safeguard < 100) {
-            if (currDate.getMonth() === currentMonthNum &&
-                currDate.getFullYear() === currentYearNum) {
-                const y = currDate.getFullYear();
-                const m = String(currDate.getMonth() + 1).padStart(2, '0');
-                const d = String(currDate.getDate()).padStart(2, '0');
+        if (shipDate < monthStart) {
+            let dPtr = new Date(monthStart);
+            while (dPtr <= monthEnd &&
+                validTargetDates.length < Math.max(1, leadMaxDays)) {
+                const y = dPtr.getFullYear();
+                const m = String(dPtr.getMonth() + 1).padStart(2, '0');
+                const d = String(dPtr.getDate()).padStart(2, '0');
                 const targetDateKey = `${y}-${m}-${d}`;
                 if (!lockedDateStrings.has(targetDateKey)) {
                     validTargetDates.push(targetDateKey);
                 }
+                dPtr.setDate(dPtr.getDate() + 1);
             }
-            currDate.setDate(currDate.getDate() + 1);
-            safeguard++;
+        }
+        else {
+            const targetStartDate = (0, date_fns_1.subDays)(shipDate, leadMaxDays);
+            const targetEndDate = (0, date_fns_1.subDays)(shipDate, leadMinDays);
+            const currDate = new Date(targetStartDate);
+            let safeguard = 0;
+            while (currDate <= targetEndDate && safeguard < 100) {
+                if (currDate.getMonth() === currentMonthNum &&
+                    currDate.getFullYear() === currentYearNum) {
+                    const y = currDate.getFullYear();
+                    const m = String(currDate.getMonth() + 1).padStart(2, '0');
+                    const d = String(currDate.getDate()).padStart(2, '0');
+                    const targetDateKey = `${y}-${m}-${d}`;
+                    if (!lockedDateStrings.has(targetDateKey)) {
+                        validTargetDates.push(targetDateKey);
+                    }
+                }
+                currDate.setDate(currDate.getDate() + 1);
+                safeguard++;
+            }
         }
         if (validTargetDates.length === 0) {
             skipOutMonth++;

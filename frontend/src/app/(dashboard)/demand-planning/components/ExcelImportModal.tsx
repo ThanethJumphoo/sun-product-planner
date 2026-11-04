@@ -770,15 +770,15 @@ export function ExcelImportModal({
             <button
               type="button"
               onClick={onClose}
-              disabled={isSubmitting}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors"
+              disabled={isSubmitting || isParsing}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ยกเลิก
             </button>
             <button
               type="button"
               onClick={handleConfirmImport}
-              disabled={isSubmitting || parsedOrders.length === 0}
+              disabled={isSubmitting || isParsing || isLoadingItems || parsedOrders.length === 0}
               className="flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors"
             >
               {isSubmitting ? (

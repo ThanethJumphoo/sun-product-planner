@@ -37,9 +37,11 @@ export class DemandPlanningController {
   @Post(':partName/sales-orders')
   async saveDemandPlans(
     @Param('partName') partName: string,
-    @Body() payload: { soNumber: string; lineNumber: string; itemCode: string; shipDate: string; priority: number; planQty: number | null }[]
+    @Body() payload: { soNumber: string; lineNumber: string; itemCode: string; shipDate: string; priority: number; planQty: number | null }[],
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ) {
-    return this.service.saveDemandPlans(partName, payload);
+    return this.service.saveDemandPlans(partName, payload, { startDate, endDate });
   }
 
   @Delete(':partName/sales-orders')

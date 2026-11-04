@@ -109,7 +109,7 @@ export const DpsSupplyModal: React.FC<DpsSupplyModalProps> = ({
           {onClear ? (
             <button 
               onClick={onClear}
-              disabled={isSaving}
+              disabled={isSaving || isFetchingSupplies}
               className="px-4 py-2 bg-white text-red-600 border border-red-200 font-medium rounded-lg hover:bg-red-50 shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-red-200"
             >
               {isSaving ? (
@@ -125,13 +125,13 @@ export const DpsSupplyModal: React.FC<DpsSupplyModalProps> = ({
             <button 
               onClick={onClose}
               disabled={isSaving}
-              className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 disabled:opacity-50"
+              className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Close
             </button>
             <button 
               onClick={handleConfirm}
-              disabled={isSaving || selectedCount === 0}
+              disabled={isSaving || isFetchingSupplies || selectedCount === 0}
               className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isSaving ? (

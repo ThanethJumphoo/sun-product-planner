@@ -611,8 +611,8 @@ export function DailyActualTracking({
             {formData?.summary.isAllRecorded && (
               <button
                 onClick={handleDeleteRecord}
-                disabled={isSaving}
-                className="px-2.5 py-1.5 border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-xs font-medium rounded-lg shadow-2xs transition-all flex items-center gap-1.5 disabled:opacity-50"
+                disabled={isSaving || isLoading}
+                className="px-2.5 py-1.5 border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-xs font-medium rounded-lg shadow-2xs transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="ลบข้อมูลบันทึกของวันนี้"
               >
                 <Trash2 size={13} />
@@ -623,8 +623,8 @@ export function DailyActualTracking({
             {/* Save Button */}
             <button
               onClick={handleSave}
-              disabled={isSaving}
-              className={`px-4 py-1.5 text-xs font-semibold rounded-lg shadow-2xs transition-all flex items-center gap-1.5 ${
+              disabled={isSaving || isLoading || !formData}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-lg shadow-2xs transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
                 hasUnsavedChanges
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse'
                   : 'bg-primary hover:bg-primary/90 text-white'

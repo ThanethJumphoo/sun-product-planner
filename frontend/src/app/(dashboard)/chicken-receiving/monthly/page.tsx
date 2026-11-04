@@ -18,6 +18,7 @@ export default function MonthlyChickenReceivingPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   
   // Form State
   const [receiveDate, setReceiveDate] = useState('');
@@ -112,6 +113,7 @@ export default function MonthlyChickenReceivingPage() {
       totalWeight: parseFloat(totalWeight),
     };
 
+    setIsSaving(true);
     try {
       if (isEditing) {
         await api.put(`/chicken-receiving/monthly/${currentId}`, payload);
@@ -124,6 +126,8 @@ export default function MonthlyChickenReceivingPage() {
       fetchRecords(currentMonth);
     } catch (error) {
       toast.error(isEditing ? 'Failed to update record' : 'Failed to add record');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -387,6 +391,7 @@ export default function MonthlyChickenReceivingPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         isEditing={isEditing}
+        isSaving={isSaving}
         receiveDate={receiveDate}
         setReceiveDate={setReceiveDate}
         numberOfChickens={numberOfChickens}

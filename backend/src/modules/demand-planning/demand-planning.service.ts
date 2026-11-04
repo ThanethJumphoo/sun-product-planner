@@ -79,20 +79,25 @@ export class DemandPlanningService {
       s.setHours(0, 0, 0, 0);
       const e = new Date(endDate);
       e.setHours(23, 59, 59, 999);
+
+      // Backlog lookback (35 days prior) to catch unfulfilled carry-over orders
+      const backlogStart = new Date(s);
+      backlogStart.setDate(backlogStart.getDate() - 35);
+
       soLineWhere.scheduleShipDate = {
-        gte: s,
+        gte: backlogStart,
         lte: e,
       };
 
-      // Scope saved demand plans to the active ship date window
+      // Scope saved demand plans to the active window
       demandPlanWhere.shipDate = {
-        gte: s,
+        gte: backlogStart,
         lte: e,
       };
 
-      // Scope production transactions to the active window (with 14-day lead-time lookback)
-      const lookbackStart = new Date(s);
-      lookbackStart.setDate(lookbackStart.getDate() - 14);
+      // Scope production transactions to the active window (with lookback)
+      const lookbackStart = new Date(backlogStart);
+      lookbackStart.setDate(lookbackStart.getDate() - 7);
       const lookforwardEnd = new Date(e);
       lookforwardEnd.setDate(lookforwardEnd.getDate() + 7);
       mpsTxWhere.planDate = {
@@ -367,6 +372,7 @@ export class DemandPlanningService {
           isSelected: !!saved,
           isManual,
           orderType,
+          isBacklog: false,
           customerName:
             line.header.erpCustomerName ||
             (orderType === 'EXCEL'
@@ -377,12 +383,44 @@ export class DemandPlanningService {
         };
       });
 
-      // Step C: Sort by final priority and re-index sequentially to eliminate gaps
-      mappedGroup.sort((a, b) => a.priority - b.priority);
-      mappedGroup.forEach((item, index) => {
+      // Step C: Filter out past-month completed orders and handle Backlog
+      let filteredGroup = mappedGroup;
+      if (startDate && endDate) {
+        const sTime = new Date(startDate).setHours(0, 0, 0, 0);
+        filteredGroup = mappedGroup
+          .filter((item) => {
+            const itemShipTime = item.shipDate
+              ? new Date(item.shipDate).setHours(0, 0, 0, 0)
+              : 0;
+            if (itemShipTime < sTime) {
+              // Prior month: only include if unfulfilled (backlog)
+              return item.status !== 'COMPLETED' && (item.remainingQty ?? 0) > 0;
+            }
+            return true;
+          })
+          .map((item) => {
+            const itemShipTime = item.shipDate
+              ? new Date(item.shipDate).setHours(0, 0, 0, 0)
+              : 0;
+            return {
+              ...item,
+              isBacklog: itemShipTime < sTime,
+            };
+          });
+      }
+
+      // Step D: Sort by backlog priority, then final priority, and re-index sequentially
+      filteredGroup.sort((a, b) => {
+        const isBacklogA = a.isBacklog ? 1 : 0;
+        const isBacklogB = b.isBacklog ? 1 : 0;
+        if (isBacklogA !== isBacklogB) return isBacklogB - isBacklogA; // Backlog first
+        return a.priority - b.priority;
+      });
+
+      filteredGroup.forEach((item, index) => {
         item.priority = index + 1;
       });
-      return mappedGroup;
+      return filteredGroup;
     };
 
     // 5. Return separated arrays
@@ -843,6 +881,7 @@ export class DemandPlanningService {
       priority?: number;
       planQty?: any;
     }[],
+    options?: { startDate?: string; endDate?: string },
   ) {
     if (!Array.isArray(payload)) {
       throw new BadRequestException(
@@ -880,7 +919,8 @@ export class DemandPlanningService {
             item: string,
             date: Date,
           ) => {
-            return `${so}_${line}_${item}_${date.toISOString()}`;
+            const dStr = format(date, 'yyyy-MM-dd');
+            return `${so}_${line}_${item}_${dStr}`;
           };
 
           // Clean and deduplicate payload
@@ -932,43 +972,52 @@ export class DemandPlanningService {
             });
           });
 
-          // 2. Batch delete lines that are not in the payload anymore
-          const toDelete = existing.filter((e) => {
-            const eKey = toKey(
-              e.soNumber,
-              e.lineNumber,
-              e.itemCode,
-              normalizeDate(e.shipDate),
-            );
-            return !seenKeys.has(eKey);
-          });
-
-          if (toDelete.length > 0) {
-            await tx.demandPlanLine.deleteMany({
-              where: { id: { in: toDelete.map((d) => d.id) } },
-            });
+          if (cleanedPayload.length === 0) {
+            return { success: true, count: 0 };
           }
 
-          // 3. Upsert lines sequentially to prevent SQL Server deadlocks (Error 1205)
-          for (const line of cleanedPayload) {
-            await tx.demandPlanLine.upsert({
-              where: {
-                partName_soNumber_lineNumber_itemCode_shipDate: {
-                  partName,
-                  soNumber: line.soNumber,
-                  lineNumber: line.lineNumber,
-                  itemCode: line.itemCode,
-                  shipDate: line.shipDate,
-                },
-              },
-              update: {
-                priority: line.priority,
-                planQty:
-                  line.planQty !== null
-                    ? new Prisma.Decimal(line.planQty)
-                    : null,
-              },
-              create: {
+          // 2. Replace existing lines with the new payload atomically
+          // Safely determine date range from both options and payload to prevent P2002 Unique Constraint collisions
+          const payloadDates = cleanedPayload.map((p) => p.shipDate.getTime());
+          const minPayloadDate = new Date(Math.min(...payloadDates));
+          minPayloadDate.setHours(0, 0, 0, 0);
+          const maxPayloadDate = new Date(Math.max(...payloadDates));
+          maxPayloadDate.setHours(23, 59, 59, 999);
+
+          let rangeStart = minPayloadDate;
+          let rangeEnd = maxPayloadDate;
+          if (options?.startDate) {
+            const optS = new Date(options.startDate);
+            optS.setHours(0, 0, 0, 0);
+            if (optS < rangeStart) rangeStart = optS;
+          }
+          if (options?.endDate) {
+            const optE = new Date(options.endDate);
+            optE.setHours(23, 59, 59, 999);
+            if (optE > rangeEnd) rangeEnd = optE;
+          }
+
+          const deleteWhere: any = {
+            partName,
+            shipDate: { gte: rangeStart, lte: rangeEnd },
+          };
+
+          const payloadItemCodes = [
+            ...new Set(cleanedPayload.map((p) => p.itemCode)),
+          ];
+          if (payloadItemCodes.length > 0) {
+            deleteWhere.itemCode = { in: payloadItemCodes };
+          }
+
+          await tx.demandPlanLine.deleteMany({
+            where: deleteWhere,
+          });
+
+          const chunkSize = 500;
+          for (let i = 0; i < cleanedPayload.length; i += chunkSize) {
+            const chunk = cleanedPayload.slice(i, i + chunkSize);
+            await tx.demandPlanLine.createMany({
+              data: chunk.map((line) => ({
                 partName,
                 soNumber: line.soNumber,
                 lineNumber: line.lineNumber,
@@ -979,14 +1028,14 @@ export class DemandPlanningService {
                   line.planQty !== null
                     ? new Prisma.Decimal(line.planQty)
                     : null,
-              },
+              })),
             });
           }
 
           return { success: true, count: cleanedPayload.length };
         },
         {
-          timeout: 30000, // 30s timeout for large batches on SQL Server
+          timeout: 60000, // 60s timeout for safety
           maxWait: 10000,
         },
       );

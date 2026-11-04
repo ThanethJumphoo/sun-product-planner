@@ -48,10 +48,14 @@ export function MpsDemandModal({
   handleClearDemand,
   isClearingDemand = false,
   onRefreshDemand,
-  hideCompletedDemand = false,
+  hideCompletedDemand = true,
   setHideCompletedDemand
 }: MpsDemandModalProps) {
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+
+  const selectedCount = React.useMemo(() => {
+    return demandData.filter(p => p.isSelected).length;
+  }, [demandData]);
 
   if (!isOpen) return null;
 
@@ -89,9 +93,10 @@ export function MpsDemandModal({
               ].map((tab) => (
                 <button
                   key={tab.id}
+                  disabled={isLoadingDemand || isCreatingDemand || isClearingDemand}
                   onClick={() => setActiveDemandTab(tab.id as any)}
                   className={`
-                    px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 border
+                    px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 border disabled:opacity-50 disabled:cursor-not-allowed
                     ${activeDemandTab === tab.id 
                       ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20' 
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'}
@@ -106,19 +111,21 @@ export function MpsDemandModal({
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-xs cursor-pointer select-none hover:bg-slate-50 transition-colors">
+              <label className={`flex items-center gap-1.5 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-xs select-none transition-colors ${isLoadingDemand || isCreatingDemand || isClearingDemand ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50'}`}>
                 <input
                   type="checkbox"
+                  disabled={isLoadingDemand || isCreatingDemand || isClearingDemand}
                   checked={hideCompletedDemand}
                   onChange={(e) => setHideCompletedDemand?.(e.target.checked)}
-                  className="rounded border-slate-300 text-primary focus:ring-primary w-3.5 h-3.5 cursor-pointer"
+                  className="rounded border-slate-300 text-primary focus:ring-primary w-3.5 h-3.5 cursor-pointer disabled:cursor-not-allowed"
                 />
                 <span>Hide Completed</span>
               </label>
 
               <button 
                 onClick={() => setIsManualModalOpen(true)}
-                className="px-3 py-1.5 text-sm bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+                disabled={isLoadingDemand || isCreatingDemand || isClearingDemand}
+                className="px-3 py-1.5 text-sm bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus size={16} />
                 Create Manual Order
@@ -140,7 +147,8 @@ export function MpsDemandModal({
                     nodesToSelect.forEach(node => node.setSelected(true));
                   }
                 }}
-                className="px-3 py-1.5 text-sm bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors font-medium hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                disabled={isLoadingDemand || isCreatingDemand || isClearingDemand || demandData.length === 0}
+                className="px-3 py-1.5 text-sm bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors font-medium hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Calendar size={16} className="text-primary" />
                 Ship This Month
@@ -189,7 +197,7 @@ export function MpsDemandModal({
           {handleClearDemand ? (
             <button 
               onClick={handleClearDemand}
-              disabled={isClearingDemand || isCreatingDemand}
+              disabled={isLoadingDemand || isClearingDemand || isCreatingDemand}
               className="px-4 py-2 bg-white text-red-600 border border-red-200 font-medium rounded-lg hover:bg-red-50 shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-red-200"
             >
               {isClearingDemand ? (
@@ -205,13 +213,13 @@ export function MpsDemandModal({
             <button 
               onClick={onClose}
               disabled={isClearingDemand || isCreatingDemand}
-              className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 disabled:opacity-50"
+              className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Close
             </button>
             <button 
               onClick={handleCreateDemand}
-              disabled={isCreatingDemand || isClearingDemand || demandData.length === 0}
+              disabled={isLoadingDemand || isCreatingDemand || isClearingDemand || selectedCount === 0}
               className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isCreatingDemand ? (
@@ -219,7 +227,7 @@ export function MpsDemandModal({
               ) : (
                 <ShoppingCart size={18} />
               )}
-              Create Demand
+              <span>Create Demand {selectedCount > 0 ? `(${selectedCount})` : ''}</span>
             </button>
           </div>
         </div>

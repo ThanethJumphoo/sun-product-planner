@@ -82,7 +82,7 @@ export function MpsSupplyModal({
           {handleClearSupply ? (
             <button 
               onClick={handleClearSupply}
-              disabled={isClearingSupply || isCalculating}
+              disabled={isLoadingSupply || isClearingSupply || isCalculating}
               className="px-4 py-2 bg-white text-red-600 border border-red-200 font-medium rounded-lg hover:bg-red-50 shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-red-200"
             >
               {isClearingSupply ? (
@@ -98,13 +98,13 @@ export function MpsSupplyModal({
             <button 
               onClick={onClose}
               disabled={isClearingSupply || isCalculating}
-              className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 disabled:opacity-50"
+              className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Close
             </button>
             <button 
               onClick={handleCreateSupply}
-              disabled={isCalculating || isClearingSupply || supplyData.length === 0}
+              disabled={isLoadingSupply || isCalculating || isClearingSupply || supplyData.length === 0}
               className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isCalculating ? (
@@ -112,7 +112,7 @@ export function MpsSupplyModal({
               ) : (
                 <Package size={18} />
               )}
-              Create Supply
+              <span>Create Supply</span>
             </button>
           </div>
         </div>

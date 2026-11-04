@@ -742,7 +742,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
 
   const [demandData, setDemandData] = useState<any[]>([]);
   const [activeDemandTab, setActiveDemandTab] = useState<'product' | 'coproduct' | 'byproduct'>('product');
-  const [hideCompletedDemand, setHideCompletedDemand] = useState(false);
+  const [hideCompletedDemand, setHideCompletedDemand] = useState(true);
   const demandGridRef = useRef<AgGridReact>(null);
 
   const isExternalFilterPresent = useCallback(() => true, []);
@@ -1089,7 +1089,9 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
     setIsDemandModalOpen(true);
     setIsLoadingDemand(true);
     try {
-      const res = await api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders`);
+      const s = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
+      const e = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+      const res = await api.get(`/api/v1/demand-planning/${encodeURIComponent(partName)}/sales-orders?startDate=${s}&endDate=${e}`);
       const { product = [], coproduct = [], byproduct = [] } = res.data || {};
       const all = [
         ...product.map((p: any, idx: number) => ({
@@ -2033,6 +2035,7 @@ export default function MpsPage({ params }: { params: Promise<{ part: string }> 
         fetchCalendarData={fetchCalendarData}
         fetchPlannedDemands={fetchPlannedDemands}
         setIsGenerating={setIsGenerating}
+        isGenerating={isGenerating}
         lockedDatesCount={lockedDateStrings.size}
         lockedPlansCount={monthlyPlans.filter((p: any) => p.isLocked).length}
       />

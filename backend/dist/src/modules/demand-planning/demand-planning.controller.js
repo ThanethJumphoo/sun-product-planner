@@ -30,8 +30,8 @@ let DemandPlanningController = class DemandPlanningController {
     async getSalesOrdersForPart(partName, startDate, endDate, onlySelected, includeClosed) {
         return this.service.getSalesOrdersForPart(partName, startDate, endDate, onlySelected === 'true', includeClosed === 'true');
     }
-    async saveDemandPlans(partName, payload) {
-        return this.service.saveDemandPlans(partName, payload);
+    async saveDemandPlans(partName, payload, startDate, endDate) {
+        return this.service.saveDemandPlans(partName, payload, { startDate, endDate });
     }
     async clearDemandPlans(partName) {
         return this.service.clearDemandPlans(partName);
@@ -84,8 +84,10 @@ __decorate([
     (0, common_1.Post)(':partName/sales-orders'),
     __param(0, (0, common_1.Param)('partName')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Array]),
+    __metadata("design:paramtypes", [String, Array, String, String]),
     __metadata("design:returntype", Promise)
 ], DemandPlanningController.prototype, "saveDemandPlans", null);
 __decorate([

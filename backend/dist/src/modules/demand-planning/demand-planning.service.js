@@ -69,16 +69,18 @@ let DemandPlanningService = class DemandPlanningService {
             s.setHours(0, 0, 0, 0);
             const e = new Date(endDate);
             e.setHours(23, 59, 59, 999);
+            const backlogStart = new Date(s);
+            backlogStart.setDate(backlogStart.getDate() - 35);
             soLineWhere.scheduleShipDate = {
-                gte: s,
+                gte: backlogStart,
                 lte: e,
             };
             demandPlanWhere.shipDate = {
-                gte: s,
+                gte: backlogStart,
                 lte: e,
             };
-            const lookbackStart = new Date(s);
-            lookbackStart.setDate(lookbackStart.getDate() - 14);
+            const lookbackStart = new Date(backlogStart);
+            lookbackStart.setDate(lookbackStart.getDate() - 7);
             const lookforwardEnd = new Date(e);
             lookforwardEnd.setDate(lookforwardEnd.getDate() + 7);
             mpsTxWhere.planDate = {
@@ -296,6 +298,7 @@ let DemandPlanningService = class DemandPlanningService {
                     isSelected: !!saved,
                     isManual,
                     orderType,
+                    isBacklog: false,
                     customerName: line.header.erpCustomerName ||
                         (orderType === 'EXCEL'
                             ? 'Excel Import'
@@ -304,11 +307,40 @@ let DemandPlanningService = class DemandPlanningService {
                                 : '-'),
                 };
             });
-            mappedGroup.sort((a, b) => a.priority - b.priority);
-            mappedGroup.forEach((item, index) => {
+            let filteredGroup = mappedGroup;
+            if (startDate && endDate) {
+                const sTime = new Date(startDate).setHours(0, 0, 0, 0);
+                filteredGroup = mappedGroup
+                    .filter((item) => {
+                    const itemShipTime = item.shipDate
+                        ? new Date(item.shipDate).setHours(0, 0, 0, 0)
+                        : 0;
+                    if (itemShipTime < sTime) {
+                        return item.status !== 'COMPLETED' && (item.remainingQty ?? 0) > 0;
+                    }
+                    return true;
+                })
+                    .map((item) => {
+                    const itemShipTime = item.shipDate
+                        ? new Date(item.shipDate).setHours(0, 0, 0, 0)
+                        : 0;
+                    return {
+                        ...item,
+                        isBacklog: itemShipTime < sTime,
+                    };
+                });
+            }
+            filteredGroup.sort((a, b) => {
+                const isBacklogA = a.isBacklog ? 1 : 0;
+                const isBacklogB = b.isBacklog ? 1 : 0;
+                if (isBacklogA !== isBacklogB)
+                    return isBacklogB - isBacklogA;
+                return a.priority - b.priority;
+            });
+            filteredGroup.forEach((item, index) => {
                 item.priority = index + 1;
             });
-            return mappedGroup;
+            return filteredGroup;
         };
         return {
             product: processGroup(groupedLines.product),
@@ -647,7 +679,7 @@ let DemandPlanningService = class DemandPlanningService {
             return { success: true, soNumber };
         });
     }
-    async saveDemandPlans(partName, payload) {
+    async saveDemandPlans(partName, payload, options) {
         if (!Array.isArray(payload)) {
             throw new common_1.BadRequestException('Payload must be an array of demand plan lines.');
         }
@@ -672,7 +704,8 @@ let DemandPlanningService = class DemandPlanningService {
                     return date;
                 };
                 const toKey = (so, line, item, date) => {
-                    return `${so}_${line}_${item}_${date.toISOString()}`;
+                    const dStr = (0, date_fns_1.format)(date, 'yyyy-MM-dd');
+                    return `${so}_${line}_${item}_${dStr}`;
                 };
                 const cleanedPayload = [];
                 const seenKeys = new Set();
@@ -706,33 +739,46 @@ let DemandPlanningService = class DemandPlanningService {
                         planQty: cleanPlanQty,
                     });
                 });
-                const toDelete = existing.filter((e) => {
-                    const eKey = toKey(e.soNumber, e.lineNumber, e.itemCode, normalizeDate(e.shipDate));
-                    return !seenKeys.has(eKey);
-                });
-                if (toDelete.length > 0) {
-                    await tx.demandPlanLine.deleteMany({
-                        where: { id: { in: toDelete.map((d) => d.id) } },
-                    });
+                if (cleanedPayload.length === 0) {
+                    return { success: true, count: 0 };
                 }
-                for (const line of cleanedPayload) {
-                    await tx.demandPlanLine.upsert({
-                        where: {
-                            partName_soNumber_lineNumber_itemCode_shipDate: {
-                                partName,
-                                soNumber: line.soNumber,
-                                lineNumber: line.lineNumber,
-                                itemCode: line.itemCode,
-                                shipDate: line.shipDate,
-                            },
-                        },
-                        update: {
-                            priority: line.priority,
-                            planQty: line.planQty !== null
-                                ? new client_1.Prisma.Decimal(line.planQty)
-                                : null,
-                        },
-                        create: {
+                const payloadDates = cleanedPayload.map((p) => p.shipDate.getTime());
+                const minPayloadDate = new Date(Math.min(...payloadDates));
+                minPayloadDate.setHours(0, 0, 0, 0);
+                const maxPayloadDate = new Date(Math.max(...payloadDates));
+                maxPayloadDate.setHours(23, 59, 59, 999);
+                let rangeStart = minPayloadDate;
+                let rangeEnd = maxPayloadDate;
+                if (options?.startDate) {
+                    const optS = new Date(options.startDate);
+                    optS.setHours(0, 0, 0, 0);
+                    if (optS < rangeStart)
+                        rangeStart = optS;
+                }
+                if (options?.endDate) {
+                    const optE = new Date(options.endDate);
+                    optE.setHours(23, 59, 59, 999);
+                    if (optE > rangeEnd)
+                        rangeEnd = optE;
+                }
+                const deleteWhere = {
+                    partName,
+                    shipDate: { gte: rangeStart, lte: rangeEnd },
+                };
+                const payloadItemCodes = [
+                    ...new Set(cleanedPayload.map((p) => p.itemCode)),
+                ];
+                if (payloadItemCodes.length > 0) {
+                    deleteWhere.itemCode = { in: payloadItemCodes };
+                }
+                await tx.demandPlanLine.deleteMany({
+                    where: deleteWhere,
+                });
+                const chunkSize = 500;
+                for (let i = 0; i < cleanedPayload.length; i += chunkSize) {
+                    const chunk = cleanedPayload.slice(i, i + chunkSize);
+                    await tx.demandPlanLine.createMany({
+                        data: chunk.map((line) => ({
                             partName,
                             soNumber: line.soNumber,
                             lineNumber: line.lineNumber,
@@ -742,12 +788,12 @@ let DemandPlanningService = class DemandPlanningService {
                             planQty: line.planQty !== null
                                 ? new client_1.Prisma.Decimal(line.planQty)
                                 : null,
-                        },
+                        })),
                     });
                 }
                 return { success: true, count: cleanedPayload.length };
             }, {
-                timeout: 30000,
+                timeout: 60000,
                 maxWait: 10000,
             });
         }

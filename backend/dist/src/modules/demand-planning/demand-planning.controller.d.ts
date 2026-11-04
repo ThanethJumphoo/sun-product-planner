@@ -44,6 +44,7 @@ export declare class DemandPlanningController {
             isSelected: boolean;
             isManual: boolean;
             orderType: any;
+            isBacklog: boolean;
             customerName: any;
         }[];
         coproduct: {
@@ -75,6 +76,7 @@ export declare class DemandPlanningController {
             isSelected: boolean;
             isManual: boolean;
             orderType: any;
+            isBacklog: boolean;
             customerName: any;
         }[];
         byproduct: {
@@ -106,6 +108,7 @@ export declare class DemandPlanningController {
             isSelected: boolean;
             isManual: boolean;
             orderType: any;
+            isBacklog: boolean;
             customerName: any;
         }[];
     }>;
@@ -116,7 +119,7 @@ export declare class DemandPlanningController {
         shipDate: string;
         priority: number;
         planQty: number | null;
-    }[]): Promise<{
+    }[], startDate?: string, endDate?: string): Promise<{
         success: boolean;
         count: number;
     }>;

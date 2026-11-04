@@ -32,6 +32,7 @@ export default function DailyChickenReceivingPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<Partial<DailyRecord>>({
@@ -183,7 +184,7 @@ export default function DailyChickenReceivingPage() {
     }
 
     const payload = { ...formData };
-
+    setIsSaving(true);
     try {
       if (isEditing) {
         await api.put(`/chicken-receiving/daily/${currentId}`, payload);
@@ -207,6 +208,8 @@ export default function DailyChickenReceivingPage() {
         toast.success('Record added (Local)');
       }
       setIsModalOpen(false);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -638,7 +641,8 @@ export default function DailyChickenReceivingPage() {
                   <button
                     type="button"
                     onClick={(e) => handleDelete(currentId, e as any)}
-                    className="px-4 py-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-medium transition-colors flex items-center justify-center"
+                    disabled={isSaving}
+                    className="px-4 py-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-medium transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Delete Record"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -647,16 +651,22 @@ export default function DailyChickenReceivingPage() {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+                  disabled={isSaving}
+                  className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-[2] bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm flex items-center justify-center gap-2"
+                  disabled={isSaving}
+                  className="flex-[2] bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Save className="w-4 h-4" />
-                  {isEditing ? 'Save Changes' : 'Create Record'}
+                  {isSaving ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  <span>{isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Record'}</span>
                 </button>
               </div>
             </form>

@@ -374,7 +374,7 @@ export default function SublotProductionAllocation({
             <button 
               onClick={handleSaveAllocations}
               disabled={isSaving}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 shadow-2xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
             >
               <Save size={14} />
               {isSaving ? 'Saving...' : 'Save Allocation'}
@@ -563,7 +563,8 @@ export default function SublotProductionAllocation({
               </button>
               <button 
                 onClick={handleAddSelectedOrders}
-                className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors text-sm"
+                disabled={displayedModalOrders.length === 0}
+                className="px-6 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 shadow-sm transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Add Selected
               </button>

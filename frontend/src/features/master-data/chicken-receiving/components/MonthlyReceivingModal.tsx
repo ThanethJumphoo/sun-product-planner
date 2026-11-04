@@ -14,6 +14,7 @@ interface MonthlyReceivingModalProps {
   isOpen: boolean;
   onClose: () => void;
   isEditing: boolean;
+  isSaving?: boolean;
   receiveDate: string;
   setReceiveDate: (date: string) => void;
   numberOfChickens: string;
@@ -29,6 +30,7 @@ export function MonthlyReceivingModal({
   isOpen,
   onClose,
   isEditing,
+  isSaving = false,
   receiveDate,
   setReceiveDate,
   numberOfChickens,
@@ -117,7 +119,8 @@ export function MonthlyReceivingModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+              disabled={isSaving}
+              className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
@@ -125,17 +128,23 @@ export function MonthlyReceivingModal({
               <button
                 type="button"
                 onClick={handleDelete}
-                className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                disabled={isSaving}
+                className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Delete
               </button>
             )}
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors flex items-center gap-2"
+              disabled={isSaving}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Save className="w-4 h-4" />
-              {isEditing ? 'Save Changes' : 'Add Record'}
+              {isSaving ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              <span>{isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Add Record'}</span>
             </button>
           </div>
         </form>
