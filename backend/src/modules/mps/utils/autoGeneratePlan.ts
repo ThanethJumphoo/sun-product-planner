@@ -165,7 +165,7 @@ export async function generateAutoPlanOnServer(
         partName,
         planDate: { gte: subDays(monthStart, 45), lt: monthStart },
       },
-      select: { soNumber: true, itemCode: true, plannedQty: true },
+      select: { soNumber: true, lineNumber: true, itemCode: true, plannedQty: true },
     }),
   ]);
 
@@ -822,20 +822,26 @@ export async function generateAutoPlanOnServer(
   // Map of past production transactions to check already fulfilled backlog
   const pastPlansMap = new Map<string, number>();
   pastTransactions.forEach((pt: any) => {
-    const key = `${pt.soNumber}_${pt.itemCode}`;
+    const lineNum = String(pt.lineNumber || '').trim();
+    const key = lineNum
+      ? `${pt.soNumber}_${lineNum}_${pt.itemCode}`
+      : `${pt.soNumber}_${pt.itemCode}`;
     pastPlansMap.set(
       key,
       (pastPlansMap.get(key) || 0) + Number(pt.plannedQty || 0),
     );
   });
 
-  // Pre-calculate locked plans per SO+Item to avoid O(N^2) bottleneck
+  // Pre-calculate locked plans per SO+Line+Item to avoid O(N^2) bottleneck
   const monthlyPlansMap = new Map<string, number>();
   // Track daily I-Cut hours used (capped at 37.0h = 2 machines × 2 shifts × 9.25h)
   const dailyICutHoursUsed: Record<string, number> = {};
 
   for (const p of lockedPlans) {
-    const key = `${p.soNumber}_${p.itemCode}`;
+    const lineNum = String(p.lineNumber || '').trim();
+    const key = lineNum
+      ? `${p.soNumber}_${lineNum}_${p.itemCode}`
+      : `${p.soNumber}_${p.itemCode}`;
     monthlyPlansMap.set(
       key,
       (monthlyPlansMap.get(key) || 0) + Number(p.plannedQty || 0),
@@ -852,7 +858,7 @@ export async function generateAutoPlanOnServer(
       dailyICutHoursUsed[dateStr] = (dailyICutHoursUsed[dateStr] || 0) + hrs;
     }
 
-    const keyForTracker = `${dateStr}_${p.soNumber}_${p.itemCode}`;
+    const keyForTracker = `${dateStr}_${p.soNumber}_${lineNum || '_'}_${p.itemCode}`;
     splitIndexTracker[keyForTracker] = Math.max(
       splitIndexTracker[keyForTracker] ?? -1,
       p.splitIndex ?? 0,
@@ -865,7 +871,10 @@ export async function generateAutoPlanOnServer(
     const spec = specs[demand.itemCode];
     if (!spec) continue;
 
-    const key = `${demand.soNumber}_${demand.itemCode}`;
+    const lineNum = String(demand.lineNumber || '').trim();
+    const key = lineNum
+      ? `${demand.soNumber}_${lineNum}_${demand.itemCode}`
+      : `${demand.soNumber}_${demand.itemCode}`;
     const pastPlanned = pastPlansMap.get(key) || 0;
     const alreadyPlanned = monthlyPlansMap.get(key) || 0;
     const newlyPlanned = newlyPlannedMap.get(key) || 0;
@@ -985,7 +994,7 @@ export async function generateAutoPlanOnServer(
         const planForToday = Math.min(remainingPlanQty, availableCoProduct);
         dailyPoolSupply[dateStr][chosenPoolId] -= planForToday;
 
-        const keyForTracker = `${dateStr}_${demand.soNumber}_${demand.itemCode}`;
+        const keyForTracker = `${dateStr}_${demand.soNumber}_${lineNum || '_'}_${demand.itemCode}`;
         const nextIndex =
           (splitIndexTracker[keyForTracker] !== undefined
             ? splitIndexTracker[keyForTracker]
@@ -1123,7 +1132,7 @@ export async function generateAutoPlanOnServer(
             (dailyICutHoursUsed[dateStr] || 0) + hrs;
         }
 
-        const keyForTracker = `${dateStr}_${demand.soNumber}_${demand.itemCode}`;
+        const keyForTracker = `${dateStr}_${demand.soNumber}_${lineNum || '_'}_${demand.itemCode}`;
         const nextIndex =
           (splitIndexTracker[keyForTracker] !== undefined
             ? splitIndexTracker[keyForTracker]
